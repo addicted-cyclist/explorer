@@ -2,6 +2,7 @@ class Route < ApplicationRecord
   belongs_to :user
 
   has_one_attached :gpx_file
+  has_many :calendar_entries, dependent: :destroy
 
   validates :title, presence: true, length: { maximum: 200 }
   validates :source, inclusion: { in: %w[upload google_drive], allow_nil: true }
