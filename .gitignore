@@ -48,3 +48,5 @@
 
 # Ignore cline rules
 /.clinerules
+
+/node_modules
