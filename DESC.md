@@ -76,6 +76,7 @@ Explorer is a Rails application for displaying and managing GPX routes. Users ca
 - Weekly view (7 days, Sunday-Saturday)
 - Drag-and-drop UI for allocating routes to days (owner only)
 - Public read-only access via `public_token` URL (no authentication required)
+- Every visible route can be downloaded as gpx and can be added to your calendar
 - Token auto-generated when `calendar_public` is toggled on, cleared when toggled off
 
 ### `dependent: :destroy`
