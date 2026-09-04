@@ -45,3 +45,6 @@
 
 # Ignore coverage.
 /coverage/
+
+# Ignore cline rules
+/.clinerules
