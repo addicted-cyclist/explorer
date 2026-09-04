@@ -5,6 +5,7 @@ class User < ApplicationRecord
          :recoverable, :rememberable, :validatable
 
   has_many :routes, dependent: :destroy
+  has_many :calendar_entries, dependent: :destroy
 
   validates :name, presence: true, length: { maximum: 100 }
 
