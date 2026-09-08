@@ -4,6 +4,4 @@
 
 import { application } from "./application";
 import DropdownController from "./dropdown_controller";
-import HelloController from "./hello_controller";
 application.register("dropdown", DropdownController);
-application.register("hello", HelloController);
