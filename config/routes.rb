@@ -1,5 +1,5 @@
 Rails.application.routes.draw do
-  devise_for :users
+  devise_for :users, controllers: { registrations: "users/registrations" }
 
   # Public read-only calendar via shareable token (no auth)
   get "c/:token", to: "public_calendar#show", as: :public_calendar
