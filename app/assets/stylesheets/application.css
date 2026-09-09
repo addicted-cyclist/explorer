@@ -1,15 +1,1082 @@
 /*
- * This is a manifest file that'll be compiled into application.css, which will include all the files
- * listed below.
+ * Explorer design system
  *
- * Any CSS (and SCSS, if configured) file within this directory, lib/assets/stylesheets, or any plugin's
- * vendor/assets/stylesheets directory can be referenced here using a relative path.
+ * Extracted from design-refs/stitch_explorer_v0.2/stitch_explorer/explorer_design_system/DESIGN.md
+ * (tokens: colors, typography, spacing, shapes) and the
+ * route_upload_library_explorer shell markup (header, buttons, cards, footer;
+ * v0.2 adds the account dropdown).
  *
- * You're free to add application-wide styles to this file and they'll appear at the bottom of the
- * compiled file so the styles you add here take precedence over styles defined in any other CSS
- * files in this directory. Styles in this file should be added after the last require_* statement.
- * It is generally better to create a new file per style scope.
+ * The Stitch reference is Tailwind-based; this project serves plain CSS via
+ * Sprockets, so tokens live in custom properties below and Tailwind utility
+ * patterns are expressed as small semantic classes (type scale, buttons, cards).
  *
  *= require_tree .
  *= require_self
  */
+
+/* ------------------------------------------------------------------ */
+/* Design tokens                                                        */
+/* ------------------------------------------------------------------ */
+
+:root {
+  /* Surfaces — layered neutral grounds (light palette only, per DESIGN.md) */
+  --color-surface: #f9f9f9; /* app background */
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f3f3f3;
+  --color-surface-container: #eeeeee; /* divider rules, tonal fills */
+  --color-surface-container-high: #e8e8e8;
+  --color-surface-container-highest: #e2e2e2;
+  --color-surface-card: #ffffff; /* raised structural cards */
+  --color-surface-canvas: #f4f4f5; /* recessed wells: inputs, telemetry */
+  --color-surface-variant: #e2e2e2;
+
+  /* Content */
+  --color-on-surface: #1a1c1c;
+  --color-text-primary: #09090b; /* headlines, primary labels */
+  --color-text-secondary: #71717a; /* supporting copy, metadata */
+  --color-text-tertiary: #a1a1aa; /* placeholders, micro labels */
+
+  /* Brand — solid carbon black CTAs (DESIGN.md §Components) */
+  --color-primary: #09090b;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #1c1b1d; /* primary hover fill */
+
+  /* Borders */
+  --color-border-subtle: #e4e4e7;
+  --color-border-strong: #d4d4d8;
+
+  /* Functional telemetry semantics */
+  --color-accent-route: #e11d48; /* danger zone, destructive, section tags */
+  --color-accent-route-soft: #ffdad6; /* destructive hover fill */
+  --color-track-split: #10b981; /* success / live / synced states */
+  --color-track-elevation: #38bdf8; /* elevation traces, map accents */
+  --color-error: #ba1a1a;
+  --color-on-error-container: #93000a;
+
+  /* Typography — Inter across all levels (DESIGN.md §Typography) */
+  --font-sans:
+    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+
+  /* Spacing rhythm */
+  --space-2xs: 0.25rem;
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
+  --space-3xl: 4rem;
+  --gutter-mobile: 1rem;
+  --gutter-desktop: 1.5rem;
+  --container-max: 80rem; /* 1280px, buffered by gutters */
+  --nav-height: 4rem;
+
+  /* Shapes — soft roundedness (DESIGN.md §Shapes) */
+  --radius-sm: 0.125rem;
+  --radius: 0.25rem; /* micro badges, insets */
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem; /* inputs, small controls */
+  --radius-xl: 0.75rem; /* structural cards */
+  --radius-full: 9999px; /* avatars, pips, toggles */
+
+  /* Elevation — diffuse shadows on tonal surfaces (DESIGN.md §Elevation) */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md:
+    0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg:
+    0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+  --shadow-xl:
+    0 20px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+
+  --focus-ring: 0 0 0 2px rgba(9, 9, 11, 0.2);
+}
+
+/* ------------------------------------------------------------------ */
+/* Base                                                                 */
+/* ------------------------------------------------------------------ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  font-family: var(--font-sans);
+  font-size: 0.875rem; /* body-md */
+  line-height: 1.25rem;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+figure {
+  margin: 0;
+}
+
+img,
+svg,
+video {
+  display: block;
+  max-width: 100%;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+  margin: 0;
+}
+
+input[type="submit"] {
+  cursor: pointer;
+  border: none;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* Material Symbols (icon font loaded in the layout head) */
+.material-symbols-outlined {
+  font-size: 1.25rem;
+  line-height: 1;
+  vertical-align: middle;
+  user-select: none;
+}
+
+.ms-16 {
+  font-size: 1rem;
+}
+.ms-18 {
+  font-size: 1.125rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* Type scale (DESIGN.md §Typography)                                   */
+/* ------------------------------------------------------------------ */
+
+.t-display-lg {
+  font-size: 2.5rem;
+  line-height: 3rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+.t-headline-lg {
+  font-size: 1.875rem;
+  line-height: 2.375rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.t-headline-md {
+  font-size: 1.375rem;
+  line-height: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+.t-headline-sm {
+  font-size: 1.125rem;
+  line-height: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.t-title-md {
+  font-size: 1rem;
+  line-height: 1.375rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.t-body-lg {
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 400;
+  letter-spacing: -0.005em;
+}
+.t-body-md {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 400;
+}
+.t-body-sm {
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+  font-weight: 400;
+}
+.t-label-md {
+  font-size: 0.8125rem;
+  line-height: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+.t-label-sm {
+  font-size: 0.6875rem;
+  line-height: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.t-code-sm {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+.t-uppercase {
+  text-transform: uppercase;
+}
+
+/* Content color helpers */
+.c-primary {
+  color: var(--color-text-primary);
+}
+.c-secondary {
+  color: var(--color-text-secondary);
+}
+.c-tertiary {
+  color: var(--color-text-tertiary);
+}
+.c-accent {
+  color: var(--color-accent-route);
+}
+.c-success {
+  color: var(--color-track-split);
+}
+
+/* ------------------------------------------------------------------ */
+/* Layout shell (route_upload_library_explorer header/main/footer)      */
+/* ------------------------------------------------------------------ */
+
+.container {
+  width: 100%;
+  max-width: var(--container-max);
+  margin-inline: auto;
+  padding-inline: var(--gutter-mobile);
+}
+
+@media (min-width: 1024px) {
+  .container {
+    padding-inline: var(--gutter-desktop);
+  }
+}
+
+/* Fixed frosted top bar */
+.app-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 50;
+  background: rgba(255, 255, 255, 0.9);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.app-header__inner {
+  height: var(--nav-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.app-header__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xl);
+  min-width: 0;
+}
+
+.brand-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.brand-logo {
+  height: 2.25rem;
+  width: 2.25rem;
+  flex-shrink: 0;
+}
+
+.brand-name {
+  color: var(--color-text-primary);
+  font-size: 1.125rem;
+  line-height: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Primary nav — underlined tabs on the header baseline */
+.app-nav {
+  display: none;
+  align-items: center;
+  gap: var(--space-lg);
+}
+
+@media (min-width: 768px) {
+  .app-nav {
+    display: flex;
+  }
+}
+
+.app-nav__link {
+  display: flex;
+  align-items: center;
+  height: var(--nav-height);
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.app-nav__link:hover {
+  color: var(--color-text-primary);
+}
+
+.app-nav__link--active {
+  color: var(--color-text-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+.app-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+/* Account chip — avatar pip + disclosure chevron (dropdown trigger) */
+.account-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.account-chip__avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.account-chip__chevron {
+  color: var(--color-text-secondary);
+  transition: color 0.15s ease;
+}
+
+.account-chip:hover .account-chip__chevron {
+  color: var(--color-text-primary);
+}
+
+/* Account dropdown menu (stitch_explorer_v0.2 shell update) */
+.account-wrap {
+  position: relative;
+}
+
+.account-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 50;
+  width: 14rem;
+  margin-top: var(--space-xs);
+  padding: var(--space-xs);
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+}
+
+.account-menu[hidden] {
+  display: none;
+}
+
+.account-menu__header {
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.account-menu__user {
+  color: var(--color-text-primary);
+  font-weight: 500;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.account-menu__items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  padding-top: var(--space-xs);
+}
+
+.account-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-primary);
+  font-weight: 400;
+  text-decoration: none;
+  transition: background-color 0.15s ease;
+}
+
+.account-menu__item:hover {
+  background: var(--color-surface-canvas);
+}
+
+.account-menu__item--danger {
+  color: var(--color-accent-route);
+  font-weight: 500;
+}
+
+.account-menu__icon {
+  color: var(--color-text-secondary);
+}
+
+.account-menu__item--danger .account-menu__icon {
+  color: var(--color-accent-route);
+}
+
+/* Round tonal icon buttons (theme toggle, sign out, card actions) */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-canvas);
+  color: var(--color-text-secondary);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.icon-btn:hover {
+  background: var(--color-surface-container);
+  color: var(--color-text-primary);
+}
+
+/* Main content sits below the fixed bar */
+.app-main {
+  flex: 1 0 auto;
+  padding-top: var(--nav-height);
+}
+
+.app-main__inner {
+  padding-block: var(--space-lg);
+}
+
+/* Footer */
+.app-footer {
+  background: var(--color-surface-card);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.app-footer__inner {
+  min-height: var(--nav-height);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding-block: var(--space-sm);
+}
+
+@media (min-width: 640px) {
+  .app-footer__inner {
+    flex-direction: row;
+  }
+}
+
+.app-footer__copy {
+  color: var(--color-text-tertiary);
+  font-size: 0.6875rem;
+  line-height: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.app-footer__nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+}
+
+.app-footer__link {
+  color: var(--color-text-secondary);
+  font-size: 0.6875rem;
+  line-height: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  transition: color 0.15s ease;
+}
+
+.app-footer__link:hover {
+  color: var(--color-text-primary);
+}
+
+/* ------------------------------------------------------------------ */
+/* Buttons (DESIGN.md §Components — Buttons)                            */
+/* ------------------------------------------------------------------ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  height: 2.5rem;
+  padding-inline: var(--space-md);
+  border-radius: var(--radius-lg);
+  font-size: 0.8125rem;
+  line-height: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+/* Primary: solid carbon black, white label */
+.btn--primary {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.btn--primary:hover {
+  background: var(--color-primary-container);
+}
+
+/* Secondary: raised card surface, darkens on hover */
+.btn--secondary {
+  background: var(--color-surface-card);
+  color: var(--color-text-primary);
+}
+
+.btn--secondary:hover {
+  background: var(--color-surface-canvas);
+}
+
+/* Ghost: transparent, quiet label */
+.btn--ghost {
+  background: transparent;
+  color: var(--color-text-secondary);
+  box-shadow: none;
+}
+
+.btn--ghost:hover {
+  background: var(--color-surface-canvas);
+  color: var(--color-text-primary);
+}
+
+/* Destructive: card surface with route-accent label, soft fill on hover */
+.btn--danger {
+  background: var(--color-surface-card);
+  color: var(--color-accent-route);
+}
+
+.btn--danger:hover {
+  background: var(--color-accent-route-soft);
+}
+
+/* Small variant (h-8 toolbar chips) */
+.btn--sm {
+  height: 2rem;
+  padding-inline: var(--space-sm);
+  font-size: 0.6875rem;
+  line-height: 0.875rem;
+}
+
+/* Full-width variant (auth submit buttons) */
+.btn--block {
+  width: 100%;
+}
+
+/* ------------------------------------------------------------------ */
+/* Primitives (cards, wells, badges, inputs)                            */
+/* ------------------------------------------------------------------ */
+
+/* Standard structural card */
+.card {
+  background: var(--color-surface-card);
+  border-radius: var(--radius-xl);
+  padding: var(--space-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.card--danger {
+  border-left: 4px solid var(--color-accent-route);
+}
+
+/* Recessed well for nested content and telemetry */
+.well {
+  background: var(--color-surface-canvas);
+  border-radius: var(--radius-lg);
+}
+
+/* Micro badges / status pills */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: 0.125rem var(--space-xs);
+  border-radius: var(--radius);
+  background: var(--color-surface-canvas);
+  color: var(--color-text-primary);
+  font-size: 0.6875rem;
+  line-height: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.badge--accent {
+  color: var(--color-accent-route);
+}
+
+.status-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: var(--radius-full);
+  background: var(--color-track-split);
+}
+
+.status-dot--accent {
+  background: var(--color-accent-route);
+}
+
+.divider {
+  border: 0;
+  border-top: 1px solid var(--color-surface-container);
+  margin: var(--space-md) 0;
+}
+
+/* Numeric section tags (01, 02 …) set in the route accent */
+.section-index {
+  color: var(--color-accent-route);
+  font-size: 0.6875rem;
+  line-height: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* Text inputs: recessed canvas surface, borderless, ring focus */
+.input {
+  width: 100%;
+  height: 2.5rem;
+  padding-inline: var(--space-sm);
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-canvas);
+  color: var(--color-text-primary);
+  transition: box-shadow 0.15s ease;
+}
+
+.input::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+.input:focus,
+.input:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.field-label {
+  display: block;
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  margin-bottom: var(--space-xs);
+}
+
+/* ------------------------------------------------------------------ */
+/* Flash messages (status pills)                                        */
+/* ------------------------------------------------------------------ */
+
+.flash {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-lg);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.flash--notice {
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-text-primary);
+}
+
+.flash--notice::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--radius-full);
+  background: var(--color-track-split);
+  flex-shrink: 0;
+}
+
+.flash--alert {
+  background: var(--color-accent-route-soft);
+  color: var(--color-on-error-container);
+}
+
+/* ------------------------------------------------------------------ */
+/* Landing page (pages/landing — landing_explorer ref)                  */
+/* ------------------------------------------------------------------ */
+
+/* Large hero CTA (ref: px-7 py-3.5 rounded-xl text-sm) */
+.btn--lg {
+  height: 3.25rem;
+  padding-inline: 1.75rem;
+  border-radius: var(--radius-xl);
+  font-size: 0.875rem;
+  line-height: 1.125rem;
+}
+
+/* Centered hero column (ref max-w-3xl) inside the app shell main */
+.landing {
+  max-width: 48rem;
+  margin-inline: auto;
+  padding-block: var(--space-2xl);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+@media (min-width: 768px) {
+  .landing {
+    padding-block: 6rem;
+  }
+}
+
+/* Pill variant of the micro badge (hero eyebrow) */
+.badge--pill {
+  padding: var(--space-2xs) var(--space-sm);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-card);
+  box-shadow: var(--shadow-sm);
+  font-size: 0.75rem;
+  line-height: 1.125rem;
+  margin-bottom: var(--space-xl);
+}
+
+/* Ref hero is text-4xl→6xl bold; Inter is loaded at 400–600, so weight 600
+   with tightened tracking stands in for the synthetic bold */
+.landing__title {
+  color: var(--color-text-primary);
+  font-size: 2.25rem;
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  margin-bottom: var(--space-lg);
+}
+
+@media (min-width: 640px) {
+  .landing__title {
+    font-size: 3rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .landing__title {
+    font-size: 3.75rem;
+  }
+}
+
+.landing__lede {
+  max-width: 36rem;
+  color: var(--color-text-secondary);
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  margin: 0 auto var(--space-xl);
+}
+
+@media (min-width: 768px) {
+  .landing__lede {
+    font-size: 1.25rem;
+  }
+}
+
+.landing__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-md);
+  width: 100%;
+  max-width: 21rem;
+  margin-inline: auto;
+}
+
+.landing__actions .btn {
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .landing__actions {
+    flex-direction: row;
+    justify-content: center;
+    width: auto;
+    max-width: none;
+  }
+
+  .landing__actions .btn {
+    width: auto;
+  }
+}
+
+/* Quiet arrow inside the carbon CTA (ref: text-neutral-400) */
+.landing__cta-arrow {
+  color: var(--color-text-tertiary);
+}
+
+.landing__features {
+  width: 100%;
+  margin-top: var(--space-3xl);
+  padding-top: var(--space-2xl);
+  border-top: 1px solid var(--color-border-subtle);
+  display: grid;
+  gap: var(--space-lg);
+  text-align: left;
+}
+
+@media (min-width: 640px) {
+  .landing__features {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.feature-card {
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xl);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.feature-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-canvas);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-sm);
+}
+
+.feature-card__title {
+  color: var(--color-text-primary);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-bottom: var(--space-2xs);
+}
+
+.feature-card__text {
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.125rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* Auth pages (devise/sessions + devise/registrations — sign_in /       */
+/* sign_up_explorer refs)                                               */
+/* ------------------------------------------------------------------ */
+
+/* Centered column for the auth card; 500px = sign-up ref width */
+.auth {
+  width: 100%;
+  max-width: 31.25rem;
+  margin-inline: auto;
+  padding-block: var(--space-xl);
+}
+
+.auth-card {
+  background: var(--color-surface-card);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.auth-card__body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-xl) var(--space-xl) var(--space-lg);
+}
+
+.auth-card__logo {
+  width: 5rem;
+  height: 5rem;
+  margin-bottom: var(--space-md);
+}
+
+.auth-card__title {
+  margin: 0 0 var(--space-sm);
+  color: var(--color-text-primary);
+  font-size: 1.375rem; /* 22px per auth refs */
+  line-height: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+
+.auth-card__lede {
+  margin: 0 0 var(--space-lg);
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  text-align: center;
+}
+
+.auth-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.auth-field__aside {
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1rem;
+  font-weight: 500;
+  transition: color 0.15s ease;
+}
+
+.auth-field__aside:hover {
+  color: var(--color-text-primary);
+}
+
+.auth-field__hint {
+  margin: var(--space-2xs) 0 0;
+  color: var(--color-text-tertiary);
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+/* First/Last name pair */
+.auth-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+
+@media (max-width: 420px) {
+  .auth-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Card footer strip with the cross-link between sign-in and sign-up */
+.auth-card__footer {
+  padding: var(--space-sm) var(--space-xl);
+  background: var(--color-surface-container-low);
+  border-top: 1px solid var(--color-border-subtle);
+  text-align: center;
+}
+
+.auth-card__footer-text {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+.auth-card__footer-link {
+  margin-left: var(--space-2xs);
+  color: var(--color-text-primary);
+  font-weight: 600;
+  transition: color 0.15s ease;
+}
+
+.auth-card__footer-link:hover {
+  color: var(--color-primary-container);
+}
+
+/* Inline validation summary above the form fields */
+.form-errors {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-lg);
+  background: var(--color-accent-route-soft);
+  color: var(--color-on-error-container);
+}
+
+.form-errors__title {
+  margin: 0 0 var(--space-2xs);
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+  font-weight: 600;
+}
+
+.form-errors__list {
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+}

@@ -37,6 +37,10 @@ Rails.application.configure do
   # Don't care if the mailer can't send.
   config.action_mailer.raise_delivery_errors = false
 
+  # Write outgoing mail to tmp/mails so password-reset links are inspectable
+  # in development without an SMTP server.
+  config.action_mailer.delivery_method = :file
+
   # Disable caching for Action Mailer templates even if Action Controller
   # caching is enabled.
   config.action_mailer.perform_caching = false

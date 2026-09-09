@@ -1,0 +1,66 @@
+<%# Landing page — signed-out root (root "pages#landing", as: :unauthenticated_root).
+    Source: design-refs/stitch_explorer_v0.2/stitch_explorer/landing_explorer
+    (screen.png / code.html). The page shell — frosted header with sign-in /
+    sign-up, footer, main column — is provided by layouts/application, so only
+    the hero and feature cards render here. %>
+<% content_for :title, "Explorer — A minimalist platform to share GPX routes" %>
+
+<section class="landing" aria-labelledby="landing-title">
+  <div class="landing__hero">
+    <p class="badge badge--pill">
+      <span class="status-dot" aria-hidden="true"></span>
+      Inspired by passionate cyclists
+    </p>
+
+    <h1 class="landing__title" id="landing-title">
+      Track, organize, and inspect your outdoor routes.
+    </h1>
+
+    <p class="landing__lede">
+      A minimalist platform to upload GPX trails, analyse elevation profiles,
+      schedule weekly rides, and share adventures with friends.
+    </p>
+
+    <div class="landing__actions">
+      <%= link_to new_user_registration_path, class: "btn btn--primary btn--lg" do %>
+        <span>Create account</span>
+        <span class="material-symbols-outlined ms-16 landing__cta-arrow" aria-hidden="true">arrow_forward</span>
+      <% end %>
+      <%= link_to "Sign in", new_user_session_path, class: "btn btn--secondary btn--lg" %>
+    </div>
+  </div>
+
+  <div class="landing__features">
+    <article class="feature-card">
+      <div class="feature-card__icon" aria-hidden="true">
+        <span class="material-symbols-outlined ms-16">map</span>
+      </div>
+      <h2 class="feature-card__title">GPX Studio Sync</h2>
+      <p class="feature-card__text">
+        Direct upload, Google Drive sync &amp; interactive 3D elevation profile
+        analysis.
+      </p>
+    </article>
+
+    <article class="feature-card">
+      <div class="feature-card__icon" aria-hidden="true">
+        <span class="material-symbols-outlined ms-16">calendar_month</span>
+      </div>
+      <h2 class="feature-card__title">Weekly Calendar</h2>
+      <p class="feature-card__text">
+        Allocate planned routes across days and monitor completed tracks.
+      </p>
+    </article>
+
+    <article class="feature-card">
+      <div class="feature-card__icon" aria-hidden="true">
+        <span class="material-symbols-outlined ms-16">group</span>
+      </div>
+      <h2 class="feature-card__title">Friends &amp; Sharing</h2>
+      <p class="feature-card__text">
+        Inspect friends’ training schedules, save their routes, and download
+        GPX tracks.
+      </p>
+    </article>
+  </div>
+</section>

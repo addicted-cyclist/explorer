@@ -45,3 +45,13 @@
 
 # Ignore coverage.
 /coverage/
+
+# Ignore cline rules
+/.clinerules
+
+# Ignore node_modules
+/node_modules
+
+# Ignore technical notes
+technote.*
+/design-refs/
