@@ -59,8 +59,8 @@ export default class extends Controller {
         case "duration-desc":
           return this.numberFor(b, "duration") - this.numberFor(a, "duration");
         default:
-          // Newest first — the server renders the grid in this order
-          return this.numberFor(a, "created") - this.numberFor(b, "created");
+          // Newest first — created is stored as a millisecond timestamp
+          return this.numberFor(b, "created") - this.numberFor(a, "created");
       }
     });
 
