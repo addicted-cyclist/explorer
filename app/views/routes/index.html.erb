@@ -1,0 +1,158 @@
+<div class="library">
+  <%# ------------------------------------------------------- hero %>
+  <section class="library-hero">
+    <div>
+      <h1 class="t-display-lg">My routes</h1>
+      <p class="t-body-lg c-secondary library-hero__lede">
+        Keep your route collection organized, rated by difficulty and ready
+        to be planned onto your calendar.
+      </p>
+    </div>
+    <div class="library-hero__actions">
+      <button type="button" class="btn btn--secondary" disabled
+              title="Google Drive import arrives in a later phase.">
+        <span class="material-symbols-outlined ms-20">cloud_sync</span>
+        <span>Google&nbsp;Drive</span>
+      </button>
+      <button type="button" class="btn btn--primary" data-modal-open="upload">
+        <span class="material-symbols-outlined ms-20">upload_file</span>
+        <span>Upload GPX</span>
+      </button>
+    </div>
+  </section>
+
+  <%# ------------------------------------------------------ stats %>
+  <section class="stat-cards" aria-label="Route library statistics">
+    <% distance_ratio = @stats[:total_distance].positive? ? (@stats[:completed_distance] / @stats[:total_distance] * 100) : 0 %>
+    <article class="stat-card">
+      <header class="stat-card__head">
+        <h2 class="stat-card__label t-label-sm t-uppercase">Completed / Total distance</h2>
+        <span class="stat-card__icon stat-card__icon--distance"><span class="material-symbols-outlined ms-18">straighten</span></span>
+      </header>
+      <p class="stat-card__value">
+        <span class="t-headline-lg stat-card__primary"><%= format_distance(@stats[:completed_distance]) %></span>
+        <span class="t-code-sm stat-card__unit">km</span>
+        <span class="t-body-md stat-card__sep">/</span>
+        <span class="t-title-md stat-card__secondary"><%= format_distance(@stats[:total_distance]) %></span>
+        <span class="t-code-sm stat-card__unit">km</span>
+      </p>
+      <div class="stat-card__bar" role="presentation">
+        <div class="stat-card__fill stat-card__fill--distance" style="width: <%= distance_ratio.round(1) %>%"></div>
+      </div>
+    </article>
+
+    <% elevation_ratio = @stats[:total_elevation].positive? ? (@stats[:completed_elevation] / @stats[:total_elevation] * 100) : 0 %>
+    <article class="stat-card">
+      <header class="stat-card__head">
+        <h2 class="stat-card__label t-label-sm t-uppercase">Completed / Total elevation</h2>
+        <span class="stat-card__icon stat-card__icon--elevation"><span class="material-symbols-outlined ms-18">landscape</span></span>
+      </header>
+      <p class="stat-card__value">
+        <span class="t-headline-lg stat-card__primary"><%= format_elevation(@stats[:completed_elevation]) %></span>
+        <span class="t-code-sm stat-card__unit">m</span>
+        <span class="t-body-md stat-card__sep">/</span>
+        <span class="t-title-md stat-card__secondary"><%= format_elevation(@stats[:total_elevation]) %></span>
+        <span class="t-code-sm stat-card__unit">m</span>
+      </p>
+      <div class="stat-card__bar" role="presentation">
+        <div class="stat-card__fill stat-card__fill--elevation" style="width: <%= elevation_ratio.round(1) %>%"></div>
+      </div>
+    </article>
+
+
+    <% routes_ratio = @stats[:total_count].positive? ? (@stats[:completed_count] / @stats[:total_count].to_f * 100) : 0 %>
+    <article class="stat-card">
+      <header class="stat-card__head">
+        <h2 class="stat-card__label t-label-sm t-uppercase">Routes completed</h2>
+        <span class="stat-card__icon stat-card__icon--routes"><span class="material-symbols-outlined ms-18">check_circle</span></span>
+      </header>
+      <p class="stat-card__value">
+        <span class="t-headline-lg stat-card__primary"><%= @stats[:completed_count] %></span>
+        <span class="t-body-md stat-card__sep">/</span>
+        <span class="t-title-md stat-card__secondary"><%= @stats[:total_count] %></span>
+        <span class="t-code-sm stat-card__unit">routes</span>
+      </p>
+      <div class="stat-card__bar" role="presentation">
+        <div class="stat-card__fill stat-card__fill--routes" style="width: <%= routes_ratio.round(1) %>%"></div>
+      </div>
+    </article>
+
+    <% synced_ratio = @stats[:total_count].positive? ? (@stats[:synced_count] / @stats[:total_count].to_f * 100) : 0 %>
+    <article class="stat-card">
+      <header class="stat-card__head">
+        <h2 class="stat-card__label t-label-sm t-uppercase">Google Drive synced</h2>
+        <span class="stat-card__icon stat-card__icon--synced"><span class="material-symbols-outlined ms-18">cloud_sync</span></span>
+      </header>
+      <p class="stat-card__value">
+        <span class="t-headline-lg stat-card__primary"><%= @stats[:synced_count] %></span>
+        <span class="t-body-md stat-card__sep">/</span>
+        <span class="t-title-md stat-card__secondary"><%= @stats[:total_count] %></span>
+        <span class="t-code-sm stat-card__unit">routes</span>
+      </p>
+      <div class="stat-card__bar" role="presentation">
+        <div class="stat-card__fill stat-card__fill--synced" style="width: <%= synced_ratio.round(1) %>%"></div>
+      </div>
+    </article>
+  </section>
+
+  <%# ----------------------------------------------------- filters %>
+  <section class="filter-bar" data-controller="library-filters">
+    <label class="filter-bar__search">
+      <span class="material-symbols-outlined ms-20 filter-bar__search-icon">search</span>
+      <span class="sr-only">Search routes</span>
+      <input type="search" class="filter-bar__input t-body-md" placeholder="Search routes by name…"
+             data-library-filters-target="search" data-action="input->library-filters#apply">
+    </label>
+
+    <div class="filter-bar__right">
+      <div class="filter-bar__chips" role="group" aria-label="Filter by difficulty">
+        <button type="button" class="filter-chip t-body-md is-active" data-tier="all"
+                data-library-filters-target="chip" data-action="library-filters#setTier">All</button>
+        <% Route::TIERS.each do |tier| %>
+          <button type="button" class="filter-chip t-body-md" data-tier="<%= tier %>"
+                  data-library-filters-target="chip" data-action="library-filters#setTier"><%= tier %></button>
+        <% end %>
+      </div>
+
+      <label class="filter-bar__sort">
+        <span class="material-symbols-outlined ms-20">sort</span>
+        <span class="sr-only">Sort routes</span>
+        <select class="t-body-md" data-library-filters-target="sort" data-action="change->library-filters#apply">
+          <option value="date-desc">Newest</option>
+          <option value="distance-desc">Longest distance</option>
+          <option value="elevation-desc">Highest elevation</option>
+          <option value="duration-desc">Longest duration</option>
+        </select>
+      </label>
+    </div>
+  </section>
+
+  <%# -------------------------------------------------------- grid %>
+  <section class="route-grid" data-library-filters-target="grid" aria-label="Route collection">
+    <% if @routes.any? %>
+      <%= render partial: "route_card", collection: @routes, as: :route %>
+    <% end %>
+  </section>
+
+  <div class="library-empty" data-library-filters-target="noRoutes" <%= "hidden" if @routes.any? %>>
+    <div class="library-empty__icon"><span class="material-symbols-outlined">map</span></div>
+    <h2 class="t-title-lg">No routes yet</h2>
+    <p class="t-body-md c-secondary">
+      Upload a GPX file to see distance, elevation and duration statistics,
+      rate its difficulty and start planning rides.
+    </p>
+    <button type="button" class="btn btn--primary" data-modal-open="upload">Upload your first GPX</button>
+  </div>
+
+  <div class="library-empty" data-library-filters-target="noResults" hidden>
+    <div class="library-empty__icon"><span class="material-symbols-outlined">search_off</span></div>
+    <h2 class="t-title-lg">No routes match your filters</h2>
+    <p class="t-body-md c-secondary">Try a different search term or difficulty.</p>
+  </div>
+
+  <%# ----------------------------------------------- upload modal %>
+  <%= render "upload_modal" %>
+
+  <%# Shared target for the "Edit details" dialog loaded per route %>
+  <%= turbo_frame_tag "modal" %>
+</div>
