@@ -107,4 +107,38 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
     assert_match "Local GPX", response.body
     assert_match "Google Drive", response.body
   end
+
+  test "download streams the attached gpx file as an attachment" do
+    post routes_path, params: {
+      route: { gpx_files: [gpx_fixture_upload("exploration.gpx")] },
+      commit: "Parse & Import"
+    }
+    route = Route.sole
+
+    get download_route_path(route)
+
+    assert_response :success
+    assert_match(/attachment; filename="exploration\.gpx"/, response.headers["Content-Disposition"])
+    assert_match(/<gpx/i, response.body)
+  end
+
+  test "download redirects with an alert when no gpx file is attached" do
+    route = @user.routes.create!(source: "upload", title: "Bare route")
+
+    get download_route_path(route)
+
+    assert_redirected_to routes_path
+    assert_equal "No GPX file is attached to \"Bare route\".", flash[:alert]
+  end
+
+  test "download 404s for another user's route" do
+    other_user = User.create!(valid_user_attributes(email: "other@example.com"))
+    route = other_user.routes.create!(source: "upload", title: "Not mine")
+
+    # show_exceptions is :rescuable in the test env, so the scoped find
+    # renders a 404 instead of raising ActiveRecord::RecordNotFound.
+    get download_route_path(route)
+
+    assert_response :not_found
+  end
 end

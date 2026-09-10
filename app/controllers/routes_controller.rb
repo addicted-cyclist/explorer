@@ -1,5 +1,5 @@
 class RoutesController < ApplicationController
-  before_action :set_route, only: %i[show edit update destroy toggle_completed]
+  before_action :set_route, only: %i[show edit update destroy toggle_completed download]
 
   def index
     @routes = current_user.routes.order(created_at: :desc)
@@ -66,6 +66,17 @@ class RoutesController < ApplicationController
   def toggle_completed
     @route.update!(completed: !@route.completed)
     redirect_to routes_path, notice: @route.completed ? "Marked \"#{@route.title}\" as completed." : "Marked \"#{@route.title}\" as not completed."
+  end
+
+  def download
+    unless @route.gpx_file.attached?
+      redirect_to routes_path, alert: "No GPX file is attached to \"#{@route.title}\"." and return
+    end
+
+    send_data @route.gpx_file.download,
+              filename: @route.gpx_file.filename.to_s,
+              type: @route.gpx_file.content_type || "application/gpx+xml",
+              disposition: "attachment"
   end
 
   private

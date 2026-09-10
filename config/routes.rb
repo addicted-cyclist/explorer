@@ -13,7 +13,10 @@ Rails.application.routes.draw do
   end
 
   resources :routes, except: %i[new] do
-    member { patch :toggle_completed }
+    member do
+      patch :toggle_completed
+      get :download
+    end
   end
 
   resource :calendar, only: %i[show] do
