@@ -2,16 +2,17 @@ class CalendarEntry < ApplicationRecord
   belongs_to :user
   belongs_to :route
 
-  # Day of week: 0 = Sunday, 1 = Monday, ... 6 = Saturday
-  validates :day_of_week, presence: true, inclusion: { in: 0..6 }
+  # Scheduled on a concrete calendar date; start/end are times of day on
+  # that date (the detail page's month grid + start-time picker).
+  validates :scheduled_on, presence: true
   validates :start_time, presence: true
   validates :end_time, presence: true
   validate :end_time_after_start_time
 
-  DAYS_OF_WEEK = %w[Sunday Monday Tuesday Wednesday Thursday Friday Saturday].freeze
+  scope :between, ->(range) { where(scheduled_on: range) }
 
   def day_name
-    DAYS_OF_WEEK[day_of_week] || "Unknown"
+    scheduled_on ? scheduled_on.strftime("%A") : "Unknown"
   end
 
   private
