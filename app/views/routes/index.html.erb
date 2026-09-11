@@ -59,7 +59,6 @@
       </div>
     </article>
 
-
     <% routes_ratio = @stats[:total_count].positive? ? (@stats[:completed_count] / @stats[:total_count].to_f * 100) : 0 %>
     <article class="stat-card">
       <header class="stat-card__head">
@@ -101,6 +100,7 @@
       <span class="material-symbols-outlined ms-20 filter-bar__search-icon">search</span>
       <span class="sr-only">Search routes</span>
       <input type="search" class="filter-bar__input t-body-md" placeholder="Search routes by name…"
+             autocomplete="off"
              data-library-filters-target="search" data-action="input->library-filters#apply">
     </label>
 
