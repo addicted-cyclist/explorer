@@ -11,7 +11,7 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
   test "create imports a gpx file without metadata and titles it from the filename" do
     assert_difference -> { Route.count }, +1 do
       post routes_path, params: {
-        route: { gpx_files: [gpx_fixture_upload("exploration.gpx")] },
+        route: { gpx_files: [ gpx_fixture_upload("exploration.gpx") ] },
         commit: "Parse & Import"
       }
     end
@@ -30,7 +30,7 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
 
   test "create sends an empty upload back with a flash alert" do
     assert_no_difference -> { Route.count } do
-      post routes_path, params: { route: { gpx_files: [""] }, commit: "Parse & Import" }
+      post routes_path, params: { route: { gpx_files: [ "" ] }, commit: "Parse & Import" }
     end
 
     assert_redirected_to routes_path
@@ -45,7 +45,7 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
   test "create fails gracefully when the filename-derived title is too long" do
     assert_no_difference -> { Route.count } do
       post routes_path, params: {
-        route: { gpx_files: [gpx_fixture_upload("#{"a" * 201}.gpx")] },
+        route: { gpx_files: [ gpx_fixture_upload("#{"a" * 201}.gpx") ] },
         commit: "Parse & Import"
       }
     end
@@ -60,7 +60,7 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
   test "create destroys a persisted route and purges its blob when parsing fails" do
     assert_no_difference -> { Route.count } do
       post routes_path, params: {
-        route: { gpx_files: [gpx_fixture_upload("broken.gpx", content: "<foo>not a gpx trace</foo>")] },
+        route: { gpx_files: [ gpx_fixture_upload("broken.gpx", content: "<foo>not a gpx trace</foo>") ] },
         commit: "Parse & Import"
       }
     end
@@ -110,7 +110,7 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
 
   test "download streams the attached gpx file as an attachment" do
     post routes_path, params: {
-      route: { gpx_files: [gpx_fixture_upload("exploration.gpx")] },
+      route: { gpx_files: [ gpx_fixture_upload("exploration.gpx") ] },
       commit: "Parse & Import"
     }
     route = Route.sole
