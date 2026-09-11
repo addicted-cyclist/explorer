@@ -11,6 +11,9 @@ class Route < ApplicationRecord
   validates :source, inclusion: { in: %w[upload google_drive], allow_nil: true }
   validates :tier, inclusion: { in: TIERS, allow_nil: true }
   validates :sport_type, length: { maximum: 40 }, allow_nil: true
+  # Moving time in seconds, parsed from the GPX and editable on the detail
+  # page (drives the derived moving pace — see #moving_pace).
+  validates :duration, numericality: { only_integer: true, greater_than_or_equal_to: 0, allow_nil: true }
 
   SOURCES = %w[upload google_drive].freeze
 
@@ -21,6 +24,15 @@ class Route < ApplicationRecord
 
   def upload?
     source == "upload"
+  end
+
+  # Average speed in km/h implied by distance and moving time. Derived on the
+  # fly — the detail page's linked Est. Duration / Moving Pace inputs both
+  # just rewrite +duration+. Nil when either input is missing or zero.
+  def moving_pace
+    return if distance.blank? || distance.zero? || duration.blank? || duration.zero?
+
+    distance / (duration / 3600.0)
   end
 
   # ---- Track thumbnail (route library) ----------------------------------
