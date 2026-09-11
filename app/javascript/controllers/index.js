@@ -15,3 +15,12 @@ application.register("modal", ModalController)
 
 import UploadDropzoneController from "./upload_dropzone_controller"
 application.register("upload-dropzone", UploadDropzoneController)
+
+import AutoSubmitController from "./auto_submit_controller"
+application.register("auto-submit", AutoSubmitController)
+
+import CalendarPickerController from "./calendar_picker_controller"
+application.register("calendar-picker", CalendarPickerController)
+
+import PaceDurationController from "./pace_duration_controller"
+application.register("pace-duration", PaceDurationController)
