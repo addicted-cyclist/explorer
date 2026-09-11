@@ -1,0 +1,77 @@
+<article class="route-card" id="<%= dom_id(route) %>"
+  data-tier="<%= route.tier %>"
+  data-search="<%= [route.title, route.sport_type, route.tier].compact.join(" ") %>"
+  data-distance="<%= route.distance.to_f %>"
+  data-elevation="<%= route.elevation_gain.to_f %>"
+  data-duration="<%= route.duration.to_i %>"
+  data-created="<%= route.created_at.to_i * 1000 %>">
+  <div class="route-card__thumb">
+    <% if route.track_svg.present? %>
+      <svg class="route-card__track" viewBox="<%= Route::TRACK_SVG_VIEWBOX %>"
+           preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
+        <path d="<%= route.track_svg %>"></path>
+      </svg>
+    <% else %>
+      <div class="route-card__thumb-fallback">
+        <span class="material-symbols-outlined">route</span>
+        <span class="t-code-sm">No track preview</span>
+      </div>
+    <% end %>
+    <div class="route-card__thumb-overlay route-card__thumb-overlay--source">
+      <span class="status-dot <%= "status-dot--accent" if route.google_drive? %>"></span>
+      <span class="t-body-sm"><%= route.google_drive? ? "Google Drive" : "Local GPX" %></span>
+    </div>
+    <div class="route-card__thumb-overlay route-card__thumb-overlay--ago">
+      <span class="t-body-sm">Uploaded <%= uploaded_ago(route) %> ago</span>
+    </div>
+  </div>
+
+  <div class="route-card__badges">
+    <span class="badge route-card__badge--tier t-body-sm"><%= route.tier.presence || "Unrated" %></span>
+    <span class="badge route-card__badge--sport t-body-sm"><%= sport_type_label(route) %></span>
+    <span class="badge route-card__badge--done t-body-sm" <%= "hidden" unless route.completed? %>>
+      <span class="material-symbols-outlined ms-16">check_circle</span>
+      Done
+    </span>
+  </div>
+
+  <h3 class="route-card__title t-headline-sm"><%= link_to route.title, route_path(route) %></h3>
+
+  <% if route.description.present? %>
+    <p class="route-card__desc t-body-sm clamp-2"><%= route.description %></p>
+  <% else %>
+    <p class="route-card__desc route-card__desc--empty t-body-sm">No description yet — add one via the card menu.</p>
+  <% end %>
+
+  <div class="route-card__metrics well">
+    <div class="route-card__metric">
+      <span class="t-code-sm t-uppercase">Dist</span>
+      <span class="route-card__metric-value t-title-md">
+        <%= format_distance(route.distance) %> <span class="t-body-sm c-secondary">km</span>
+      </span>
+    </div>
+    <div class="route-card__metric">
+      <span class="t-code-sm t-uppercase">Elev</span>
+      <span class="route-card__metric-value t-title-md">
+        <%= format_elevation(route.elevation_gain) %> <span class="t-body-sm c-secondary">m</span>
+      </span>
+    </div>
+    <div class="route-card__metric">
+      <span class="t-code-sm t-uppercase">Time</span>
+      <span class="route-card__metric-value route-card__metric-value--sm t-title-md"><%= format_duration(route.duration) %></span>
+    </div>
+  </div>
+
+  <footer class="route-card__footer">
+    <div class="route-card__footer-actions">
+      <%= link_to route_path(route), class: "btn btn--sm btn--secondary" do %>
+        <span class="material-symbols-outlined ms-18">map</span>
+        <span>View Map</span>
+      <% end %>
+      <button type="button" class="icon-btn" disabled title="Calendar planning arrives in a later phase.">
+        <span class="material-symbols-outlined">calendar_add_on</span>
+      </button>
+    </div>
+    <%= render "route_card_menu", route: route %>
+  </footer>
+</article>

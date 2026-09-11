@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="explorer-test-suite" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <trkseg>
+      <trkpt lat="47.3769" lon="8.5417">
+        <ele>100.0</ele>
+        <time>2026-09-09T08:00:00Z</time>
+      </trkpt>
+      <trkpt lat="47.3779" lon="8.5427">
+        <ele>150.0</ele>
+        <time>2026-09-09T08:15:00Z</time>
+      </trkpt>
+      <trkpt lat="47.3789" lon="8.5437">
+        <ele>120.0</ele>
+        <time>2026-09-09T08:30:00Z</time>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>

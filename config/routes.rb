@@ -12,7 +12,12 @@ Rails.application.routes.draw do
     root "pages#landing", as: :unauthenticated_root
   end
 
-  resources :routes
+  resources :routes, except: %i[new] do
+    member do
+      patch :toggle_completed
+      get :download
+    end
+  end
 
   resource :calendar, only: %i[show] do
     collection do

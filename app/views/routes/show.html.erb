@@ -1,0 +1,66 @@
+<%# Interim placeholder — replaced by the interactive map view in Phase 6 %>
+<div class="route-show">
+  <nav class="route-show__nav">
+    <%= link_to routes_path, class: "t-body-md" do %>
+      <span class="material-symbols-outlined ms-18">arrow_back</span>
+      <span>My routes</span>
+    <% end %>
+  </nav>
+
+  <div class="card route-show__card">
+    <header class="route-show__head">
+      <div>
+        <div class="route-card__badges">
+          <span class="badge route-card__badge--tier t-body-sm"><%= @route.tier.presence || "Unrated" %></span>
+          <span class="badge route-card__badge--sport t-body-sm"><%= sport_type_label(@route) %></span>
+          <% if @route.completed? %>
+            <span class="badge route-card__badge--done t-body-sm">
+              <span class="material-symbols-outlined ms-16">check_circle</span>
+              Done
+            </span>
+          <% end %>
+        </div>
+        <h1 class="t-headline-lg"><%= @route.title %></h1>
+        <% if @route.description.present? %>
+          <p class="t-body-md c-secondary"><%= @route.description %></p>
+        <% end %>
+      </div>
+      <% if @route.track_svg.present? %>
+        <svg class="route-show__track" viewBox="<%= Route::TRACK_SVG_VIEWBOX %>"
+             preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
+          <path d="<%= @route.track_svg %>"></path>
+        </svg>
+      <% end %>
+    </header>
+
+    <div class="route-card__metrics well">
+      <div class="route-card__metric">
+        <span class="t-code-sm t-uppercase">Dist</span>
+        <span class="route-card__metric-value t-title-md">
+          <%= format_distance(@route.distance) %> <span class="t-body-sm c-secondary">km</span>
+        </span>
+      </div>
+      <div class="route-card__metric">
+        <span class="t-code-sm t-uppercase">Elev gain</span>
+        <span class="route-card__metric-value t-title-md">
+          <%= format_elevation(@route.elevation_gain) %> <span class="t-body-sm c-secondary">m</span>
+        </span>
+      </div>
+      <div class="route-card__metric">
+        <span class="t-code-sm t-uppercase">Min / Max</span>
+        <span class="route-card__metric-value route-card__metric-value--sm t-title-md">
+          <%= @route.min_elevation.present? ? "#{@route.min_elevation.round} / #{@route.max_elevation.round} m" : "&mdash;".html_safe %>
+        </span>
+      </div>
+      <div class="route-card__metric">
+        <span class="t-code-sm t-uppercase">Time</span>
+        <span class="route-card__metric-value route-card__metric-value--sm t-title-md"><%= format_duration(@route.duration) %></span>
+      </div>
+    </div>
+
+    <p class="t-body-sm c-tertiary route-show__hint">
+      <span class="material-symbols-outlined ms-16">map</span>
+      The interactive map for this route arrives with the next release.
+    </p>
+  </div>
+</div>

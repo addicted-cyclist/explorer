@@ -1,0 +1,26 @@
+<%# Kebab menu: complete toggle, edit dialog (Turbo Frame), delete %>
+<div class="card-menu" data-controller="dropdown">
+  <button type="button" class="icon-btn" data-dropdown-target="trigger"
+          data-action="dropdown#toggle" aria-label="Route actions" aria-expanded="false">
+    <span class="material-symbols-outlined">more_vert</span>
+  </button>
+  <div class="card-menu__panel" data-dropdown-target="menu" hidden>
+    <%= link_to download_route_path(route), class: "menu-item t-body-md", data: { turbo: false } do %>
+      <span class="material-symbols-outlined">download</span>
+      <span>Download GPX</span>
+    <% end %>
+    <%= button_to toggle_completed_route_path(route), method: :patch, class: "menu-item t-body-md" do %>
+      <span class="material-symbols-outlined"><%= route.completed? ? "radio_button_unchecked" : "check_circle" %></span>
+      <span><%= route.completed? ? "Mark as not completed" : "Mark as completed" %></span>
+    <% end %>
+    <%= link_to edit_route_path(route), class: "menu-item t-body-md", data: { turbo_frame: "modal" } do %>
+      <span class="material-symbols-outlined">edit</span>
+      <span>Edit details</span>
+    <% end %>
+    <%= button_to route_path(route), method: :delete, class: "menu-item menu-item--danger t-body-md",
+                  form: { data: { turbo_confirm: "Delete \"#{route.title}\"? This cannot be undone." } } do %>
+      <span class="material-symbols-outlined">delete</span>
+      <span>Delete route</span>
+    <% end %>
+  </div>
+</div>

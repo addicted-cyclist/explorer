@@ -1,0 +1,2 @@
+<%= turbo_stream.replace dom_id(@route), partial: "route_card", locals: { route: @route } %>
+<%= turbo_stream.update "modal" %>
