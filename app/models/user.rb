@@ -6,6 +6,9 @@ class User < ApplicationRecord
 
   has_many :routes, dependent: :destroy
   has_many :calendar_entries, dependent: :destroy
+  has_many :friendships, dependent: :destroy
+  has_many :accepted_friendships, -> { accepted }, class_name: "Friendship", inverse_of: :user
+  has_many :friends, through: :accepted_friendships, source: :friend
 
   validates :first_name, :last_name, presence: true, length: { maximum: 50 }
   validates :username, presence: true,
@@ -49,6 +52,15 @@ class User < ApplicationRecord
   # Display name for the account menu: full name, falling back to username
   def name
     [ first_name, last_name ].join(" ").strip.presence || username
+  end
+
+  # True when an accepted friendship links this user and +other+ in either
+  # direction. Gates the read-only route detail view (Phase 6 other-user view).
+  def friends_with?(other)
+    return false if other.nil? || other == self
+
+    Friendship.accepted.exists?(user_id: id, friend_id: other.id) ||
+      Friendship.accepted.exists?(user_id: other.id, friend_id: id)
   end
 
   private

@@ -141,4 +141,214 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :not_found
   end
+
+  # ---- Phase 6: route detail page ------------------------------------------
+
+  test "show renders the editable owner view" do
+    route = create_route_with_gpx(@user)
+    route.update!(duration: 22_500) # parse_gpx! derives duration from the file
+
+    get route_path(route)
+
+    assert_response :success
+    assert_match route.title, response.body
+    assert_match "My Routes", response.body
+    assert_match "Download GPX", response.body
+    # Linked Est. Duration / Moving Pace inputs (pace-duration controller)
+    assert_match "pace-duration", response.body
+    assert_match 'value="6h 15m"', response.body
+    # Editable tier select + calendar chip, both absent from the friend view
+    assert_match 'name="route[tier]"', response.body
+    assert_match "Add to calendar", response.body
+    # gpx.studio embed points at the public tokenized endpoint
+    assert_match "gpx.studio/embed?options=", response.body
+    # The embed survives full-page renders without reloading
+    assert_match 'id="route-map-frame"', response.body
+    assert_match "data-turbo-permanent", response.body
+  end
+
+  test "show renders the read-only friend view with save route" do
+    owner = User.create!(valid_user_attributes(email: "owner@example.com"))
+    Friendship.connect!(owner, @user)
+    route = create_route_with_gpx(owner, attrs: { duration: 22_500, tier: "Alpine" })
+
+    get route_path(route)
+
+    assert_response :success
+    assert_match "Save Route", response.body
+    assert_match "Download GPX", response.body
+    assert_match owner.name, response.body
+    assert_match "gpx.studio/embed?options=", response.body
+    assert_no_match(/name="route\[tier\]"/, response.body)
+    assert_no_match(/pace-duration/, response.body)
+    assert_no_match(/calendar-picker/, response.body)
+  end
+
+  test "show 404s for a stranger without a friendship" do
+    owner = User.create!(valid_user_attributes(email: "owner@example.com"))
+    route = owner.routes.create!(source: "upload", title: "Not mine")
+
+    get route_path(route)
+
+    assert_response :not_found
+  end
+
+  test "save deep-copies a friend's route with its own gpx blob" do
+    owner = User.create!(valid_user_attributes(email: "owner@example.com"))
+    Friendship.connect!(owner, @user)
+    route = create_route_with_gpx(owner, attrs: { description: "High-alpine", duration: 22_500 })
+
+    assert_difference -> { @user.routes.count }, +1 do
+      post save_route_path(route)
+    end
+
+    saved = @user.routes.sole
+    assert_redirected_to route_path(saved)
+    assert_equal "Saved \"#{route.title}\" to My Routes.", flash[:notice]
+    assert_equal route.title, saved.title
+    assert_equal route.description, saved.description
+    assert_equal route.distance, saved.distance
+    assert_equal route.duration, saved.duration
+    assert_equal route.track_svg, saved.track_svg
+    # Copy contract: fresh upload, not completed, no Drive lineage
+    assert_equal "upload", saved.source
+    assert_not saved.completed?
+    assert_nil saved.google_drive_file_id
+    # The copy owns its own blob: same bytes, different storage row
+    assert saved.gpx_file.attached?
+    assert_not_equal route.gpx_file.blob.id, saved.gpx_file.blob.id
+    assert_equal route.gpx_file.checksum, saved.gpx_file.checksum
+  end
+
+  test "saved copy stays intact when the original route is destroyed" do
+    owner = User.create!(valid_user_attributes(email: "owner@example.com"))
+    Friendship.connect!(owner, @user)
+    route = create_route_with_gpx(owner)
+
+    post save_route_path(route)
+    saved = @user.routes.sole
+
+    route.destroy
+    perform_enqueued_jobs
+
+    assert saved.reload.gpx_file.attached?
+    get download_route_path(saved)
+    assert_response :success
+    assert_match(/<gpx/i, response.body)
+  end
+
+  test "editing the saved copy never touches the original" do
+    owner = User.create!(valid_user_attributes(email: "owner@example.com"))
+    Friendship.connect!(owner, @user)
+    route = create_route_with_gpx(owner, attrs: { duration: 22_500 })
+
+    post save_route_path(route)
+    saved = @user.routes.sole
+
+    patch route_path(saved), params: { route: { title: "Renamed copy", duration: 7_200 }, from_detail: "1" }
+
+    assert_redirected_to route_path(saved)
+    assert_equal "Renamed copy", saved.reload.title
+    assert_equal 7_200, saved.duration
+    assert_equal "Mont Blanc ridge", route.reload.title
+    assert_equal 1_800, route.duration # parse_gpx! derived it from the file
+  end
+
+  test "save 404s for a stranger" do
+    owner = User.create!(valid_user_attributes(email: "owner@example.com"))
+    route = owner.routes.create!(source: "upload", title: "Not mine")
+
+    post save_route_path(route)
+
+    assert_response :not_found
+  end
+
+  test "download as a friend streams the owner's gpx" do
+    owner = User.create!(valid_user_attributes(email: "owner@example.com"))
+    Friendship.connect!(owner, @user)
+    route = create_route_with_gpx(owner)
+
+    get download_route_path(route)
+
+    assert_response :success
+    assert_match(/attachment; filename="exploration\.gpx"/, response.headers["Content-Disposition"])
+  end
+
+  # Plain (no Accept header) requests resolve to the HTML format, so this
+  # covers the no-JS fallback: the redirect re-render only happens when Turbo
+  # streams are not available.
+  test "update from the detail page redirects back to the route" do
+    route = create_route_with_gpx(@user)
+
+    patch route_path(route), params: { route: { title: "Renamed" }, from_detail: "1" }
+
+    assert_redirected_to route_path(route)
+    assert_equal "Renamed", route.reload.title
+  end
+
+  # Turbo submits the inline editors with the stream Accept header. The
+  # response must carry only the fragments the committed field can leave
+  # stale — never the gpx.studio iframe, or the map would reload after every
+  # edit (RoutesController#update -> update_detail.turbo_stream.erb).
+  test "update from the detail page streams fragments without re-rendering the map" do
+    route = create_route_with_gpx(@user)
+
+    patch route_path(route), params: { route: { title: "Renamed", duration: 7_200 }, from_detail: "1" },
+          headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
+
+    assert_response :ok
+    assert_equal Mime[:turbo_stream], response.media_type
+    assert_match(/action="update" target="route-detail-crumb"/, response.body)
+    assert_match(/action="replace" target="route-detail-stats"/, response.body)
+    assert_no_match(/gpx\.studio/, response.body)
+    assert_nil flash[:notice]
+    assert_equal "Renamed", route.reload.title
+    assert_equal 7_200, route.duration
+  end
+
+  test "title-only update from the detail page leaves the stats row untouched" do
+    route = create_route_with_gpx(@user, attrs: { duration: 1_800 })
+
+    patch route_path(route), params: { route: { title: "Renamed" }, from_detail: "1" },
+          headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
+
+    assert_response :ok
+    assert_match(/action="update" target="route-detail-crumb"/, response.body)
+    assert_no_match(/action="replace" target="route-detail-stats"/, response.body)
+  end
+
+  test "invalid update from the detail page streams an empty 422" do
+    route = create_route_with_gpx(@user, attrs: { duration: 1_800 })
+
+    patch route_path(route), params: { route: { duration: -1 }, from_detail: "1" },
+          headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
+
+    assert_response :unprocessable_entity
+    assert_no_match(/<turbo-stream/, response.body)
+    assert_equal 1_800, route.reload.duration
+  end
+
+  test "update rejects a negative duration" do
+    route = create_route_with_gpx(@user, attrs: { duration: 1_800 })
+
+    patch route_path(route), params: { route: { duration: -1 }, from_detail: "1" }
+
+    assert_response :unprocessable_entity
+    assert_equal 1_800, route.reload.duration
+  end
+
+  private
+
+  # Route with an attached, already parsed GPX file (metadata populated).
+  def create_route_with_gpx(user, attrs: {})
+    user.routes.create!(attrs.reverse_merge(source: "upload", title: "Mont Blanc ridge")).tap do |route|
+      route.gpx_file.attach(
+        io: File.open(gpx_fixture_upload("exploration.gpx").path),
+        filename: "exploration.gpx",
+        content_type: "application/gpx+xml"
+      )
+      route.parse_gpx!
+      route.reload
+    end
+  end
 end

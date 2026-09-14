@@ -1,0 +1,75 @@
+<%# id lets update_detail.turbo_stream.erb replace this row after duration
+    edits without re-rendering the page (and its gpx.studio iframe). %>
+<div class="route-detail__stats" id="route-detail-stats">
+  <div class="route-detail__stat">
+    <span class="route-detail__stat-label t-code-sm t-uppercase">Distance</span>
+    <div class="route-detail__stat-value-row">
+      <span class="route-detail__stat-value t-headline-md"><%= format_distance(@route.distance) %></span>
+      <span class="t-code-sm c-secondary">km</span>
+    </div>
+  </div>
+
+  <div class="route-detail__stat">
+    <span class="route-detail__stat-label t-code-sm t-uppercase">Elevation Gain</span>
+    <div class="route-detail__stat-value-row">
+      <span class="route-detail__stat-value t-headline-md c-accent"><%= format_elevation(@route.elevation_gain) %></span>
+      <span class="t-code-sm c-secondary">m</span>
+    </div>
+  </div>
+
+  <div class="route-detail__stat">
+    <span class="route-detail__stat-label t-code-sm t-uppercase">Max Altitude</span>
+    <div class="route-detail__stat-value-row">
+      <span class="route-detail__stat-value t-headline-md">
+        <%= @route.max_elevation.present? ? number_with_delimiter(@route.max_elevation.round) : "&mdash;".html_safe %>
+      </span>
+      <span class="t-code-sm c-secondary">m</span>
+    </div>
+  </div>
+
+  <%# Duration + Pace are one linked form: pace = distance / duration and
+      either input recalculates the other; only duration persists. The form
+      uses display:contents so both cards remain grid children. %>
+  <% if @is_owner %>
+    <%= form_with model: @route, class: "route-detail__metric-form",
+                  data: { controller: "pace-duration", pace_duration_distance_value: (@route.distance || 0).to_f } do |f| %>
+      <%= hidden_field_tag :from_detail, "1" %>
+      <%= f.hidden_field :duration, data: { pace_duration_target: "hidden" } %>
+      <div class="route-detail__stat">
+        <span class="route-detail__stat-label t-code-sm t-uppercase">Est. Duration</span>
+        <div class="route-detail__stat-value-row">
+          <input type="text" value="<%= format_duration_input(@route.duration) %>"
+                 class="route-detail__metric-input t-headline-md" aria-label="Estimated duration"
+                 autocomplete="off"
+                 data-pace-duration-target="duration" data-action="change->pace-duration#durationChanged">
+        </div>
+      </div>
+      <div class="route-detail__stat">
+        <span class="route-detail__stat-label t-code-sm t-uppercase">Moving Pace</span>
+        <div class="route-detail__stat-value-row">
+          <input type="text" value="<%= format_pace(@route.moving_pace) %>"
+                 class="route-detail__metric-input t-headline-md" aria-label="Moving pace in km/h"
+                 autocomplete="off"
+                 data-pace-duration-target="pace" data-action="change->pace-duration#paceChanged">
+          <span class="t-code-sm c-secondary">km/h</span>
+        </div>
+      </div>
+    <% end %>
+  <% else %>
+    <div class="route-detail__stat">
+      <span class="route-detail__stat-label t-code-sm t-uppercase">Est. Duration</span>
+      <div class="route-detail__stat-value-row">
+        <span class="route-detail__stat-value t-headline-md">
+          <%= format_duration_input(@route.duration).presence || "&mdash;".html_safe %>
+        </span>
+      </div>
+    </div>
+    <div class="route-detail__stat">
+      <span class="route-detail__stat-label t-code-sm t-uppercase">Moving Pace</span>
+      <div class="route-detail__stat-value-row">
+        <span class="route-detail__stat-value t-headline-md"><%= format_pace(@route.moving_pace) %></span>
+        <span class="t-code-sm c-secondary">km/h</span>
+      </div>
+    </div>
+  <% end %>
+</div>

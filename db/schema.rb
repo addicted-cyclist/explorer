@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_09_09_170001) do
+ActiveRecord::Schema[7.2].define(version: 2026_09_11_090001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -45,14 +45,27 @@ ActiveRecord::Schema[7.2].define(version: 2026_09_09_170001) do
   create_table "calendar_entries", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.bigint "route_id", null: false
-    t.integer "day_of_week"
     t.time "start_time"
     t.time "end_time"
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.date "scheduled_on"
     t.index ["route_id"], name: "index_calendar_entries_on_route_id"
+    t.index ["user_id", "scheduled_on"], name: "index_calendar_entries_on_user_id_and_scheduled_on"
     t.index ["user_id"], name: "index_calendar_entries_on_user_id"
+  end
+
+  create_table "friendships", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "friend_id", null: false
+    t.string "status", default: "accepted", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["friend_id"], name: "index_friendships_on_friend_id"
+    t.index ["user_id", "friend_id"], name: "index_friendships_on_user_id_and_friend_id", unique: true
+    t.index ["user_id"], name: "index_friendships_on_user_id"
+    t.check_constraint "user_id <> friend_id", name: "friendships_not_self"
   end
 
   create_table "routes", force: :cascade do |t|
@@ -102,5 +115,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_09_09_170001) do
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "calendar_entries", "routes"
   add_foreign_key "calendar_entries", "users"
+  add_foreign_key "friendships", "users"
+  add_foreign_key "friendships", "users", column: "friend_id"
   add_foreign_key "routes", "users"
 end

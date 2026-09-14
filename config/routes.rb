@@ -16,8 +16,16 @@ Rails.application.routes.draw do
     member do
       patch :toggle_completed
       get :download
+      post :save
     end
   end
+
+  # Public, tokenized GPX streaming for the gpx.studio embed. The signed_id
+  # is the capability token and the response carries CORS headers, so the
+  # embed (served from gpx.studio) can fetch the file without a session.
+  # OPTIONS is matched too because Chrome's Private Network Access sends a
+  # preflight for the loopback/dev-host fetch.
+  match "gpx/:signed_id/*filename", to: "gpx_files#show", via: %i[get options], as: :gpx_file, format: false
 
   resource :calendar, only: %i[show] do
     collection do

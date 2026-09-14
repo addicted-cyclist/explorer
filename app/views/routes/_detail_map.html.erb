@@ -1,0 +1,36 @@
+<section class="route-detail__workspace">
+  <div class="card route-detail__map">
+    <header class="route-detail__map-head">
+      <div class="route-detail__map-pill t-code-sm">
+        <span class="route-detail__map-dot"></span>
+        <span>gpx.studio embed</span>
+      </div>
+      <span class="route-detail__map-sub t-code-sm c-secondary">Interactive GPX Viewer &amp; Elevation Profile</span>
+    </header>
+
+    <%# TODO! remove allow="loopback-network" from iframe%>
+    <% if gpx_studio_embed_src(@route) %>
+      <%# data-turbo-permanent: Turbo moves this node across full-page renders
+          instead of recreating it, so the embed never reloads even when the
+          whole body is swapped (belt-and-braces next to the fragment streams
+          in update_detail.turbo_stream.erb). Trade-off: a changed src (a new
+          GPX) only takes effect after a full browser reload — there is no
+          such flow on the detail page today. The title is kept static for
+          the same reason: a preserved node would keep its old text. %>
+      <iframe id="route-map-frame"
+              data-turbo-permanent
+              class="route-detail__map-frame"
+              src="<%= gpx_studio_embed_src(@route) %>"
+              title="Interactive GPX map — gpx.studio viewer"
+              loading="lazy"
+              allow="loopback-network"
+              frameborder="0"
+              style="outline: none;"></iframe>
+    <% else %>
+      <div class="route-detail__map-empty t-body-md c-secondary">
+        <span class="material-symbols-outlined ms-18">map</span>
+        <span>No GPX file is attached to this route, so there is no track to display.</span>
+      </div>
+    <% end %>
+  </div>
+</section>

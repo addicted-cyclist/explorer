@@ -1877,84 +1877,497 @@ body.has-open-modal {
 }
 
 /* ------------------------------------------------------------------ */
-/* Interim route show (placeholder for the Phase 6 map detail)         */
+/* Route detail page (Phase 6) — MY + OTHER variants, stats, calendar  */
+/* picker popover, gpx.studio embed                                    */
 /* ------------------------------------------------------------------ */
 
-.route-show {
-  max-width: 42rem;
+.route-detail {
+  max-width: var(--container-max);
   margin-inline: auto;
 }
 
-.route-show__nav {
+.route-detail__breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2xs);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-sm);
+}
+
+.route-detail__crumb-link {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
-  color: var(--color-text-secondary);
+  gap: var(--space-2xs);
   text-decoration: none;
-  padding-block: var(--space-lg);
+  color: inherit;
   transition: color 0.15s ease;
 }
 
-.route-show__nav:hover {
+a.route-detail__crumb-link:hover {
   color: var(--color-text-primary);
 }
 
-.route-show__card {
-  padding: var(--space-xl);
+.route-detail__crumb-sep {
+  color: var(--color-text-tertiary);
 }
 
-.route-show__head {
+.route-detail__crumb-current {
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
+.route-detail__header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-lg);
-  margin-bottom: var(--space-lg);
+  flex-direction: column;
+  gap: var(--space-md);
+  padding-bottom: var(--space-lg);
 }
 
-.route-show__head h1 {
+@media (min-width: 1280px) {
+  .route-detail__header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.route-detail__intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  max-width: 42rem;
+}
+
+.route-detail__title {
   color: var(--color-text-primary);
-  margin: var(--space-xs) 0;
+  letter-spacing: -0.01em;
+  margin: 0;
 }
 
-.route-show__track {
-  flex-shrink: 0;
-  width: 10rem;
-  height: 6rem;
-  padding: var(--space-xs);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface-canvas);
+.route-detail__description {
+  white-space: pre-line;
 }
 
-.route-show__track path {
-  fill: none;
-  stroke: var(--color-track-elevation);
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.route-show .route-card__metrics {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin-bottom: var(--space-lg);
-}
-
-@media (max-width: 640px) {
-  .route-show .route-card__metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .route-show__head {
-    flex-direction: column;
-  }
-
-  .route-show__track {
-    width: 100%;
-    height: 7rem;
-  }
-}
-
-.route-show__hint {
+.route-detail__editable-row {
   display: flex;
   align-items: center;
+  gap: var(--space-2xs);
+}
+
+/* Inline editors look like their static counterparts until focus */
+.route-detail__title-input,
+.route-detail__description-input {
+  flex: 1;
+  min-width: 0;
+  color: var(--color-text-primary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  padding: 0.25rem 0.375rem;
+  margin-left: -0.375rem;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+/* Auto-grow controller owns the height*/
+.route-detail__description-input {
+  resize: none;
+  max-height: 12rem;
+}
+
+.route-detail__title-input:hover,
+.route-detail__description-input:hover {
+  border-color: var(--color-border-subtle);
+}
+
+.route-detail__title-input:focus,
+.route-detail__description-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  background: var(--color-surface-card);
+}
+
+.route-detail__description-input:focus {
+  color: var(--color-text-primary);
+}
+
+.route-detail__title-input::placeholder,
+.route-detail__description-input::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+.route-detail__edit-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.375rem;
+  border-radius: var(--radius-lg);
+  color: var(--color-text-secondary);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.route-detail__edit-btn:hover,
+.route-detail__edit-btn:focus-visible {
+  background: var(--color-surface-container);
+  color: var(--color-text-primary);
+}
+
+.route-detail__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.route-detail__btn {
+  gap: var(--space-2xs);
+}
+
+/* Difficulty select with its caret */
+.route-detail__tier-form {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.route-detail__select {
+  appearance: none;
+  background: var(--color-surface-card);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 0.75rem 2rem 0.75rem 0.75rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.route-detail__select:hover,
+.route-detail__select:focus {
+  background: var(--color-surface-container-low);
+  outline: none;
+}
+
+.route-detail__select-caret {
+  position: absolute;
+  right: 0.5rem;
+  pointer-events: none;
+  color: var(--color-text-secondary);
+}
+
+/* Calendar chip + month-grid popover */
+.route-detail__calendar {
+  position: relative;
+  display: inline-flex;
+}
+
+.route-detail__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  background: var(--color-surface-card);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 0.75rem 0.875rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.route-detail__chip:hover,
+.route-detail__chip:focus-visible {
+  background: var(--color-surface-container-low);
+}
+
+.route-detail__chip-icon {
+  color: var(--color-track-split);
+}
+
+.calendar-popover {
+  position: absolute;
+  top: calc(100% + 0.375rem);
+  right: 0;
+  z-index: 40;
+  width: 18.5rem;
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-md);
+}
+
+.calendar-popover__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-xs);
+}
+
+.calendar-popover__month {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.calendar-popover__nav {
+  display: inline-flex;
+  gap: var(--space-2xs);
+}
+
+.calendar-popover__nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.calendar-popover__nav-btn:hover {
+  background: var(--color-surface-container);
+  color: var(--color-text-primary);
+}
+
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  text-align: center;
+  margin-bottom: var(--space-2xs);
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.calendar-day {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  margin-inline: auto;
+  border-radius: var(--radius-md);
+  font-size: 0.8125rem;
+  color: var(--color-text-primary);
+  transition: background-color 0.15s ease;
+}
+
+.calendar-day:hover {
+  background: var(--color-surface-container);
+}
+
+.calendar-day--muted {
+  color: var(--color-text-tertiary);
+}
+
+.calendar-day--today {
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
+}
+
+.calendar-day--selected {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-weight: 600;
+}
+
+.calendar-time {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.calendar-time__select {
+  background: var(--color-surface-canvas);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 0.375rem 0.5rem;
+  cursor: pointer;
+}
+
+.calendar-popover__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-sm);
+}
+
+.calendar-popover__link {
+  background: none;
+  padding: 0.25rem 0.375rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.calendar-popover__link:hover {
+  background: var(--color-surface-container);
+}
+
+.calendar-popover__done {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-radius: var(--radius-lg);
+  padding: 0.375rem 0.75rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.calendar-popover__done:hover {
+  background: var(--color-primary-container);
+}
+
+.calendar-remove-form {
+  display: none;
+}
+
+/* Metric ribbon: three read-only cards + the linked duration/pace form */
+.route-detail__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-xs);
+  padding-bottom: var(--space-lg);
+}
+
+@media (min-width: 1024px) {
+  .route-detail__stats {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+.route-detail__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  background: var(--color-surface-container-low);
+  border-radius: var(--radius-lg);
+  padding: 0.375rem 0.75rem;
+}
+
+.route-detail__stat-label {
+  color: var(--color-text-tertiary);
+  letter-spacing: 0.05em;
+}
+
+.route-detail__stat-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+}
+
+.route-detail__stat-value {
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
+/* display:contents lets the two metric cards be grid children of .stats */
+.route-detail__metric-form {
+  display: contents;
+}
+
+.route-detail__metric-input {
+  width: 8rem;
+  color: var(--color-text-primary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  padding: 0 0.25rem;
+  margin-left: -0.25rem;
+  font-weight: 500;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.route-detail__metric-input:hover {
+  border-color: var(--color-border-subtle);
+}
+
+.route-detail__metric-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  background: var(--color-surface-card);
+}
+
+/* gpx.studio embed card */
+.route-detail__workspace {
+  padding-bottom: var(--space-2xl);
+}
+
+.route-detail__map {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+}
+
+.route-detail__map-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  height: 2.75rem;
+  padding-inline: var(--space-md);
+  background: var(--color-surface-canvas);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.route-detail__map-pill {
+  display: inline-flex;
+  align-items: center;
   gap: 0.375rem;
+  background: var(--color-surface-card);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: 0.25rem 0.625rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.route-detail__map-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--radius-full);
+  background: var(--color-track-split);
+}
+
+.route-detail__map-sub {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .route-detail__map-sub {
+    display: inline;
+  }
+}
+
+.route-detail__map-frame {
+  display: block;
+  width: 100%;
+  height: 600px;
+  border: 0;
+  outline: none;
+}
+
+.route-detail__map-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  padding: var(--space-2xl) var(--space-lg);
 }

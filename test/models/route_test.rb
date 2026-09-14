@@ -95,6 +95,38 @@ class RouteTest < ActiveSupport::TestCase
     assert_nil route.distance
   end
 
+  # ---- moving pace + duration (Phase 6 detail page) ------------------------
+
+  test "moving_pace divides distance by duration (km/h)" do
+    route = @user.routes.build(source: "upload", title: "Ride", distance: 30, duration: 3_600)
+    assert_in_delta 30.0, route.moving_pace, 0.01
+
+    route = @user.routes.build(source: "upload", title: "Ride", distance: 45, duration: 5_400)
+    assert_in_delta 30.0, route.moving_pace, 0.01
+  end
+
+  test "moving_pace is nil without distance or duration" do
+    assert_nil @user.routes.build(source: "upload", title: "Ride").moving_pace
+    assert_nil @user.routes.build(source: "upload", title: "Ride", duration: 3_600).moving_pace
+    assert_nil @user.routes.build(source: "upload", title: "Ride", distance: 30).moving_pace
+  end
+
+  test "duration must be a positive whole number of seconds" do
+    route = @user.routes.build(source: "upload", title: "Ride")
+    assert_predicate route, :valid? # duration stays optional
+
+    route.duration = -100
+    assert_not route.valid?
+    route.duration = 1.5
+    assert_not route.valid?
+    route.duration = 1_800
+    assert_predicate route, :valid?
+    route.duration = 0
+    assert_predicate route, :valid?
+    route.duration = nil
+    assert_predicate route, :valid?
+  end
+
   private
 
   # The track thumbnail is an SVG path fitted into the 100x60 viewBox:

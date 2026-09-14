@@ -2,16 +2,28 @@
 // Run that command whenever you add a new controller or create them with
 // ./bin/rails generate stimulus controllerName
 
-import { application } from "./application"
+import { application } from "./application";
 
-import DropdownController from "./dropdown_controller"
-application.register("dropdown", DropdownController)
+import DropdownController from "./dropdown_controller";
+application.register("dropdown", DropdownController);
 
-import LibraryFiltersController from "./library_filters_controller"
-application.register("library-filters", LibraryFiltersController)
+import LibraryFiltersController from "./library_filters_controller";
+application.register("library-filters", LibraryFiltersController);
 
-import ModalController from "./modal_controller"
-application.register("modal", ModalController)
+import ModalController from "./modal_controller";
+application.register("modal", ModalController);
 
-import UploadDropzoneController from "./upload_dropzone_controller"
-application.register("upload-dropzone", UploadDropzoneController)
+import UploadDropzoneController from "./upload_dropzone_controller";
+application.register("upload-dropzone", UploadDropzoneController);
+
+import AutoSubmitController from "./auto_submit_controller";
+application.register("auto-submit", AutoSubmitController);
+
+import CalendarPickerController from "./calendar_picker_controller";
+application.register("calendar-picker", CalendarPickerController);
+
+import PaceDurationController from "./pace_duration_controller";
+application.register("pace-duration", PaceDurationController);
+
+import autoGrowController from "./auto_grow_controller";
+application.register("auto-grow", autoGrowController);

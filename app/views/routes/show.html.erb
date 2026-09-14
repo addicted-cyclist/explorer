@@ -1,66 +1,89 @@
-<%# Interim placeholder — replaced by the interactive map view in Phase 6 %>
-<div class="route-show">
-  <nav class="route-show__nav">
-    <%= link_to routes_path, class: "t-body-md" do %>
-      <span class="material-symbols-outlined ms-18">arrow_back</span>
-      <span>My routes</span>
+<%# Phase 6 route detail — MY view (owner, editable in place) vs OTHER view
+    (accepted friend, read-only) per the stitch_explorer_v0.4 detail designs. %>
+<div class="route-detail">
+  <nav class="route-detail__breadcrumb t-body-sm" aria-label="Breadcrumb">
+    <% if @is_owner %>
+      <%= link_to routes_path, class: "route-detail__crumb-link" do %>
+        <span class="material-symbols-outlined ms-16">folder_open</span>
+        <span>My Routes</span>
+      <% end %>
+    <% else %>
+      <span class="route-detail__crumb-link">
+        <span class="material-symbols-outlined ms-16">folder_open</span>
+        <span><%= @route.user.name %></span>
+      </span>
+      <span class="route-detail__crumb-sep">/</span>
+      <span class="route-detail__crumb-link">Routes</span>
     <% end %>
+    <span class="route-detail__crumb-sep">/</span>
+    <%# id lets update_detail.turbo_stream.erb refresh the title after inline
+        renames without re-rendering the page (and its gpx.studio iframe). %>
+    <span class="route-detail__crumb-current t-label-md" id="route-detail-crumb"><%= @route.title %></span>
   </nav>
 
-  <div class="card route-show__card">
-    <header class="route-show__head">
-      <div>
-        <div class="route-card__badges">
-          <span class="badge route-card__badge--tier t-body-sm"><%= @route.tier.presence || "Unrated" %></span>
-          <span class="badge route-card__badge--sport t-body-sm"><%= sport_type_label(@route) %></span>
-          <% if @route.completed? %>
-            <span class="badge route-card__badge--done t-body-sm">
-              <span class="material-symbols-outlined ms-16">check_circle</span>
-              Done
-            </span>
-          <% end %>
-        </div>
-        <h1 class="t-headline-lg"><%= @route.title %></h1>
-        <% if @route.description.present? %>
-          <p class="t-body-md c-secondary"><%= @route.description %></p>
+  <header class="route-detail__header">
+    <div class="route-detail__intro">
+      <% if @is_owner %>
+        <%= form_with model: @route, class: "route-detail__inline-form", data: { controller: "auto-submit" } do |f| %>
+          <%= hidden_field_tag :from_detail, "1" %>
+          <div class="route-detail__editable-row">
+            <%= f.text_field :title, id: "route-title-input", class: "route-detail__title-input t-headline-lg",
+                             required: true, aria: { label: "Route title" } %>
+            <button type="button" class="route-detail__edit-btn" data-action="auto-submit#focus"
+                    data-auto-submit-field-param="route-title-input"
+                    aria-label="Edit route title" title="Rename route">
+              <span class="material-symbols-outlined ms-18">edit</span>
+            </button>
+          </div>
         <% end %>
-      </div>
-      <% if @route.track_svg.present? %>
-        <svg class="route-show__track" viewBox="<%= Route::TRACK_SVG_VIEWBOX %>"
-             preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
-          <path d="<%= @route.track_svg %>"></path>
-        </svg>
+        <%= form_with model: @route, class: "route-detail__inline-form", data: { controller: "auto-submit" } do |f| %>
+          <%= hidden_field_tag :from_detail, "1" %>
+          <div class="route-detail__editable-row">
+            <%= f.text_area :description, id: "route-description-input",
+                             class: "route-detail__description-input t-body-md c-secondary",
+                             placeholder: "Add a description…",
+                             data: { controller: "auto-grow", action: "input->auto-grow#resize" },
+                             aria: { label: "Route description" } %>
+            <button type="button" class="route-detail__edit-btn" data-action="auto-submit#focus"
+                    data-auto-submit-field-param="route-description-input"
+                    aria-label="Edit route description" title="Edit description">
+              <span class="material-symbols-outlined ms-16">edit_note</span>
+            </button>
+          </div>
+        <% end %>
+      <% else %>
+        <h1 class="route-detail__title t-headline-lg"><%= @route.title %></h1>
+        <% if @route.description.present? %>
+          <p class="route-detail__description t-body-md c-secondary"><%= @route.description %></p>
+        <% end %>
       <% end %>
-    </header>
-
-    <div class="route-card__metrics well">
-      <div class="route-card__metric">
-        <span class="t-code-sm t-uppercase">Dist</span>
-        <span class="route-card__metric-value t-title-md">
-          <%= format_distance(@route.distance) %> <span class="t-body-sm c-secondary">km</span>
-        </span>
-      </div>
-      <div class="route-card__metric">
-        <span class="t-code-sm t-uppercase">Elev gain</span>
-        <span class="route-card__metric-value t-title-md">
-          <%= format_elevation(@route.elevation_gain) %> <span class="t-body-sm c-secondary">m</span>
-        </span>
-      </div>
-      <div class="route-card__metric">
-        <span class="t-code-sm t-uppercase">Min / Max</span>
-        <span class="route-card__metric-value route-card__metric-value--sm t-title-md">
-          <%= @route.min_elevation.present? ? "#{@route.min_elevation.round} / #{@route.max_elevation.round} m" : "&mdash;".html_safe %>
-        </span>
-      </div>
-      <div class="route-card__metric">
-        <span class="t-code-sm t-uppercase">Time</span>
-        <span class="route-card__metric-value route-card__metric-value--sm t-title-md"><%= format_duration(@route.duration) %></span>
-      </div>
     </div>
 
-    <p class="t-body-sm c-tertiary route-show__hint">
-      <span class="material-symbols-outlined ms-16">map</span>
-      The interactive map for this route arrives with the next release.
-    </p>
-  </div>
+    <div class="route-detail__actions">
+      <% if @is_owner %>
+        <%= form_with model: @route, class: "route-detail__tier-form", data: { controller: "auto-submit" } do |f| %>
+          <%= hidden_field_tag :from_detail, "1" %>
+          <%= f.select :tier, tier_options, { include_blank: "Unrated" },
+                       class: "route-detail__select t-label-md", aria: { label: "Difficulty tier" } %>
+          <span class="material-symbols-outlined ms-16 route-detail__select-caret">expand_more</span>
+        <% end %>
+        <%= render "detail_calendar" %>
+      <% end %>
+      <%= link_to download_route_path(@route), data: { turbo: false },
+                  class: @is_owner ? "btn btn--primary route-detail__btn" : "btn btn--secondary route-detail__btn" do %>
+        <span class="material-symbols-outlined ms-18">download</span>
+        <span>Download GPX</span>
+      <% end %>
+      <% unless @is_owner %>
+        <%= button_to save_route_path(@route), method: :post, class: "btn btn--primary route-detail__btn" do %>
+          <span class="material-symbols-outlined ms-18">bookmark_add</span>
+          <span>Save Route</span>
+        <% end %>
+      <% end %>
+    </div>
+  </header>
+
+  <%= render "detail_stats" %>
+
+  <%= render "detail_map" %>
 </div>
