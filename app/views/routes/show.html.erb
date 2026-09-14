@@ -39,9 +39,11 @@
         <%= form_with model: @route, class: "route-detail__inline-form", data: { controller: "auto-submit" } do |f| %>
           <%= hidden_field_tag :from_detail, "1" %>
           <div class="route-detail__editable-row">
-            <%= f.text_field :description, id: "route-description-input",
+            <%= f.text_area :description, id: "route-description-input",
                              class: "route-detail__description-input t-body-md c-secondary",
-                             placeholder: "Add a description…", aria: { label: "Route description" } %>
+                             placeholder: "Add a description…",
+                             data: { controller: "auto-grow", action: "input->auto-grow#resize" },
+                             aria: { label: "Route description" } %>
             <button type="button" class="route-detail__edit-btn" data-action="auto-submit#focus"
                     data-auto-submit-field-param="route-description-input"
                     aria-label="Edit route description" title="Edit description">
@@ -50,7 +52,7 @@
           </div>
         <% end %>
       <% else %>
-        <h1 class="route-detail__title t-display-lg"><%= @route.title %></h1>
+        <h1 class="route-detail__title t-headline-lg"><%= @route.title %></h1>
         <% if @route.description.present? %>
           <p class="route-detail__description t-body-md c-secondary"><%= @route.description %></p>
         <% end %>

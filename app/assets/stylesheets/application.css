@@ -1945,6 +1945,10 @@ a.route-detail__crumb-link:hover {
   margin: 0;
 }
 
+.route-detail__description {
+  white-space: pre-line;
+}
+
 .route-detail__editable-row {
   display: flex;
   align-items: center;
@@ -1965,6 +1969,12 @@ a.route-detail__crumb-link:hover {
   transition:
     border-color 0.15s ease,
     background-color 0.15s ease;
+}
+
+/* Auto-grow controller owns the height*/
+.route-detail__description-input {
+  resize: none;
+  max-height: 12rem;
 }
 
 .route-detail__title-input:hover,

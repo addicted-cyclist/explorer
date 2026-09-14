@@ -15,7 +15,16 @@ export default class extends Controller {
     this.element.requestSubmit();
   }
 
+  keydown(event) {
+    if (event.target.tagName !== "TEXTAREA") return;
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      this.submit();
+    }
+  }
+
   connect() {
     this.element.addEventListener("change", () => this.submit());
+    this.element.addEventListener("keydown", (event) => this.keydown(event));
   }
 }
