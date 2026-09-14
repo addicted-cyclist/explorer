@@ -16,7 +16,9 @@
       <span class="route-detail__crumb-link">Routes</span>
     <% end %>
     <span class="route-detail__crumb-sep">/</span>
-    <span class="route-detail__crumb-current t-label-md"><%= @route.title %></span>
+    <%# id lets update_detail.turbo_stream.erb refresh the title after inline
+        renames without re-rendering the page (and its gpx.studio iframe). %>
+    <span class="route-detail__crumb-current t-label-md" id="route-detail-crumb"><%= @route.title %></span>
   </nav>
 
   <header class="route-detail__header">

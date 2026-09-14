@@ -1,0 +1,16 @@
+<%# Inline detail-page edits (title, description, tier, duration/pace) commit
+    one field at a time, so only the fragments the committed field can leave
+    stale are re-rendered. The gpx.studio iframe in _detail_map is deliberately
+    never part of this response — the embedded map must not reload (it also
+    carries data-turbo-permanent as a second line of defence). The
+    saved_change_to_* guards make this an empty stream on validation failure,
+    which keeps the user's text in the input they can still correct. %>
+<%# The title is rendered via the block form: string contents are inserted
+    html_safe into the <template> by turbo_stream_action_tag, and titles are
+    user input that must stay ERB-escaped. %>
+<% if @route.saved_change_to_title? %>
+  <%= turbo_stream.update "route-detail-crumb" do %>
+    <%= @route.title %>
+  <% end %>
+<% end %>
+<%= turbo_stream.replace "route-detail-stats", partial: "detail_stats" if @route.saved_change_to_duration? %>

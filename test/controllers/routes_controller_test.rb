@@ -162,6 +162,9 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
     assert_match "Add to calendar", response.body
     # gpx.studio embed points at the public tokenized endpoint
     assert_match "gpx.studio/embed?options=", response.body
+    # The embed survives full-page renders without reloading
+    assert_match 'id="route-map-frame"', response.body
+    assert_match "data-turbo-permanent", response.body
   end
 
   test "show renders the read-only friend view with save route" do
@@ -271,6 +274,9 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
     assert_match(/attachment; filename="exploration\.gpx"/, response.headers["Content-Disposition"])
   end
 
+  # Plain (no Accept header) requests resolve to the HTML format, so this
+  # covers the no-JS fallback: the redirect re-render only happens when Turbo
+  # streams are not available.
   test "update from the detail page redirects back to the route" do
     route = create_route_with_gpx(@user)
 
@@ -278,6 +284,48 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to route_path(route)
     assert_equal "Renamed", route.reload.title
+  end
+
+  # Turbo submits the inline editors with the stream Accept header. The
+  # response must carry only the fragments the committed field can leave
+  # stale — never the gpx.studio iframe, or the map would reload after every
+  # edit (RoutesController#update -> update_detail.turbo_stream.erb).
+  test "update from the detail page streams fragments without re-rendering the map" do
+    route = create_route_with_gpx(@user)
+
+    patch route_path(route), params: { route: { title: "Renamed", duration: 7_200 }, from_detail: "1" },
+          headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
+
+    assert_response :ok
+    assert_equal Mime[:turbo_stream], response.media_type
+    assert_match(/action="update" target="route-detail-crumb"/, response.body)
+    assert_match(/action="replace" target="route-detail-stats"/, response.body)
+    assert_no_match(/gpx\.studio/, response.body)
+    assert_nil flash[:notice]
+    assert_equal "Renamed", route.reload.title
+    assert_equal 7_200, route.duration
+  end
+
+  test "title-only update from the detail page leaves the stats row untouched" do
+    route = create_route_with_gpx(@user, attrs: { duration: 1_800 })
+
+    patch route_path(route), params: { route: { title: "Renamed" }, from_detail: "1" },
+          headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
+
+    assert_response :ok
+    assert_match(/action="update" target="route-detail-crumb"/, response.body)
+    assert_no_match(/action="replace" target="route-detail-stats"/, response.body)
+  end
+
+  test "invalid update from the detail page streams an empty 422" do
+    route = create_route_with_gpx(@user, attrs: { duration: 1_800 })
+
+    patch route_path(route), params: { route: { duration: -1 }, from_detail: "1" },
+          headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
+
+    assert_response :unprocessable_entity
+    assert_no_match(/<turbo-stream/, response.body)
+    assert_equal 1_800, route.reload.duration
   end
 
   test "update rejects a negative duration" do

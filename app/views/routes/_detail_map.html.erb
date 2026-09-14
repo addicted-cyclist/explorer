@@ -10,9 +10,18 @@
 
     <%# TODO! remove allow="loopback-network" from iframe%>
     <% if gpx_studio_embed_src(@route) %>
-      <iframe class="route-detail__map-frame"
+      <%# data-turbo-permanent: Turbo moves this node across full-page renders
+          instead of recreating it, so the embed never reloads even when the
+          whole body is swapped (belt-and-braces next to the fragment streams
+          in update_detail.turbo_stream.erb). Trade-off: a changed src (a new
+          GPX) only takes effect after a full browser reload — there is no
+          such flow on the detail page today. The title is kept static for
+          the same reason: a preserved node would keep its old text. %>
+      <iframe id="route-map-frame"
+              data-turbo-permanent
+              class="route-detail__map-frame"
               src="<%= gpx_studio_embed_src(@route) %>"
-              title="Interactive GPX map — <%= @route.title %>"
+              title="Interactive GPX map — gpx.studio viewer"
               loading="lazy"
               allow="loopback-network"
               frameborder="0"

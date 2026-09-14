@@ -80,21 +80,42 @@ class RoutesController < ApplicationController
   end
 
   def update
+    # The stream response re-renders the stats partial, which branches on
+    # @is_owner like the show view does. set_route only ever finds the
+    # current user's own routes, so detail-page editors are always the owner.
+    @is_owner = true
+
     if @route.update(route_params)
-      respond_to do |format|
-        if params[:from_detail].present?
-          # Inline editors on the detail page bounce back to the route; the
-          # library modal's turbo_stream template targets cards that don't
-          # exist on the detail page.
-          format.turbo_stream { redirect_to route_path(@route), status: :see_other, notice: "Route updated." }
+      if params[:from_detail].present?
+        # Inline editors on the detail page commit one field at a time and the
+        # page answers with fragment streams (update_detail.turbo_stream.erb):
+        # the gpx.studio iframe in _detail_map is never part of the response,
+        # so the embedded map does not reload after every edit. The HTML
+        # fallback (JS off) keeps the classic redirect re-render.
+        respond_to do |format|
+          format.turbo_stream { render :update_detail }
           format.html { redirect_to route_path(@route), notice: "Route updated." }
-        else
+        end
+      else
+        respond_to do |format|
+          # The library modal's stream template replaces the route card and
+          # closes the modal in place; its HTML fallback lands in the library.
           format.turbo_stream
           format.html { redirect_to routes_path, notice: "Route updated." }
         end
       end
     else
-      render :edit, status: :unprocessable_entity
+      if params[:from_detail].present?
+        # Validation failures also stay on the page without a full re-render:
+        # update_detail's saved_change_to_* guards render an empty stream for
+        # the 422, so the edited input keeps the user's text for correction.
+        respond_to do |format|
+          format.turbo_stream { render :update_detail, status: :unprocessable_entity }
+          format.html { render :edit, status: :unprocessable_entity }
+        end
+      else
+        render :edit, status: :unprocessable_entity
+      end
     end
   end
 
