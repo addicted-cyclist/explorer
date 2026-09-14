@@ -25,7 +25,7 @@
         <%= form_with model: @route, class: "route-detail__inline-form", data: { controller: "auto-submit" } do |f| %>
           <%= hidden_field_tag :from_detail, "1" %>
           <div class="route-detail__editable-row">
-            <%= f.text_field :title, id: "route-title-input", class: "route-detail__title-input t-display-lg",
+            <%= f.text_field :title, id: "route-title-input", class: "route-detail__title-input t-headline-lg",
                              required: true, aria: { label: "Route title" } %>
             <button type="button" class="route-detail__edit-btn" data-action="auto-submit#focus"
                     data-auto-submit-field-param="route-title-input"
