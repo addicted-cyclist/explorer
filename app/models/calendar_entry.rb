@@ -15,6 +15,12 @@ class CalendarEntry < ApplicationRecord
     scheduled_on ? scheduled_on.strftime("%A") : "Unknown"
   end
 
+  # Sort key for calendar rendering: date first, then the start time; entries
+  # without a start time sink to the bottom of their day.
+  def calendar_sort_key
+    [ scheduled_on, start_time ? start_time.seconds_since_midnight : Float::INFINITY ]
+  end
+
   private
 
   def end_time_after_start_time
