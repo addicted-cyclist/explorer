@@ -337,6 +337,40 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1_800, route.reload.duration
   end
 
+  # ---- Phase 7: calendar-originated mutations ---------------------------------
+
+  test "destroy from the calendar sidebar returns to the visited week" do
+    route = create_route_with_gpx(@user)
+
+    delete route_path(route), params: { from_calendar: "1", week: "2026-10-26" }
+
+    assert_redirected_to calendar_path(week: "2026-10-26")
+    assert_equal "Route \"#{route.title}\" deleted.", flash[:notice]
+  end
+
+  test "toggle_completed from the calendar streams the day column repaint" do
+    route = create_route_with_gpx(@user)
+    @user.calendar_entries.create!(route: route, scheduled_on: Date.new(2026, 10, 28),
+                                   start_time: "08:00", end_time: "09:00")
+
+    patch toggle_completed_route_path(route), params: { from_calendar: "1", week: "2026-10-26" },
+          headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
+
+    assert_response :ok
+    assert_equal Mime[:turbo_stream], response.media_type
+    assert_match(/action="replace" target="wc-day-20261028"/, response.body)
+    assert_predicate route.reload, :completed?
+  end
+
+  test "toggle_completed from the library keeps redirecting to the library" do
+    route = create_route_with_gpx(@user)
+
+    patch toggle_completed_route_path(route)
+
+    assert_redirected_to routes_path
+    assert_predicate route.reload, :completed?
+  end
+
   private
 
   # Route with an attached, already parsed GPX file (metadata populated).
