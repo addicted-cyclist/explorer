@@ -1,0 +1,7 @@
+<% if @moved_from_date && @moved_from_date != @entry.scheduled_on %>
+  <%= turbo_stream.replace calendar_day_dom_id(@moved_from_date),
+        partial: "day_column", locals: { date: @moved_from_date } %>
+<% end %>
+<%= turbo_stream.replace calendar_day_dom_id(@entry.scheduled_on),
+      partial: "day_column", locals: { date: @entry.scheduled_on } %>
+<%= turbo_stream.replace "wc-telemetry", partial: "telemetry_bar" %>

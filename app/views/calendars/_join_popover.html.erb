@@ -1,0 +1,31 @@
+<div class="wc-join" data-controller="join-route-popover">
+  <button type="button" class="wc-join__btn t-label-sm" aria-haspopup="true" aria-expanded="false"
+          data-join-route-popover-target="button" data-action="join-route-popover#toggle">
+    <span class="material-symbols-outlined ms-16">add_circle</span>
+    <span>Join</span>
+  </button>
+
+  <div class="wc-popover" role="dialog" aria-label="Join this ride" hidden
+       data-join-route-popover-target="popover">
+    <div class="wc-popover__actions" data-join-route-popover-target="actions">
+      <div class="wc-popover__head">
+        <span class="material-symbols-outlined wc-popover__glyph" aria-hidden="true">add_circle</span>
+        <button type="button" class="icon-btn wc-popover__close" aria-label="Close"
+                data-join-route-popover-target="close" data-action="join-route-popover#close">
+          <span class="material-symbols-outlined ms-18">close</span>
+        </button>
+      </div>
+      <h5 class="t-title-md">Join this ride?</h5>
+      <p class="t-body-sm c-secondary">
+        Adds a copy of <strong><%= entry.route.title %></strong> to your library and
+        schedules it on your calendar for the same day and time.
+      </p>
+      <%= button_to join_calendar_path, method: :post, class: "btn btn--primary btn--sm wc-popover__cta",
+            params: { entry_id: entry.id, week: @week_start.iso8601 },
+            form: { data: { action: "turbo:submit-end->join-route-popover#onSubmitEnd" } } do %>
+        <span class="material-symbols-outlined ms-18">add_link</span>
+        <span>Join Ride</span>
+      <% end %>
+    </div>
+  </div>
+</div>

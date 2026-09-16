@@ -1,0 +1,4 @@
+<%# Repaint the friend's entry card: its Join popover swaps to the green
+    "Joined Ride" state via the joined local on the partial. %>
+<%= turbo_stream.replace dom_id(@entry),
+      partial: "scheduled_entry", locals: { entry: @entry, joined: true } %>

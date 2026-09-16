@@ -1,0 +1,48 @@
+<% count_label = @is_friend_view ? "planned" : "ready" %>
+
+<aside class="wc-sidebar" data-controller="calendar-filters">
+  <header class="wc-sidebar__head">
+    <div class="wc-sidebar__title">
+      <span class="material-symbols-outlined wc-sidebar__glyph" aria-hidden="true"><%= @is_friend_view ? "route" : "explore" %></span>
+      <h2 class="t-headline-sm"><%= @is_friend_view ? "This Week's Routes" : "Routes" %></h2>
+    </div>
+    <span class="wc-sidebar__count t-label-sm">
+      <span data-calendar-filters-target="count"><%= @sidebar_routes.size %></span> <%= count_label %>
+    </span>
+  </header>
+
+  <div class="wc-sidebar__search">
+    <span class="material-symbols-outlined ms-18 wc-sidebar__search-icon" aria-hidden="true">search</span>
+    <%= text_field_tag :route_filter, nil, class: "input wc-sidebar__search-input t-body-md",
+          placeholder: "Filter routes by name or distance...",
+          autocomplete: "off",
+          aria: { label: "Filter routes" },
+          data: { calendar_filters_target: "search", action: "input->calendar-filters#filter" } %>
+  </div>
+
+  <div class="wc-sidebar__pool"
+       data-action="<%= %w[dragover->calendar-dnd#dragOverPool dragleave->calendar-dnd#dragLeavePool drop->calendar-dnd#dropOnPool].join(" ") unless @is_friend_view %>">
+    <div data-calendar-filters-target="list">
+      <%= render partial: "sidebar_route", collection: @sidebar_routes, as: :route %>
+    </div>
+    <p class="wc-sidebar__no-match t-body-sm c-tertiary" data-calendar-filters-target="empty" hidden>
+      No routes match "<span data-calendar-filters-target="query"></span>"
+    </p>
+    <% if @sidebar_routes.empty? %>
+      <p class="wc-sidebar__empty t-body-sm c-tertiary">
+        <%= @is_friend_view ? "No routes scheduled this week." : "Your library is empty — import a GPX to get started." %>
+      </p>
+    <% end %>
+  </div>
+
+  <% unless @is_friend_view %>
+    <p class="wc-sidebar__hint">
+      <span class="material-symbols-outlined ms-16" aria-hidden="true">touch_app</span>
+      <span class="t-body-sm">Drag any route onto a calendar day to schedule your trek.</span>
+    </p>
+    <%= link_to routes_path, class: "wc-sidebar__cta t-label-md" do %>
+      <span class="material-symbols-outlined ms-18" aria-hidden="true">add_circle</span>
+      <span>Import new GPX</span>
+    <% end %>
+  <% end %>
+</aside>

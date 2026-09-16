@@ -1,0 +1,36 @@
+<% content_for :title, "Friends" %>
+
+<div class="friends">
+  <section class="library-hero">
+    <div>
+      <h1 class="t-display-lg">Friends</h1>
+      <p class="t-body-lg c-secondary library-hero__lede">
+        Peek into your friends' training weeks and join their rides.
+      </p>
+    </div>
+  </section>
+
+  <% if @friends.any? %>
+    <section class="friends__grid" aria-label="Your friends">
+      <% @friends.each do |friend| %>
+        <article class="friends__card">
+          <span class="friends__avatar t-headline-sm" aria-hidden="true"><%= calendar_initials(friend) %></span>
+          <div class="friends__id">
+            <h2 class="t-title-md"><%= friend.name %></h2>
+            <p class="t-body-sm c-tertiary">@<%= friend.username %></p>
+          </div>
+          <%= link_to friend_calendar_path(friend.username), class: "btn btn--sm btn--secondary" do %>
+            <span class="material-symbols-outlined ms-18">calendar_month</span>
+            <span>View calendar</span>
+          <% end %>
+        </article>
+      <% end %>
+    </section>
+  <% else %>
+    <div class="library-empty">
+      <div class="library-empty__icon"><span class="material-symbols-outlined">group_add</span></div>
+      <h2 class="t-title-md">No friends yet</h2>
+      <p class="t-body-md c-secondary">When you add friends, their training calendars will show up here.</p>
+    </div>
+  <% end %>
+</div>

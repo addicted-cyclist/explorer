@@ -39,10 +39,11 @@
                     class: class_names("app-nav__link", "app-nav__link--active" => controller_name == "routes"),
                     aria: { current: ("page" if controller_name == "routes") } %>
               <%= link_to "My calendar", calendar_path,
-                    class: class_names("app-nav__link", "app-nav__link--active" => controller_name == "calendar"),
-                    aria: { current: ("page" if controller_name == "calendar") } %>
-              <%# TODO(phase-6+): Friends — no model/controller yet %>
-              <a href="#" class="app-nav__link">Friends</a>
+                    class: class_names("app-nav__link", "app-nav__link--active" => controller_name == "calendars"),
+                    aria: { current: ("page" if controller_name == "calendars") } %>
+              <%= link_to "Friends", friends_path,
+                    class: class_names("app-nav__link", "app-nav__link--active" => controller_name == "friends"),
+                    aria: { current: ("page" if controller_name == "friends") } %>
             </nav>
           <% end %>
         </div>

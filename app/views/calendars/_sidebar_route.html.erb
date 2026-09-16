@@ -1,0 +1,44 @@
+<%# One library route in the calendar sidebar. My view: draggable pool card
+    with the shared kebab menu (wired back to the week view). Friend view:
+    read-only card with a GPX download button. %>
+<article class="wc-route-card<%= " wc-route-card--friend" if @is_friend_view %>"
+         id="<%= dom_id(route, :wc_sidebar) %>"
+         data-search="<%= [route.title, route.sport_type, route.tier].compact.join(" ") %>"
+         data-distance="<%= route.distance.to_f %>"
+         draggable="<%= @is_friend_view ? "false" : "true" %>"
+         <%= tag.attributes(data: { calendar_dnd_id_param: route.id, action: "dragstart->calendar-dnd#dragStart dragend->calendar-dnd#dragEnd" }) unless @is_friend_view %>>
+  <header class="wc-route-card__head">
+    <h3 class="wc-route-card__title t-title-md">
+      <%= link_to route.title, route_path(route), class: "wc-route-card__link" %>
+    </h3>
+    <% if @is_friend_view %>
+      <%= link_to download_route_path(route), class: "wc-gpx-btn", title: "Download GPX", data: { turbo: false } do %>
+        <span class="material-symbols-outlined ms-16" aria-hidden="true">download</span>
+        <span class="t-label-sm">GPX</span>
+      <% end %>
+    <% else %>
+      <%= render "routes/route_card_menu", route: route, from_calendar: true, week: @week_start.iso8601 %>
+    <% end %>
+  </header>
+
+  <span class="wc-route-card__tier t-label-sm t-uppercase <%= calendar_tier_class(route.tier) %>"><%= route.tier.presence || "Unrated" %></span>
+
+  <div class="wc-route-card__thumb">
+    <% if route.track_svg.present? %>
+      <svg class="wc-route-card__track" viewBox="<%= Route::TRACK_SVG_VIEWBOX %>"
+           preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
+        <path d="<%= route.track_svg %>"></path>
+      </svg>
+    <% else %>
+      <div class="wc-route-card__thumb-fallback">
+        <span class="material-symbols-outlined" aria-hidden="true">route</span>
+      </div>
+    <% end %>
+  </div>
+
+  <footer class="wc-route-card__metrics t-label-sm">
+    <span class="wc-route-card__metric"><span class="material-symbols-outlined ms-14" aria-hidden="true">straighten</span><span><%= format_distance(route.distance) %> km</span></span>
+    <span class="wc-route-card__metric"><span class="material-symbols-outlined ms-14" aria-hidden="true">north_east</span><span><%= format_elevation(route.elevation_gain) %> m</span></span>
+    <span class="wc-route-card__metric"><span class="material-symbols-outlined ms-14" aria-hidden="true">timer</span><span><%= format_duration(route.duration) %></span></span>
+  </footer>
+</article>

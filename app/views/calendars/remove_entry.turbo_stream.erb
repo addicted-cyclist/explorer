@@ -1,0 +1,5 @@
+<% if @removed_date %>
+  <%= turbo_stream.replace calendar_day_dom_id(@removed_date),
+        partial: "day_column", locals: { date: @removed_date } %>
+<% end %>
+<%= turbo_stream.replace "wc-telemetry", partial: "telemetry_bar" %>

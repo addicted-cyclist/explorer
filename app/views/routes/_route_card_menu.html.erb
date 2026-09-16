@@ -1,4 +1,7 @@
-<%# Kebab menu: complete toggle, edit dialog (Turbo Frame), delete %>
+<%# Kebab menu: complete toggle, edit dialog (Turbo Frame), delete.
+    from_calendar/week (optional): routes the toggle/delete back to the week
+    view, where toggle answers with a Turbo Stream day-column repaint. %>
+<% calendar_context = local_assigns[:from_calendar].present? %>
 <div class="card-menu" data-controller="dropdown">
   <button type="button" class="icon-btn" data-dropdown-target="trigger"
           data-action="dropdown#toggle" aria-label="Route actions" aria-expanded="false">
@@ -9,7 +12,8 @@
       <span class="material-symbols-outlined">download</span>
       <span>Download GPX</span>
     <% end %>
-    <%= button_to toggle_completed_route_path(route), method: :patch, class: "menu-item t-body-md" do %>
+    <%= button_to toggle_completed_route_path(route), method: :patch, class: "menu-item t-body-md",
+          params: (calendar_context ? { from_calendar: "1", week: local_assigns[:week] } : nil) do %>
       <span class="material-symbols-outlined"><%= route.completed? ? "radio_button_unchecked" : "check_circle" %></span>
       <span><%= route.completed? ? "Mark as not completed" : "Mark as completed" %></span>
     <% end %>
@@ -18,6 +22,7 @@
       <span>Edit details</span>
     <% end %>
     <%= button_to route_path(route), method: :delete, class: "menu-item menu-item--danger t-body-md",
+                  params: (calendar_context ? { from_calendar: "1", week: local_assigns[:week] } : nil),
                   form: { data: { turbo_confirm: "Delete \"#{route.title}\"? This cannot be undone." } } do %>
       <span class="material-symbols-outlined">delete</span>
       <span>Delete route</span>
