@@ -32,8 +32,16 @@ Rails.application.routes.draw do
       post "allocate"
       patch "update_entry"
       delete "remove_entry"
+      post "join"
     end
   end
+
+  # A friend's week view (Phase 7). GET-only and placed after the resource,
+  # so it can never shadow the collection's POST/PATCH/DELETE actions.
+  get "calendar/:username", to: "calendars#show", as: :friend_calendar
+
+  # Friends directory (Phase 7 ships the read-only list; management later).
+  get "friends", to: "friends#index", as: :friends
 
   namespace :google_drive do
     get "connect"
