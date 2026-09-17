@@ -70,4 +70,10 @@
       <% end %>
     <% end %>
   </div>
+
+  <% unless @is_friend_view %>
+    <%# Shared upload dialog behind the sidebar's "Import new GPX" CTA;
+        week: makes the import land back on the visited week %>
+    <%= render "shared/upload_modal", week: @week_start.iso8601 %>
+  <% end %>
 </div>

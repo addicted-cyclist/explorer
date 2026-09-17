@@ -27,6 +27,9 @@ class CalendarsController < ApplicationController
         # My view: the whole library is the drag pool.
         current_user.routes.order(created_at: :desc, id: :desc)
       end
+    # The shared upload dialog behind the sidebar's "Import new GPX" CTA
+    # (same modal the routes library renders).
+    @new_route = current_user.routes.new unless @is_friend_view
   end
 
   # One entry per user+route: re-allocating a scheduled route moves it to the

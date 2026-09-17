@@ -23,7 +23,7 @@ class RoutesController < ApplicationController
   def create
     files = Array(params.dig(:route, :gpx_files)).compact_blank
     if files.empty?
-      redirect_to routes_path, alert: "Choose at least one GPX file to upload." and return
+      redirect_to upload_return_path, alert: "Choose at least one GPX file to upload." and return
     end
 
     imported, failed = [], []
@@ -46,9 +46,9 @@ class RoutesController < ApplicationController
     if imported.any?
       notice = "Imported #{'route'.pluralize(imported.size)}: #{imported.map(&:title).join(', ')}."
       notice += " Failed: #{failed.join(', ')}." if failed.any?
-      redirect_to routes_path, notice: notice
+      redirect_to upload_return_path, notice: notice
     else
-      redirect_to routes_path, alert: "No routes were imported. Failed: #{failed.join(', ')}."
+      redirect_to upload_return_path, alert: "No routes were imported. Failed: #{failed.join(', ')}."
     end
   end
 
@@ -167,6 +167,14 @@ class RoutesController < ApplicationController
     Date.parse(params[:week].to_s).beginning_of_week
   rescue ArgumentError, TypeError
     Date.current.beginning_of_week
+  end
+
+  # The shared upload modal also opens from the calendar sidebar's "Import
+  # new GPX" CTA; when it does (from_calendar=1 + week), land back on the
+  # visited week instead of the library (same contract as destroy /
+  # toggle_completed).
+  def upload_return_path
+    params[:from_calendar].present? ? calendar_path(week: params[:week]) : routes_path
   end
 
   def route_params

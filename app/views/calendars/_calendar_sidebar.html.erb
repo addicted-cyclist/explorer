@@ -6,7 +6,7 @@
       <span class="material-symbols-outlined wc-sidebar__glyph" aria-hidden="true"><%= @is_friend_view ? "route" : "explore" %></span>
       <h2 class="t-headline-sm"><%= @is_friend_view ? "This Week's Routes" : "Routes" %></h2>
     </div>
-    <span class="wc-sidebar__count t-label-sm">
+    <span class="wc-sidebar__count t-label-md">
       <span data-calendar-filters-target="count"><%= @sidebar_routes.size %></span> <%= count_label %>
     </span>
   </header>
@@ -40,7 +40,10 @@
       <span class="material-symbols-outlined ms-16" aria-hidden="true">touch_app</span>
       <span class="t-body-sm">Drag any route onto a calendar day to schedule your trek.</span>
     </p>
-    <%= link_to routes_path, class: "wc-sidebar__cta t-label-md" do %>
+    <%# Opens the shared upload modal (rendered in show.html.erb); without JS
+        it falls back to the routes library, which has its own modal. %>
+    <%= link_to routes_path, class: "wc-sidebar__cta t-label-md",
+                data: { modal_open: "upload" }, "aria-haspopup": "dialog" do %>
       <span class="material-symbols-outlined ms-18" aria-hidden="true">add_circle</span>
       <span>Import new GPX</span>
     <% end %>
