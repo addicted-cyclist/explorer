@@ -18,12 +18,12 @@
     <div class="wc__heading">
       <h1 class="t-headline-lg">
         <% if @is_friend_view %>
-          <%= "#{@friend.name}'s Training & Adventure Calendar" %>
+          <%= "#{@friend.name}'s Calendar" %>
         <% else %>
-          My Training &amp; Adventure Calendar
+          My Calendar
         <% end %>
       </h1>
-      <p class="t-body-md c-secondary">
+      <p class="t-body-lg c-secondary library-hero__lede">
         <% if @is_friend_view %>
           Weekly routes schedule and GPX downloads
         <% else %>

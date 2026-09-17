@@ -1,14 +1,14 @@
 <% day_entries = calendar_day_entries(date) %>
 
-<section class="wc-day<%= " wc-day--weekend" if date.saturday? || date.sunday? %><%= " wc-day--today" if date == Date.current %>"
+<section class="wc-day<%= " wc-day--today" if date == Date.current %>"
          id="<%= calendar_day_dom_id(date) %>"
          data-date="<%= date.iso8601 %>"
          <%= tag.attributes(data: { calendar_dnd_target: "dayColumn", calendar_dnd_date_param: date.iso8601,
                                     action: "dragover->calendar-dnd#dragOverDay dragleave->calendar-dnd#dragLeaveDay drop->calendar-dnd#dropOnDay" }) unless @is_friend_view %>>
   <header class="wc-day__head">
     <div class="wc-day__dow">
-      <span class="t-label-md"><%= date.strftime("%A") %></span>
-      <span class="wc-day__date t-label-sm"><%= date.strftime("%-m/%-d") %></span>
+      <span class="t-label-lg"><%= date.strftime("%a").upcase %></span>
+      <span class="wc-day__date t-label-md"><%= date.strftime("%-d") %></span>
     </div>
     <span class="wc-day__km t-label-sm"><%= calendar_day_km(day_entries) %></span>
   </header>
