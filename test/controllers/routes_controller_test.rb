@@ -37,6 +37,30 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Choose at least one GPX file to upload.", flash[:alert]
   end
 
+  test "create opened from the calendar lands back on the visited week" do
+    assert_difference -> { Route.count }, +1 do
+      post routes_path, params: {
+        route: { gpx_files: [ gpx_fixture_upload("exploration.gpx") ] },
+        from_calendar: "1", week: "2026-01-05", commit: "Parse & Import"
+      }
+    end
+
+    assert_redirected_to calendar_path(week: "2026-01-05")
+    assert_equal "Imported route: exploration.", flash[:notice]
+  end
+
+  test "create keeps the calendar origin when the upload is empty" do
+    assert_no_difference -> { Route.count } do
+      post routes_path, params: {
+        route: { gpx_files: [ "" ] },
+        from_calendar: "1", week: "2026-01-05", commit: "Parse & Import"
+      }
+    end
+
+    assert_redirected_to calendar_path(week: "2026-01-05")
+    assert_equal "Choose at least one GPX file to upload.", flash[:alert]
+  end
+
   # Regression from the production log: when the first save! fails (here the
   # filename-derived title exceeds the 200 character limit), the attachment
   # only exists in memory. The cleanup used to call purge_later on that
@@ -160,6 +184,17 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
     # Editable tier select + calendar chip, both absent from the friend view
     assert_match 'name="route[tier]"', response.body
     assert_match "Add to calendar", response.body
+    # Chip + remove forms report submit-end back to the calendar-picker
+    # wrapper: the allocate/remove streams repaint wc-day-* columns, which
+    # don't exist on the detail page — the chip label refreshes client-side
+    assert_select "div.route-detail__calendar[data-controller~=calendar-picker]" do
+      # Both forms must live INSIDE the wrapper: the submit-end handlers are
+      # bound by the calendar-picker controller on it, so a form outside its
+      # scope submits fine but never refreshes the chip label
+      assert_select %(form[data-calendar-picker-target=form][data-action~="turbo:submit-end->calendar-picker#onScheduleSubmitEnd"])
+      assert_select %(form[data-action~="turbo:submit-end->calendar-picker#onRemoveSubmitEnd"])
+      assert_select %(span[data-calendar-picker-target=chipLabel])
+    end
     # gpx.studio embed points at the public tokenized endpoint
     assert_match "gpx.studio/embed?options=", response.body
     # The embed survives full-page renders without reloading

@@ -91,7 +91,7 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     get calendar_url
 
     assert_response :success
-    assert_select "h1", text: "My Training & Adventure Calendar"
+    assert_select "h1", text: "My Calendar"
     assert_select "section.wc-day", count: 7
     monday = Date.current.beginning_of_week
     assert_select "section[id=?]", "wc-day-#{monday.strftime('%Y%m%d')}"
@@ -126,6 +126,13 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "section[id=?]", "wc-day-#{monday.strftime('%Y%m%d')}" do
       assert_select "article.wc-entry", count: 2
+      # Card contract: hover X unschedules, time row opens the editor,
+      # checkbox toggles completed back onto the visited week
+      assert_select %(button[data-action~="calendar-dnd#removeEntry"][data-route-id])
+      assert_select %(button[data-action~="entry-time-editor#open"])
+      assert_select "button.wc-entry__check"
+      # The X lives in the floating bottom dock, revealed on card hover
+      assert_select "article.wc-entry > .wc-entry__dock .wc-entry__remove", count: 2
     end
     assert_match "63.7 km", response.body # 21.5 + 42.2
   end
@@ -141,6 +148,19 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     assert_match "Drag any route onto a calendar day", response.body
   end
 
+  test "show arms the Import CTA and renders the shared upload modal" do
+    get calendar_url
+
+    assert_response :success
+    assert_select "a.wc-sidebar__cta[data-modal-open=upload]"
+    assert_select "div#upload-modal[data-modal-id=upload]"
+    assert_select %(form[action="#{routes_path}"][method=post][enctype="multipart/form-data"])
+    assert_select "input[type=file][name=?]", "route[gpx_files][]"
+    # Calendar origin markers: the import lands back on the visited week
+    assert_select %(input[type=hidden][name=from_calendar][value="1"])
+    assert_select %(input[type=hidden][name=week][value="#{Date.current.beginning_of_week.iso8601}"])
+  end
+
   # ---- Phase 7: friend view --------------------------------------------------
 
   test "show renders an accepted friend's calendar read-only" do
@@ -153,7 +173,7 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     get friend_calendar_path(friend.username)
 
     assert_response :success
-    assert_select "h1", text: /Training & Adventure Calendar/
+    assert_select "h1", text: "#{friend.name}'s Calendar"
     assert_match friend.name, response.body
     assert_select "section.wc-day", count: 7
     assert_select "article.wc-entry", count: 1
@@ -161,10 +181,16 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     assert_select "article.wc-route-card", count: 1
     assert_match "Friend ridge", response.body
     assert_select ".wc-gpx-btn", count: 1
-    # Read-only: no drag sources, no transport forms, no import hint
+    # Read-only: no drag sources, no transport forms, no import hint, no upload modal
     assert_select "form[data-calendar-dnd-target=allocateForm]", count: 0
     assert_select "article[draggable=true]", count: 0
     assert_select ".wc-sidebar__cta", count: 0
+    assert_select "#upload-modal", count: 0
+    # Entry cards stay read-only: no completed checkbox, no unschedule X, no editor trigger
+    assert_select "article.wc-entry .wc-entry__check", count: 0
+    assert_select "article.wc-entry .wc-entry__remove", count: 0
+    # The Join action lives in the same floating bottom dock
+    assert_select "article.wc-entry > .wc-entry__dock .wc-join__btn", count: 1
   end
 
   test "show 404s a stranger's calendar" do
