@@ -17,7 +17,7 @@
         <span class="t-label-sm">GPX</span>
       <% end %>
     <% else %>
-      <%= render "routes/route_card_menu", route: route, from_calendar: true, week: @week_start.iso8601 %>
+      <%= render "shared/shared_card_menu", route: route, from_calendar: true, week: @week_start.iso8601 %>
     <% end %>
   </header>
 
