@@ -1,62 +1,74 @@
 <% scheduled = @calendar_entry %>
-<%= form_with url: allocate_calendar_path, class: "route-detail__calendar",
-              data: { controller: "calendar-picker",
-                      calendar_picker_scheduled_value: scheduled&.scheduled_on&.iso8601 } do %>
-  <%= hidden_field_tag :route_id, @route.id %>
-  <%= hidden_field_tag :scheduled_on, scheduled&.scheduled_on&.iso8601,
-                       data: { calendar_picker_target: "hidden" } %>
+<%# calendar-picker sits on the wrapper so both the allocate form and the
+    remove form can report submit-end back to it: the allocate/remove Turbo
+    Streams only repaint wc-day-* day columns (which don't exist on this
+    page), so the chip label is refreshed client-side instead. %>
+<div class="route-detail__calendar" data-controller="calendar-picker"
+     data-calendar-picker-scheduled-value="<%= scheduled&.scheduled_on&.iso8601 %>">
+  <%= form_with url: allocate_calendar_path,
+                data: { calendar_picker_target: "form",
+                        action: "turbo:submit-end->calendar-picker#onScheduleSubmitEnd" } do %>
+    <%= hidden_field_tag :route_id, @route.id %>
+    <%= hidden_field_tag :scheduled_on, scheduled&.scheduled_on&.iso8601,
+                         data: { calendar_picker_target: "hidden" } %>
 
-  <button type="button" class="route-detail__chip t-label-md" data-action="calendar-picker#toggle"
-          aria-label="Add this route to my calendar">
-    <span class="material-symbols-outlined ms-16 route-detail__chip-icon">event_available</span>
-    <span><%= scheduled ? "Added to #{scheduled.scheduled_on.strftime('%b %-d')}" : "Add to calendar" %></span>
-  </button>
+    <button type="button" class="route-detail__chip t-label-md" data-action="calendar-picker#toggle"
+            aria-label="Add this route to my calendar">
+      <span class="material-symbols-outlined ms-16 route-detail__chip-icon">event_available</span>
+      <span data-calendar-picker-target="chipLabel"><%= scheduled ? "Added to #{scheduled.scheduled_on.strftime('%b %-d')}" : "Add to calendar" %></span>
+    </button>
 
-  <div class="calendar-popover" data-calendar-picker-target="popover" hidden>
-    <div class="calendar-popover__head">
-      <span class="calendar-popover__month t-label-md" data-calendar-picker-target="label"></span>
-      <div class="calendar-popover__nav">
-        <button type="button" class="calendar-popover__nav-btn" data-action="calendar-picker#prev"
-                aria-label="Previous month">
-          <span class="material-symbols-outlined ms-18">chevron_left</span>
-        </button>
-        <button type="button" class="calendar-popover__nav-btn" data-action="calendar-picker#next"
-                aria-label="Next month">
-          <span class="material-symbols-outlined ms-18">chevron_right</span>
-        </button>
+    <div class="calendar-popover" data-calendar-picker-target="popover" hidden>
+      <div class="calendar-popover__head">
+        <span class="calendar-popover__month t-label-md" data-calendar-picker-target="label"></span>
+        <div class="calendar-popover__nav">
+          <button type="button" class="calendar-popover__nav-btn" data-action="calendar-picker#prev"
+                  aria-label="Previous month">
+            <span class="material-symbols-outlined ms-18">chevron_left</span>
+          </button>
+          <button type="button" class="calendar-popover__nav-btn" data-action="calendar-picker#next"
+                  aria-label="Next month">
+            <span class="material-symbols-outlined ms-18">chevron_right</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="calendar-weekdays t-code-sm c-tertiary">
+        <% %w[Su Mo Tu We Th Fr Sa].each do |weekday| %>
+          <span><%= weekday %></span>
+        <% end %>
+      </div>
+
+      <div class="calendar-grid" data-calendar-picker-target="grid"></div>
+
+      <div class="calendar-time">
+        <%= label_tag :start_time, "Start", class: "t-code-sm c-secondary" %>
+        <%= select_tag :start_time,
+                       options_for_select(calendar_start_time_options,
+                                          scheduled&.start_time&.strftime("%H:%M") || "08:00"),
+                       class: "calendar-time__select t-label-sm" %>
+      </div>
+
+      <div class="calendar-popover__foot">
+        <button type="button" class="calendar-popover__link t-code-sm c-secondary"
+                data-action="calendar-picker#today">Today</button>
+        <%# Associated via the form attribute with the standalone remove form
+            below — nested forms are invalid HTML. %>
+        <button type="submit" form="calendar-remove-form" class="calendar-popover__link t-code-sm c-accent">Remove</button>
+        <button type="button" class="calendar-popover__done t-label-md" data-action="calendar-picker#close">Done</button>
       </div>
     </div>
+  <% end %>
 
-    <div class="calendar-weekdays t-code-sm c-tertiary">
-      <% %w[Su Mo Tu We Th Fr Sa].each do |weekday| %>
-        <span><%= weekday %></span>
-      <% end %>
-    </div>
-
-    <div class="calendar-grid" data-calendar-picker-target="grid"></div>
-
-    <div class="calendar-time">
-      <%= label_tag :start_time, "Start", class: "t-code-sm c-secondary" %>
-      <%= select_tag :start_time,
-                     options_for_select(calendar_start_time_options,
-                                        scheduled&.start_time&.strftime("%H:%M") || "08:00"),
-                     class: "calendar-time__select t-label-sm" %>
-    </div>
-
-    <div class="calendar-popover__foot">
-      <button type="button" class="calendar-popover__link t-code-sm c-secondary"
-              data-action="calendar-picker#today">Today</button>
-      <%# Associated via the form attribute with the standalone remove form
-          below — nested forms are invalid HTML. %>
-      <button type="submit" form="calendar-remove-form" class="calendar-popover__link t-code-sm c-accent">Remove</button>
-      <button type="button" class="calendar-popover__done t-label-md" data-action="calendar-picker#close">Done</button>
-    </div>
-  </div>
-<% end %>
-
-<%# Companion form for the popover's Remove button (which lives inside the
-    allocate form above and is wired here with the form attribute). %>
-<%= form_with url: remove_entry_calendar_path, method: :delete, id: "calendar-remove-form",
-              class: "calendar-remove-form" do %>
-  <%= hidden_field_tag :route_id, @route.id %>
-<% end %>
+  <%# Companion form for the popover's Remove button (which lives inside the
+      allocate form above and is wired here with the form attribute). It must
+      stay INSIDE the calendar-picker wrapper: the submit-end handler is bound
+      by the controller on the wrapper, so a form outside its scope would
+      submit fine but never refresh the chip label. The remove stream only
+      repaints wc-day-* columns, which don't exist on this page. %>
+  <%= form_with url: remove_entry_calendar_path, method: :delete, id: "calendar-remove-form",
+                class: "calendar-remove-form",
+                data: { action: "turbo:submit-end->calendar-picker#onRemoveSubmitEnd" } do %>
+    <%= hidden_field_tag :route_id, @route.id %>
+  <% end %>
+</div>
