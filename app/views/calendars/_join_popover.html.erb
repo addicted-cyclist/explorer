@@ -1,7 +1,11 @@
+<%# "Join" popover on a friend's scheduled ride. Rendered inside the card's
+    bottom action dock (opens upward). Confirms the deep-copy: the join POST
+    copies the route into my library and books my own entry for the same day
+    and time, then the stream repaints the card in its green "Joined" state. %>
 <div class="wc-join" data-controller="join-route-popover">
-  <button type="button" class="wc-join__btn t-label-sm" aria-haspopup="true" aria-expanded="false"
+  <button type="button" class="wc-join__btn t-label-sm" aria-haspopup="dialog" aria-expanded="false"
           data-join-route-popover-target="button" data-action="join-route-popover#toggle">
-    <span class="material-symbols-outlined ms-16">add_circle</span>
+    <span class="material-symbols-outlined ms-16" aria-hidden="true">add_circle</span>
     <span>Join</span>
   </button>
 
@@ -9,22 +13,36 @@
        data-join-route-popover-target="popover">
     <div class="wc-popover__actions" data-join-route-popover-target="actions">
       <div class="wc-popover__head">
-        <span class="material-symbols-outlined wc-popover__glyph" aria-hidden="true">add_circle</span>
+        <span class="wc-popover__date t-label-sm t-uppercase c-secondary"><%= entry.scheduled_on.strftime("%A, %b %-d") %></span>
         <button type="button" class="icon-btn wc-popover__close" aria-label="Close"
                 data-join-route-popover-target="close" data-action="join-route-popover#close">
-          <span class="material-symbols-outlined ms-18">close</span>
+          <span class="material-symbols-outlined ms-18" aria-hidden="true">close</span>
         </button>
       </div>
-      <h5 class="t-title-md">Join this ride?</h5>
-      <p class="t-body-sm c-secondary">
-        Adds a copy of <strong><%= entry.route.title %></strong> to your library and
-        schedules it on your calendar for the same day and time.
+
+      <h5 class="wc-popover__title t-title-md"><%= entry.route.title %></h5>
+
+      <div class="wc-popover__stats t-label-md">
+        <span class="wc-popover__stat">
+          <span class="material-symbols-outlined ms-16" aria-hidden="true">straighten</span>
+          <span><%= format_distance(entry.route.distance) %> km</span>
+        </span>
+        <span class="wc-popover__stat wc-popover__stat--elevation">
+          <span class="material-symbols-outlined ms-16" aria-hidden="true">north_east</span>
+          <span><%= format_elevation(entry.route.elevation_gain) %> m</span>
+        </span>
+      </div>
+
+      <p class="wc-popover__riders t-body-sm c-secondary">
+        <span class="wc-popover__avatar" aria-hidden="true"><%= calendar_initials(entry.route.user) %></span>
+        <span><%= entry.route.user.name.split(" ").first %> is attending</span>
       </p>
+
       <%= button_to join_calendar_path, method: :post, class: "btn btn--primary btn--sm wc-popover__cta",
             params: { entry_id: entry.id, week: @week_start.iso8601 },
             form: { data: { action: "turbo:submit-end->join-route-popover#onSubmitEnd" } } do %>
-        <span class="material-symbols-outlined ms-18">add_link</span>
-        <span>Join Ride</span>
+        <span class="material-symbols-outlined ms-18" aria-hidden="true">group_add</span>
+        <span>Join Route</span>
       <% end %>
     </div>
   </div>

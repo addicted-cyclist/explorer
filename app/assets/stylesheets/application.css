@@ -2476,7 +2476,9 @@ a.route-detail__crumb-link:hover {
   padding: var(--space-2xs) var(--space-xs);
   border-radius: var(--radius-lg);
   color: var(--color-text-secondary);
-  transition: color 0.15s ease, background 0.15s ease;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
 }
 
 .wc-toolbar__nav-btn:hover {
@@ -2559,7 +2561,7 @@ a.route-detail__crumb-link:hover {
 
 .wc-sidebar__glyph {
   font-size: 1.25rem;
-  color: var(--color-text-tertiary);
+  color: var(--color-accent-route);
 }
 
 .wc-sidebar__count {
@@ -2588,10 +2590,16 @@ a.route-detail__crumb-link:hover {
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
-  min-height: 7rem;
   max-height: 34rem;
   overflow-y: auto;
   padding: 2px; /* keep the drag-over outline inside the scroll box */
+  /* Hide scrollbar */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/old Edge */
+}
+
+.wc-sidebar__pool::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Edge */
 }
 
 .wc-sidebar__pool--drag-over {
@@ -2647,7 +2655,15 @@ a.route-detail__crumb-link:hover {
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-lg);
   cursor: grab;
-  transition: box-shadow 0.15s ease, transform 0.15s ease;
+  transition:
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+  margin-bottom: var(--space-xs);
+  box-shadow: var(--shadow-sm);
+}
+
+.wc-route-card:last-child {
+  margin-bottom: 0;
 }
 
 .wc-route-card:hover {
@@ -2764,22 +2780,19 @@ a.route-detail__crumb-link:hover {
   background: var(--color-surface-card);
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-xl);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.wc-day--weekend {
-  background: var(--color-surface-container-low);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .wc-day--today {
-  border-color: var(--color-primary);
-  box-shadow: var(--focus-ring);
+  border: 2px dashed var(--color-accent-route);
+  box-shadow: var(--shadow-lg);
 }
 
 .wc-day--drag-over {
   border-color: var(--color-track-split);
-  outline: 2px dashed var(--color-track-split);
-  outline-offset: -4px;
+  outline: 1px solid var(--color-track-split);
 }
 
 .wc-day__head {
@@ -2787,18 +2800,19 @@ a.route-detail__crumb-link:hover {
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-2xs);
-  padding-bottom: var(--space-2xs);
   border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .wc-day__dow {
   display: flex;
+  flex-direction: column;
   align-items: baseline;
-  gap: var(--space-2xs);
+  padding-bottom: var(--space-xs);
 }
 
-.wc-day__dow .t-label-md {
+.wc-day__dow .t-label-lg {
   color: var(--color-text-primary);
+  font-weight: 600;
 }
 
 .wc-day__date {
@@ -2829,7 +2843,7 @@ a.route-detail__crumb-link:hover {
   gap: var(--space-2xs);
   min-height: 6.5rem;
   padding: var(--space-sm);
-  border: 1px dashed var(--color-border-subtle);
+  border: 2px dashed var(--color-border-subtle);
   border-radius: var(--radius-lg);
   color: var(--color-text-tertiary);
   text-align: center;
@@ -2837,6 +2851,7 @@ a.route-detail__crumb-link:hover {
 
 /* Scheduled entries */
 .wc-entry {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-2xs);
@@ -2851,62 +2866,190 @@ a.route-detail__crumb-link:hover {
   opacity: 0.8;
 }
 
-.wc-entry__head {
+.wc-entry--completed .wc-entry__link {
+  text-decoration: line-through;
+}
+
+/* Lift the hovered card above its neighbours so the floating action dock can
+   overhang into the column padding without being clipped or covered */
+.wc-entry:hover,
+.wc-entry:focus-within,
+.wc-entry:has(.wc-popover:not([hidden])) {
+  z-index: 4;
+}
+
+/* Row 1 — my view: completed checkbox, truncated title, hover X (unschedule);
+   friend view: title + join popover / joined badge. */
+.wc-entry__top {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-2xs);
-}
-
-.wc-entry__id {
-  min-width: 0;
-}
-
-.wc-entry__time {
-  display: inline-flex;
   align-items: center;
   gap: var(--space-2xs);
-  color: var(--color-text-secondary);
+}
+
+.wc-entry__check-form {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.wc-entry__check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.125rem;
+  height: 1.125rem;
+  padding: 0;
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-canvas);
+  color: var(--color-on-primary);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.wc-entry__check .material-symbols-outlined {
+  opacity: 0;
+}
+
+.wc-entry__check:hover {
+  border-color: var(--color-track-split);
+}
+
+.wc-entry--completed .wc-entry__check {
+  background: var(--color-track-split);
+  border-color: var(--color-track-split);
+}
+
+.wc-entry--completed .wc-entry__check .material-symbols-outlined {
+  opacity: 1;
 }
 
 .wc-entry__title {
+  flex: 1;
+  min-width: 0;
   margin: 0;
-  overflow-wrap: anywhere;
 }
 
 .wc-entry__link {
+  display: block;
+  overflow: hidden;
   color: var(--color-text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .wc-entry__link:hover {
   text-decoration: underline;
 }
 
-.wc-entry__actions {
+/* Action dock — floats over the card's bottom edge, outside the content
+   flow; revealed on card hover, keyboard focus or an open popover */
+.wc-entry__dock {
+  position: absolute;
+  bottom: -20%;
+  left: 50%;
+  z-index: 5;
   display: flex;
+  align-items: center;
   gap: var(--space-2xs);
-  flex-shrink: 0;
+  padding: var(--space-2xs);
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-lg);
+  transform: translate(-50%, 50%);
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.15s ease,
+    visibility 0.15s ease;
 }
 
+.wc-entry:hover .wc-entry__dock,
+.wc-entry:focus-within .wc-entry__dock,
+.wc-entry:has(.wc-popover:not([hidden])) .wc-entry__dock {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Touch devices have no hover — keep the dock reachable */
+@media (hover: none) {
+  .wc-entry__dock {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+/* Unschedule X */
+.wc-entry__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.wc-entry__remove:hover {
+  background: var(--color-accent-route-soft);
+  color: var(--color-on-error-container);
+}
+
+/* Row 2 — stats: the value carries the color, the unit stays muted */
 .wc-entry__metrics {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2xs) var(--space-sm);
-  color: var(--color-text-secondary);
+  /* flex-wrap: wrap; */
+  gap: var(--space-2xs) var(--space-xs);
+  justify-content: space-between;
 }
 
 .wc-entry__metric {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2xs);
+  display: flex;
+  flex-direction: column;
+  color: var(--color-text-primary);
+  font-weight: 600;
+  white-space: nowrap;
 }
 
-.wc-entry__done {
+.wc-entry__metric--elevation {
+  color: var(--color-track-elevation);
+}
+
+.wc-entry__unit {
+  color: var(--color-text-secondary);
+  font-weight: 400;
+}
+
+/* Row 3 — start time; a button (my view) that opens the inline editor */
+.wc-entry__slot {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2xs);
   align-self: flex-start;
-  color: var(--color-track-split);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-secondary);
+  text-align: left;
+}
+
+button.wc-entry__slot {
+  cursor: pointer;
+}
+
+button.wc-entry__slot:hover {
+  color: var(--color-text-primary);
 }
 
 .wc-entry__joined-note {
@@ -2986,8 +3129,56 @@ a.route-detail__crumb-link:hover {
   gap: var(--space-2xs);
 }
 
-.wc-popover__glyph {
-  color: var(--color-text-tertiary);
+.wc-popover__title {
+  margin: 0;
+}
+
+.wc-popover__stats {
+  display: flex;
+  align-items: center;
+  padding: var(--space-2xs) var(--space-xs);
+  background: var(--color-surface-container-low);
+  border-radius: var(--radius-md);
+}
+
+.wc-popover__stat {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2xs);
+  flex: 1;
+}
+
+.wc-popover__stat + .wc-popover__stat {
+  border-left: 1px solid var(--color-border-subtle);
+}
+
+.wc-popover__stat--elevation {
+  color: var(--color-track-elevation);
+}
+
+.wc-popover__riders {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  margin: 0;
+}
+
+.wc-popover__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.375rem;
+  height: 1.375rem;
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+/* Docked at the card bottom — the popover opens upward instead */
+.wc-entry__dock .wc-popover {
+  top: auto;
+  bottom: calc(100% + 0.5rem);
 }
 
 .wc-popover__close {
@@ -3053,7 +3244,7 @@ a.route-detail__crumb-link:hover {
 .friends {
   display: flex;
   flex-direction: column;
-  gap: var(--space-xl);
+  /* gap: var(--space-sm); */
 }
 
 .friends__grid {
@@ -3128,4 +3319,3 @@ a.route-detail__crumb-link:hover {
     width: min(17rem, 80vw);
   }
 }
-

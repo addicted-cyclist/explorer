@@ -1,6 +1,6 @@
 import { Controller } from "@hotwired/stimulus";
 
-// Inline start-time editor on my scheduled cards: the clock button opens the
+// Inline start-time editor on my scheduled cards: the time row opens the
 // editor, picking a time submits the patch form, and the Turbo Stream
 // response repaints the day column with the new slot.
 export default class extends Controller {
