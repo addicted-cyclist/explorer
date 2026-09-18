@@ -133,6 +133,9 @@ class CalendarsController < ApplicationController
       format.turbo_stream do
         @entry = friend_entry
         @is_friend_view = true # the stream repaints the friend-view card
+        # Same week-context contract as prepare_week_state, so any template in
+        # the repaint can read @week_start instead of crashing on nil
+        @week_start = resolve_week_start
         render :join
       end
       format.html do

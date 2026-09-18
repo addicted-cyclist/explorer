@@ -1,8 +1,10 @@
 <%# Scheduled card in a day column. My view: completed checkbox, click-to-edit
     start time row and a hover action dock floating over the card's bottom edge
     (X unschedules via calendar-dnd#removeEntry). Friend view: read-only — no
-    checkbox/X/editor; unjoined friends get the Join popover in the same dock.
-    Title links carry a native tooltip so truncated names stay readable. %>
+    checkbox/X/editor; the dock always renders and the join partial swaps
+    Join+popover for an inert "Joined" button via the forwarded joined local
+    (set by the join Turbo Stream's card repaint). Title links carry a native
+    tooltip so truncated names stay readable. %>
 <article class="wc-entry<%= " wc-entry--completed" if entry.route.completed? %>"
          id="<%= dom_id(entry) %>"
          data-controller="entry-time-editor">
@@ -12,12 +14,6 @@
         <%= link_to entry.route.title, route_path(entry.route),
               class: "wc-entry__link", title: entry.route.title %>
       </h4>
-      <% if local_assigns[:joined] %>
-        <span class="wc-join wc-join--joined t-label-sm" title="A copy of this route is on your calendar">
-          <span class="material-symbols-outlined ms-16" aria-hidden="true">check_circle</span>
-          <span>Joined</span>
-        </span>
-      <% end %>
     <% else %>
       <%= button_to toggle_completed_route_path(entry.route), method: :patch,
             class: "wc-entry__check",
@@ -43,9 +39,6 @@
       <span class="material-symbols-outlined ms-14" aria-hidden="true">schedule</span>
       <span><%= entry.start_time&.strftime("%I:%M %p") || "--:--" %></span>
     </p>
-    <% if local_assigns[:joined] %>
-      <p class="wc-entry__joined-note t-body-sm c-secondary">A copy of this ride is on your calendar.</p>
-    <% end %>
   <% else %>
     <button type="button" class="wc-entry__slot t-label-sm" title="Edit start time"
             aria-label="Edit start time"
@@ -78,11 +71,9 @@
   <%# Action dock — floats over the card's bottom edge, outside the content
       flow; revealed on card hover, keyboard focus or an open popover. %>
   <% if @is_friend_view %>
-    <% unless local_assigns[:joined] %>
-      <div class="wc-entry__dock">
-        <%= render "calendars/join_popover", entry: entry %>
-      </div>
-    <% end %>
+    <div class="wc-entry__dock">
+      <%= render "calendars/join_popover", entry: entry, joined: local_assigns[:joined] %>
+    </div>
   <% else %>
     <div class="wc-entry__dock">
       <button type="button" class="wc-entry__remove" title="Remove from calendar"

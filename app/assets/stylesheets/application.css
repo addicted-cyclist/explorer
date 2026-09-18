@@ -2953,7 +2953,6 @@ a.route-detail__crumb-link:hover {
   display: flex;
   align-items: center;
   gap: var(--space-2xs);
-  padding: var(--space-2xs);
   background: var(--color-surface-card);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-full);
@@ -3078,25 +3077,27 @@ button.wc-entry__slot:hover {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2xs);
-  padding: 0.125rem var(--space-xs);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-md);
+  padding: var(--space-xs);
+  border-radius: var(--radius-full);
   color: var(--color-text-primary);
   transition: background 0.15s ease;
+}
+
+.wc-join--joined {
+  color: var(--color-track-split);
 }
 
 .wc-join__btn:hover {
   background: var(--color-surface-container-low);
 }
 
-.wc-join--joined {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2xs);
-  padding: 0.125rem var(--space-xs);
-  border: 1px solid var(--color-track-split);
-  border-radius: var(--radius-full);
-  color: var(--color-track-split);
+/* Joined state: inert status button — no pointer affordance, no hover flash */
+.wc-join__btn:disabled {
+  cursor: default;
+}
+
+.wc-join__btn:disabled:hover {
+  background: transparent;
 }
 
 .wc-popover {

@@ -346,7 +346,13 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :ok
+    # Joined mechanic: the dock swaps to the inert "Joined" button — no
+    # popover, no CTA form (the CTA needs @week_start, which stream renders
+    # must not depend on)
     assert_match "Joined", response.body
+    assert_match "wc-join--joined", response.body
+    assert_no_match /wc-popover/, response.body
+    assert_no_match /Join Route/, response.body
     mine = @user.calendar_entries.sole
     assert_not_equal friend_route.id, mine.route.id
     assert_equal friend_route.title, mine.route.title
