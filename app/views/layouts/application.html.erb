@@ -25,6 +25,9 @@
   <body>
     <%# App shell from design-refs/stitch_explorer_v0.2 route_upload_library_explorer
         (account dropdown added in v0.2) %>
+    <%# /calendar/:username routes to calendars#show with params[:username];
+        a friend's week view highlights the Friends tab, not My calendar %>
+    <% friends_calendar = controller_name == "calendars" && params[:username].present? %>
     <header class="app-header">
       <div class="container app-header__inner">
         <div class="app-header__brand">
@@ -39,11 +42,11 @@
                     class: class_names("app-nav__link", "app-nav__link--active" => controller_name == "routes"),
                     aria: { current: ("page" if controller_name == "routes") } %>
               <%= link_to "My calendar", calendar_path,
-                    class: class_names("app-nav__link", "app-nav__link--active" => controller_name == "calendars"),
-                    aria: { current: ("page" if controller_name == "calendars") } %>
+                    class: class_names("app-nav__link", "app-nav__link--active" => controller_name == "calendars" && !friends_calendar),
+                    aria: { current: ("page" if controller_name == "calendars" && !friends_calendar) } %>
               <%= link_to "Friends", friends_path,
-                    class: class_names("app-nav__link", "app-nav__link--active" => controller_name == "friends"),
-                    aria: { current: ("page" if controller_name == "friends") } %>
+                    class: class_names("app-nav__link", "app-nav__link--active" => controller_name == "friends" || friends_calendar),
+                    aria: { current: ("page" if controller_name == "friends" || friends_calendar) } %>
             </nav>
           <% end %>
         </div>
