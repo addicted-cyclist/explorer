@@ -12,6 +12,13 @@ module CalendarsHelper
     @week_entries.select { |entry| entry.scheduled_on == date }.sort_by(&:calendar_sort_key)
   end
 
+  # True when +entry+ — a friend's scheduled ride — already has my joined
+  # copy: the dock swaps to the inert "Joined" button instead of the popover.
+  # Reads the controller-provided @joined_origin_ids (nil outside friend view).
+  def calendar_entry_joined?(entry)
+    @joined_origin_ids&.include?(entry.id) || false
+  end
+
   # "Oct 19 – Oct 25, 2026" range label for the toolbar chip.
   def calendar_week_label(week_start)
     "#{week_start.strftime('%b %-d')} – #{(week_start + 6).strftime('%b %-d, %Y')}"

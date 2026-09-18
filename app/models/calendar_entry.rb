@@ -2,6 +2,10 @@ class CalendarEntry < ApplicationRecord
   belongs_to :user
   belongs_to :route
 
+  # Set when this entry was created by joining a friend's scheduled ride —
+  # the link that keeps the dock's Join → Joined state stable across renders.
+  belongs_to :origin_entry, class_name: "CalendarEntry", optional: true
+
   # Scheduled on a concrete calendar date; start/end are times of day on
   # that date (the detail page's month grid + start-time picker).
   validates :scheduled_on, presence: true

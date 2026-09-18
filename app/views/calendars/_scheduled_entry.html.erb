@@ -2,9 +2,11 @@
     start time row and a hover action dock floating over the card's bottom edge
     (X unschedules via calendar-dnd#removeEntry). Friend view: read-only — no
     checkbox/X/editor; the dock always renders and the join partial swaps
-    Join+popover for an inert "Joined" button via the forwarded joined local
-    (set by the join Turbo Stream's card repaint). Title links carry a native
+    Join+popover for an inert "Joined" button when joined — the join Turbo
+    Stream passes joined: true explicitly, fresh page renders derive it from
+    @joined_origin_ids via the helper. Title links carry a native
     tooltip so truncated names stay readable. %>
+<% joined = local_assigns.fetch(:joined) { calendar_entry_joined?(entry) } %>
 <article class="wc-entry<%= " wc-entry--completed" if entry.route.completed? %>"
          id="<%= dom_id(entry) %>"
          data-controller="entry-time-editor">
@@ -72,7 +74,7 @@
       flow; revealed on card hover, keyboard focus or an open popover. %>
   <% if @is_friend_view %>
     <div class="wc-entry__dock">
-      <%= render "calendars/join_popover", entry: entry, joined: local_assigns[:joined] %>
+      <%= render "calendars/join_popover", entry: entry, joined: joined %>
     </div>
   <% else %>
     <div class="wc-entry__dock">

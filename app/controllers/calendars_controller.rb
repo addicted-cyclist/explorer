@@ -18,6 +18,14 @@ class CalendarsController < ApplicationController
     @week_entries = owner.calendar_entries
                          .includes(:route)
                          .between(@week_start..(@week_start + 6)).to_a
+    # Friend view: which of this week's rides I already joined — the dock
+    # shows the inert "Joined" state for them, stable across reloads.
+    @joined_origin_ids =
+      if @is_friend_view
+        current_user.calendar_entries
+                    .where(origin_entry_id: @week_entries.map(&:id))
+                    .pluck(:origin_entry_id)
+      end
     @telemetry = build_telemetry(@week_entries)
     @sidebar_routes =
       if @is_friend_view
@@ -113,21 +121,28 @@ class CalendarsController < ApplicationController
 
   # Join a friend's scheduled ride: deep-copies their route into my library
   # (own GPX blob, see Route#deep_copy_for) and books my own entry on the
-  # same date and time. The popover's action area swaps to the "Joined Ride"
+  # same date and time, linked back via origin_entry so the dock keeps its
+  # "Joined" state across renders. The card swaps to the inert "Joined"
   # state in place; without JS we bounce back to the friend's calendar.
   def join
     friend_entry = CalendarEntry.find(params[:entry_id])
     friend = friend_entry.user
     raise ActiveRecord::RecordNotFound unless current_user.friends_with?(friend)
 
-    route = friend_entry.route.deep_copy_for(current_user)
-    route.save!
-    current_user.calendar_entries.create!(
-      route: route,
-      scheduled_on: friend_entry.scheduled_on,
-      start_time: friend_entry.start_time,
-      end_time: joined_end_time(route, friend_entry)
-    )
+    # Idempotent: a repeated join of the same ride (double POST, stale UI)
+    # never deep-copies twice — the existing copy is just repainted.
+    joined_entry = current_user.calendar_entries.find_by(origin_entry_id: friend_entry.id)
+    if joined_entry.nil?
+      route = friend_entry.route.deep_copy_for(current_user)
+      route.save!
+      joined_entry = current_user.calendar_entries.create!(
+        route: route,
+        origin_entry: friend_entry,
+        scheduled_on: friend_entry.scheduled_on,
+        start_time: friend_entry.start_time,
+        end_time: joined_end_time(route, friend_entry)
+      )
+    end
 
     respond_to do |format|
       format.turbo_stream do
@@ -140,7 +155,7 @@ class CalendarsController < ApplicationController
       end
       format.html do
         redirect_to friend_calendar_path(friend.username, week: params[:week]),
-                    notice: "You joined \"#{route.title}\" — it is on your calendar for " \
+                    notice: "You joined \"#{joined_entry.route.title}\" — it is on your calendar for " \
                             "#{friend_entry.scheduled_on.strftime('%b %-d')}."
       end
     end

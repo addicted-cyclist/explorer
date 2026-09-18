@@ -146,6 +146,9 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     assert_select "article.wc-route-card", count: 2
     assert_match "Unscheduled route", response.body
     assert_match "Drag any route onto a calendar day", response.body
+    # Nav: my calendar stays on My calendar, Friends stays inactive
+    assert_select %(a.app-nav__link--active[href="#{calendar_path}"]), text: "My calendar"
+    assert_select %(a.app-nav__link--active[href="#{friends_path}"]), count: 0
   end
 
   test "show arms the Import CTA and renders the shared upload modal" do
@@ -191,6 +194,9 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     assert_select "article.wc-entry .wc-entry__remove", count: 0
     # The Join action lives in the same floating bottom dock
     assert_select "article.wc-entry > .wc-entry__dock .wc-join__btn", count: 1
+    # Nav: a friend's week view highlights Friends, not My calendar
+    assert_select %(a.app-nav__link--active[href="#{friends_path}"]), text: "Friends"
+    assert_select %(a.app-nav__link--active[href="#{calendar_path}"]), count: 0
   end
 
   test "show 404s a stranger's calendar" do
@@ -354,6 +360,7 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match /wc-popover/, response.body
     assert_no_match /Join Route/, response.body
     mine = @user.calendar_entries.sole
+    assert_equal friend_entry.id, mine.origin_entry_id # links back = state survives reloads
     assert_not_equal friend_route.id, mine.route.id
     assert_equal friend_route.title, mine.route.title
     assert_equal "upload", mine.route.source
@@ -381,6 +388,48 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     assert_match(/You joined/, flash[:notice])
     # The setup route plus the joined copy
     assert_equal 2, @user.routes.count
+  end
+
+  test "joined state survives a page reload of the friend's calendar" do
+    friend = User.create!(valid_user_attributes(email: "joinreload@example.com"))
+    Friendship.connect!(friend, @user)
+    friend_route = create_friend_route_with_gpx(friend)
+    friend_entry = friend.calendar_entries.create!(route: friend_route, scheduled_on: Date.new(2026, 10, 27),
+                                                   start_time: "07:30", end_time: "08:30")
+
+    post join_calendar_path, params: { entry_id: friend_entry.id, week: "2026-10-26" },
+          headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
+    assert_response :ok
+
+    get friend_calendar_path(friend.username, week: "2026-10-26")
+
+    # The dock holds the joined state across renders: no Join button or
+    # popover markup is rendered for the already-joined ride
+    assert_match "wc-join--joined", response.body
+    assert_no_match /wc-popover/, response.body
+    assert_no_match /Join Route/, response.body
+  end
+
+  test "joining the same ride twice does not duplicate the copy" do
+    friend = User.create!(valid_user_attributes(email: "joindup@example.com"))
+    Friendship.connect!(friend, @user)
+    friend_route = create_friend_route_with_gpx(friend)
+    friend_entry = friend.calendar_entries.create!(route: friend_route, scheduled_on: Date.new(2026, 10, 27),
+                                                   start_time: "07:30", end_time: "08:30")
+
+    post join_calendar_path, params: { entry_id: friend_entry.id, week: "2026-10-26" },
+          headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
+
+    assert_difference -> { @user.routes.count }, 0 do
+      assert_difference -> { @user.calendar_entries.count }, 0 do
+        post join_calendar_path, params: { entry_id: friend_entry.id, week: "2026-10-26" },
+              headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
+      end
+    end
+
+    assert_response :ok
+    assert_match "wc-join--joined", response.body
+    assert_equal friend_entry.id, @user.calendar_entries.sole.origin_entry_id
   end
 
   test "join 404s outside an accepted friendship and stores nothing" do
