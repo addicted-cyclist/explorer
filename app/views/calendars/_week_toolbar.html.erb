@@ -1,0 +1,24 @@
+<% prev_week = @week_start - 7 %>
+<% next_week = @week_start + 7 %>
+
+<div class="wc-toolbar">
+  <div class="wc-toolbar__nav" role="navigation" aria-label="Week navigation">
+    <%= link_to calendar_week_path_for(prev_week), class: "wc-toolbar__nav-btn", aria: { label: "Previous week" } do %>
+      <span class="material-symbols-outlined ms-18" aria-hidden="true">chevron_left</span>
+      <span class="t-label-md">Previous Week</span>
+    <% end %>
+    <span class="wc-toolbar__divider" aria-hidden="true"></span>
+    <%= link_to calendar_week_path_for(next_week), class: "wc-toolbar__nav-btn", aria: { label: "Next week" } do %>
+      <span class="t-label-md">Next Week</span>
+      <span class="material-symbols-outlined ms-18" aria-hidden="true">chevron_right</span>
+    <% end %>
+  </div>
+
+  <div class="wc-toolbar__range">
+    <span class="material-symbols-outlined ms-18 c-tertiary" aria-hidden="true">calendar_today</span>
+    <span class="t-label-md"><%= calendar_week_label(@week_start) %></span>
+    <% if calendar_off_week?(@week_start) %>
+      <%= link_to "Today", calendar_week_path_for(Date.current.beginning_of_week), class: "wc-toolbar__today t-label-sm" %>
+    <% end %>
+  </div>
+</div>

@@ -1,0 +1,4 @@
+<%# Repaint the friend's entry card: its dock swaps to the inert "Joined"
+    button via the joined local on the partial (no popover afterwards). %>
+<%= turbo_stream.replace dom_id(@entry),
+      partial: "scheduled_entry", locals: { entry: @entry, joined: true } %>

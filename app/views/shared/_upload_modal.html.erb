@@ -1,4 +1,6 @@
-<%# Upload dialog — opened from the hero / empty state via data-modal-open="upload" %>
+<%# Upload dialog — opened from the hero / empty state via data-modal-open="upload".
+    Also rendered from the calendar sidebar; pass week: (ISO date) there so the
+    import lands back on the visited calendar week instead of the library. %>
 <div class="modal" id="upload-modal" data-controller="modal" data-modal-id="upload" aria-hidden="true">
   <div class="modal__backdrop" data-action="click->modal#close" aria-hidden="true"></div>
   <div class="modal__card" role="dialog" aria-modal="true" aria-labelledby="upload-modal-title">
@@ -14,6 +16,11 @@
 
     <%= form_with model: @new_route, url: routes_path, class: "modal__form",
                   data: { controller: "upload-dropzone" } do |f| %>
+      <% if local_assigns[:week] %>
+        <%# Calendar origin markers — RoutesController returns to this week %>
+        <%= hidden_field_tag :from_calendar, "1" %>
+        <%= hidden_field_tag :week, local_assigns[:week] %>
+      <% end %>
       <div class="dropzone" data-upload-dropzone-target="zone"
            data-action="click->upload-dropzone#browse dragover->upload-dropzone#dragOver dragleave->upload-dropzone#dragLeave drop->upload-dropzone#drop">
         <div class="dropzone__icon">

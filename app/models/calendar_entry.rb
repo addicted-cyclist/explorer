@@ -2,6 +2,10 @@ class CalendarEntry < ApplicationRecord
   belongs_to :user
   belongs_to :route
 
+  # Set when this entry was created by joining a friend's scheduled ride —
+  # the link that keeps the dock's Join → Joined state stable across renders.
+  belongs_to :origin_entry, class_name: "CalendarEntry", optional: true
+
   # Scheduled on a concrete calendar date; start/end are times of day on
   # that date (the detail page's month grid + start-time picker).
   validates :scheduled_on, presence: true
@@ -13,6 +17,12 @@ class CalendarEntry < ApplicationRecord
 
   def day_name
     scheduled_on ? scheduled_on.strftime("%A") : "Unknown"
+  end
+
+  # Sort key for calendar rendering: date first, then the start time; entries
+  # without a start time sink to the bottom of their day.
+  def calendar_sort_key
+    [ scheduled_on, start_time ? start_time.seconds_since_midnight : Float::INFINITY ]
   end
 
   private

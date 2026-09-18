@@ -3,7 +3,7 @@ module RoutesHelper
 
   # 428.4 -> "428.4", 1240.0 -> "1,240.0"; nil -> an em dash
   def format_distance(km)
-    return "&mdash;".html_safe if km.blank? || km.zero?
+    return "&mdash;".html_safe if km.blank?
 
     number_with_precision(km, precision: 1, delimiter: ",")
   end

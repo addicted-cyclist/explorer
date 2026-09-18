@@ -5,7 +5,7 @@ import { Controller } from "@hotwired/stimulus";
 // scheduled_on field and submits the wrapping form immediately, Done just
 // closes the popover. Adjacent-month days render muted and inert.
 export default class extends Controller {
-  static targets = ["popover", "label", "grid", "hidden"];
+  static targets = ["popover", "label", "grid", "hidden", "form", "chipLabel"];
   static values = { scheduled: String };
 
   connect() {
@@ -50,7 +50,31 @@ export default class extends Controller {
   submit() {
     if (!this.hiddenTarget.value) return;
     this.close();
-    this.element.requestSubmit();
+    this.formTarget.requestSubmit();
+  }
+
+  // The allocate/remove Turbo Streams only repaint wc-day-* day columns,
+  // which don't exist on the detail page — so the chip label is kept in sync
+  // here, from the date the picker itself just committed.
+  onScheduleSubmitEnd(event) {
+    if (!event.detail.success) return;
+    this.scheduledValue = this.hiddenTarget.value;
+    this.chipLabelTarget.textContent = `Added to ${this.shortDate(this.hiddenTarget.value)}`;
+  }
+
+  onRemoveSubmitEnd(event) {
+    if (!event.detail.success) return;
+    this.hiddenTarget.value = "";
+    this.scheduledValue = "";
+    this.chipLabelTarget.textContent = "Add to calendar";
+    this.close();
+    this.render();
+  }
+
+  // "Oct 3" for the chip, matching the server-rendered %b %-d format
+  shortDate(iso) {
+    const [year, month, day] = iso.split("-").map(Number);
+    return new Date(year, month - 1, day).toLocaleString("en-US", { month: "short", day: "numeric" });
   }
 
   // ---- rendering ---------------------------------------------------------

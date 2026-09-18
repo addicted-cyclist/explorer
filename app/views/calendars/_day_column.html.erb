@@ -1,0 +1,31 @@
+<% day_entries = calendar_day_entries(date) %>
+
+<section class="wc-day<%= " wc-day--today" if date == Date.current %>"
+         id="<%= calendar_day_dom_id(date) %>"
+         data-date="<%= date.iso8601 %>"
+         <%= tag.attributes(data: { calendar_dnd_target: "dayColumn", calendar_dnd_date_param: date.iso8601,
+                                    action: "dragover->calendar-dnd#dragOverDay dragleave->calendar-dnd#dragLeaveDay drop->calendar-dnd#dropOnDay" }) unless @is_friend_view %>>
+  <header class="wc-day__head">
+    <div class="wc-day__dow">
+      <span class="t-label-lg"><%= date.strftime("%a").upcase %></span>
+      <span class="wc-day__date t-label-md"><%= date.strftime("%-d") %></span>
+    </div>
+    <span class="wc-day__km t-label-sm"><%= calendar_day_km(day_entries) %></span>
+  </header>
+
+  <div class="wc-day__body">
+    <% if day_entries.empty? %>
+      <div class="wc-day__empty">
+        <% if @is_friend_view %>
+          <span class="material-symbols-outlined ms-18" aria-hidden="true">snooze</span>
+          <span class="t-body-sm">Rest Day</span>
+        <% else %>
+          <span class="material-symbols-outlined ms-18" aria-hidden="true">add</span>
+          <span class="t-body-sm">Drop route here</span>
+        <% end %>
+      </div>
+    <% else %>
+      <%= render partial: "calendars/scheduled_entry", collection: day_entries, as: :entry %>
+    <% end %>
+  </div>
+</section>

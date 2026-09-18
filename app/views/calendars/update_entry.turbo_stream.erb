@@ -1,0 +1,2 @@
+<%= turbo_stream.replace calendar_day_dom_id(@entry.scheduled_on),
+      partial: "day_column", locals: { date: @entry.scheduled_on } %>
