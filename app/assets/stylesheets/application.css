@@ -1442,7 +1442,6 @@ input[type="submit"] {
 
 .route-card:hover {
   box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
   z-index: 1;
 }
 
@@ -2668,7 +2667,6 @@ a.route-detail__crumb-link:hover {
 
 .wc-route-card:hover {
   box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
 }
 
 /* The sidebar filter hides cards with [hidden]; keep it winning. */
