@@ -13,8 +13,13 @@
   <div class="wc-entry__top">
     <% if @is_friend_view %>
       <h4 class="wc-entry__title t-title-sm">
-        <%= link_to entry.route.title, route_path(entry.route),
-              class: "wc-entry__link", title: entry.route.title %>
+        <%= link_to entry.route.title, route_path(
+          entry.route,
+          username: params[:username],
+          week: params[:week]
+
+        ),
+          class: "wc-entry__link", title: entry.route.title %>
       </h4>
     <% else %>
       <%= button_to toggle_completed_route_path(entry.route), method: :patch,
