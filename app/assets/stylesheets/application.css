@@ -158,6 +158,12 @@ textarea {
   margin: 0;
 }
 
+dl,
+dd,
+dt {
+  margin: 0;
+}
+
 input[type="submit"] {
   cursor: pointer;
   border: none;
@@ -3558,8 +3564,20 @@ button.wc-entry__slot:hover {
     text-decoration-color: var(--color-text-tertiary);
   }
 
+  .mob-wc__entry-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2xs);
+  }
+
+  .mob-wc__entry-header {
+    display: flex;
+    justify-content: space-between;
+  }
+
   .mob-wc__entry-badges {
     display: flex;
+    flex-direction: row;
     align-items: center;
     gap: var(--space-xs);
   }
@@ -3603,11 +3621,6 @@ button.wc-entry__slot:hover {
     color: var(--color-text-secondary);
   }
 
-  .mob-wc__entry-title {
-    font-size: 1.0625rem;
-    font-weight: 600;
-  }
-
   .mob-wc__entry-link {
     color: inherit;
   }
@@ -3623,29 +3636,21 @@ button.wc-entry__slot:hover {
   }
 
   .mob-wc__entry-metrics {
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    justify-content: space-around;
     gap: var(--space-xs);
-    padding-top: var(--space-sm);
-    border-top: 1px solid var(--color-border-subtle);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: var(--space-xs);
+    border-radius: var(--radius-xl);
+    background-color: var(--color-surface-canvas);
   }
 
   .mob-wc__metric {
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: 1px;
     min-width: 0;
-  }
-
-  .mob-wc__metric-label {
-    font-size: 0.6875rem;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-  }
-
-  .mob-wc__metric-value {
-    font-weight: 600;
-    white-space: nowrap;
   }
 
   .mob-wc__unit {
@@ -3817,7 +3822,7 @@ button.wc-entry__slot:hover {
 
   .mob-wc__route-track path {
     fill: none;
-    stroke: currentColor;
+    stroke: var(--color-track-elevation);
     stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;
