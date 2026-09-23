@@ -96,7 +96,7 @@ module CalendarsHelper
 
   # Mobile page title, mirroring the desktop hero heading.
   def calendar_title
-    @is_friend_view ? "#{@friend.name}'s Сalendar" : "My calendar"
+    @is_friend_view ? "#{@friend.name}'s Calendar" : "My Calendar"
   end
 
   # Short display name ("Marc") for the mobile friend-view headers.
