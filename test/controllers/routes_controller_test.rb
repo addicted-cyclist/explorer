@@ -394,6 +394,7 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
     assert_equal Mime[:turbo_stream], response.media_type
     assert_match(/action="replace" target="wc-day-20261028"/, response.body)
+    assert_match(/action="replace" target="mob-week-day-20261028"/, response.body)
     assert_predicate route.reload, :completed?
   end
 

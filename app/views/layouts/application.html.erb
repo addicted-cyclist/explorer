@@ -102,6 +102,30 @@
       </div>
     </main>
 
+    <%# Phase 8 — mobile bottom nav: the header nav is unreachable on narrow
+        screens, so signed-in users get a fixed thumb-reach bar instead
+        (CSS-only, .app-nav-mobile in application.css). %>
+    <% if user_signed_in? %>
+      <nav class="app-nav-mobile" aria-label="Primary (mobile)">
+        <%= link_to routes_path, class: class_names("app-nav-mobile__link", "is-active" => controller_name == "routes" && !friends_route) do %>
+          <span class="material-symbols-outlined" aria-hidden="true">route</span>
+          <span class="t-label-sm">My Routes</span>
+        <% end %>
+        <%= link_to calendar_path, class: class_names("app-nav-mobile__link", "is-active" => controller_name == "calendars" && !friends_calendar) do %>
+          <span class="material-symbols-outlined" aria-hidden="true">calendar_today</span>
+          <span class="t-label-sm">Calendar</span>
+        <% end %>
+        <%= link_to friends_path, class: class_names("app-nav-mobile__link", "is-active" => controller_name == "friends" || friends_calendar || friends_route) do %>
+          <span class="material-symbols-outlined" aria-hidden="true">group</span>
+          <span class="t-label-sm">Friends</span>
+        <% end %>
+        <%= link_to account_path, class: class_names("app-nav-mobile__link", "is-active" => controller_name == "accounts") do %>
+          <span class="material-symbols-outlined" aria-hidden="true">manage_accounts</span>
+          <span class="t-label-sm">Account</span>
+        <% end %>
+      </nav>
+    <% end %>
+
     <footer class="app-footer">
       <div class="container app-footer__inner">
         <span class="app-footer__copy">© 2026 Explorer System Inc. All rights reserved.</span>

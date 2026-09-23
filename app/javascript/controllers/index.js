@@ -39,3 +39,15 @@ application.register("entry-time-editor", EntryTimeEditorController);
 
 import CalendarFiltersController from "./calendar_filters_controller";
 application.register("calendar-filters", CalendarFiltersController);
+
+// Phase 8 — mobile weekly calendar: day state + bottom-sheet pickers
+// (mob-week), the sheets themselves (mob-sheet) and the multi-route swipe
+// slider (mob-slider).
+import MobWeekController from "./mobile/mob_week_controller";
+application.register("mob-week", MobWeekController);
+
+import MobSheetController from "./mobile/mob_sheet_controller";
+application.register("mob-sheet", MobSheetController);
+
+import MobSliderController from "./mobile/mob_slider_controller";
+application.register("mob-slider", MobSliderController);

@@ -1,0 +1,100 @@
+<%# Phase 8 — Mobile weekly calendar ("My & friend calendar"). Rendered on
+    every calendar page next to the desktop .wc layout; CSS swaps the two
+    below 768px (no separate route). Day state lives in mob-week, bottom
+    sheets in mob-sheet, the swipe slider in mob-slider; the allocate /
+    remove_entry / update_entry / join Turbo Streams repaint both layouts. %>
+<% week_dates = (@week_start..(@week_start + 6)).to_a %>
+<% initial_date = calendar_mobile_initial_date %>
+<section class="mob-wc"
+         data-controller="mob-week mob-sheet"
+         data-mob-week-initial-date-value="<%= initial_date.iso8601 %>"
+         data-mob-week-booked-dates-value="<%= calendar_booked_dates_json %>"
+         data-mob-week-initial-month-value="<%= @week_start.iso8601 %>"
+         data-mob-sheet-open-class="is-open"
+         data-mob-sheet-locked-class="mob-sheet--locked">
+
+  <header class="mob-wc__header">
+    <div class="mob-wc__heading">
+      <h1 class="mob-wc__title"><%= calendar_mobile_title %></h1>
+      <p class="mob-wc__subtitle t-body-sm c-secondary">
+        <% if @is_friend_view %>
+          Weekly plan and GPX downloads
+        <% else %>
+          Make your weekly schedule and share it with your friends
+        <% end %>
+      </p>
+    </div>
+    <span class="mob-wc__avatar t-label-lg" aria-hidden="true">
+      <%= calendar_initials(@is_friend_view ? @friend : current_user) %>
+    </span>
+  </header>
+
+  <%= render "calendars/mobile/kpis" %>
+
+  <div class="mob-wc__weeknav">
+    <%= link_to calendar_week_path_for(@week_start - 7), class: "mob-wc__weeknav-btn",
+                aria: { label: "Previous week" } do %>
+      <span class="material-symbols-outlined ms-18" aria-hidden="true">chevron_left</span>
+    <% end %>
+    <span class="mob-wc__weeknav-label t-label-md"><%= calendar_week_label_short(@week_start) %></span>
+    <%= link_to calendar_week_path_for(@week_start + 7), class: "mob-wc__weeknav-btn",
+                aria: { label: "Next week" } do %>
+      <span class="material-symbols-outlined ms-18" aria-hidden="true">chevron_right</span>
+    <% end %>
+  </div>
+
+  <%# Swipeable day strip: one pill per day with the planned kilometres. %>
+  <div class="mob-wc__strip" role="tablist" aria-label="Days of the week">
+    <% week_dates.each do |date| %>
+      <%= button_tag type: "button",
+            class: class_names("mob-wc__pill", "is-today" => date == Date.current,
+                               "is-selected" => date == initial_date),
+            role: "tab", "aria-selected": (date == initial_date).to_s,
+            data: { mob_week_target: "dayPill", date: date.iso8601,
+                    mob_week_date_param: date.iso8601, action: "mob-week#selectDay" } do %>
+        <span class="mob-wc__pill-name t-label-sm"><%= date.strftime("%a") %></span>
+        <span class="mob-wc__pill-num"><%= date.strftime("%-d") %></span>
+        <span class="mob-wc__pill-km t-label-sm"><%= calendar_day_km_short(date) %></span>
+      <% end %>
+    <% end %>
+  </div>
+
+  <%# One panel per day; mob-week shows the selected one. Each panel carries
+      its own id so the Turbo Streams can repaint a single day. %>
+  <section class="mob-wc__schedule" aria-label="Day schedule">
+    <% week_dates.each do |date| %>
+      <%= render "calendars/mobile/day_panel", date: date, initial_date: initial_date %>
+    <% end %>
+  </section>
+
+  <section class="mob-wc__routes" aria-label="Route library">
+    <header class="mob-wc__routes-head">
+      <h2 class="mob-wc__routes-title">
+        <%= @is_friend_view ? "#{calendar_short_name(@friend)}'s week" : "My routes" %>
+      </h2>
+      <span class="mob-wc__routes-count t-label-sm c-secondary">
+        <%= pluralize(@sidebar_routes.size, "route") %>
+      </span>
+    </header>
+    <div class="mob-wc__routes-list">
+      <% if @sidebar_routes.empty? %>
+        <p class="mob-wc__routes-empty t-body-md c-secondary">
+          No routes yet — upload a GPX to start planning.
+        </p>
+      <% else %>
+        <% @sidebar_routes.each do |route| %>
+          <%= render "calendars/mobile/route_card", route: route %>
+        <% end %>
+      <% end %>
+    </div>
+  </section>
+
+  <% unless @is_friend_view %>
+    <%= render "calendars/mobile/sheet_add_route" %>
+    <%= render "calendars/mobile/sheet_schedule_route" %>
+  <% end %>
+
+  <%# Shared scrim behind whichever sheet is open. %>
+  <div class="mob-sheet__backdrop" data-mob-sheet-target="backdrop"
+       data-action="click->mob-sheet#close" aria-hidden="true"></div>
+</section>

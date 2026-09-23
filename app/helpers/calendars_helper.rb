@@ -53,6 +53,57 @@ module CalendarsHelper
     end
   end
 
+  # ---- Phase 8 — mobile weekly calendar -----------------------------------
+
+  # DOM id of a mobile weekly calendar day panel — the .mob-wc mirror of
+  # calendar_day_dom_id, target of the same Turbo Stream repaints
+  # (allocate / update_entry / remove_entry / toggle_completed / join).
+  def calendar_mobile_day_dom_id(date)
+    "mob-week-day-#{date.strftime('%Y%m%d')}"
+  end
+
+  # Compact week range for the mobile nav pill ("Oct 19 – 25"; the month is
+  # spelled out again when the week straddles two months).
+  def calendar_week_label_short(week_start)
+    week_end = week_start + 6
+    if week_start.month == week_end.month
+      "#{week_start.strftime('%b %-d')} – #{week_end.strftime('%-d')}"
+    else
+      "#{week_start.strftime('%b %-d')} – #{week_end.strftime('%b %-d')}"
+    end
+  end
+
+  # Mobile day-strip chip: summed route kilometres ("108.4k") or "Rest" on
+  # empty days.
+  def calendar_day_km_short(date)
+    km = calendar_day_entries(date).sum { |entry| entry.route.distance.to_f }
+    km.zero? ? "Rest" : "#{format_distance(km)}k"
+  end
+
+  # Day the mobile layout opens on: the first planned day of the week, else
+  # today when the rendered week contains it, else the week start.
+  def calendar_mobile_initial_date
+    planned = (@week_start..(@week_start + 6)).detect { |date| calendar_day_entries(date).any? }
+    today = Date.current if Date.current.between?(@week_start, @week_start + 6)
+    planned || today || @week_start
+  end
+
+  # ISO dates with scheduled entries in the rendered week — booked-day dots
+  # for the mobile schedule sheet's month grid.
+  def calendar_booked_dates_json
+    @week_entries.map { |entry| entry.scheduled_on.iso8601 }.uniq.to_json
+  end
+
+  # Mobile page title, mirroring the desktop hero heading.
+  def calendar_mobile_title
+    @is_friend_view ? "#{@friend.name}'s calendar" : "My calendar"
+  end
+
+  # Short display name ("Marc") for the mobile friend-view headers.
+  def calendar_short_name(user)
+    user.name.to_s.split(" ").first.presence || user.username
+  end
+
   # Two-letter avatar initials (header widget, friends list).
   def calendar_initials(user)
     "#{user.first_name[0].to_s.upcase}#{user.last_name[0].to_s.upcase}"

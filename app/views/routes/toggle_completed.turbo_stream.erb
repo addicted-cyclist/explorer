@@ -3,4 +3,7 @@
 <% if @entry %>
   <%= turbo_stream.replace calendar_day_dom_id(@entry.scheduled_on),
         partial: "calendars/day_column", locals: { date: @entry.scheduled_on } %>
+  <%# Phase 8: mirror the repaint in the mobile day panel. %>
+  <%= turbo_stream.replace calendar_mobile_day_dom_id(@entry.scheduled_on),
+        partial: "calendars/mobile/day_panel", locals: { date: @entry.scheduled_on } %>
 <% end %>

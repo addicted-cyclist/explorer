@@ -151,6 +151,12 @@ class CalendarsController < ApplicationController
         # Same week-context contract as prepare_week_state, so any template in
         # the repaint can read @week_start instead of crashing on nil
         @week_start = resolve_week_start
+        # Phase 8: the mobile day-panel repaint needs the week's entries, and
+        # its entry card derives the "Joined" dock state from this set.
+        @week_entries = friend.calendar_entries
+                              .includes(:route)
+                              .between(@week_start..(@week_start + 6)).to_a
+        @joined_origin_ids = [ friend_entry.id ]
         render :join
       end
       format.html do

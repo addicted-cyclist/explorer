@@ -446,6 +446,108 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     assert_empty @user.calendar_entries.reload
   end
 
+  # ---- Phase 8: mobile weekly calendar ---------------------------------------
+
+  test "show renders the mobile week layout beside the desktop grid" do
+    @route.update!(distance: 21.5)
+    monday = Date.current.beginning_of_week
+    @user.calendar_entries.create!(route: @route, scheduled_on: monday, start_time: "08:00", end_time: "08:30")
+
+    get calendar_url
+
+    assert_response :success
+    assert_select "section.mob-wc[data-mob-week-initial-date-value]"
+    # One strip pill and one day panel per weekday, keyed like the desktop columns
+    assert_select "button.mob-wc__pill[data-date]", count: 7
+    assert_select "article[id=?]", "mob-week-day-#{monday.strftime('%Y%m%d')}" do
+      assert_select "article.mob-wc__entry", count: 1
+      assert_select %(button[data-action~="mob-sheet#open"][data-mob-sheet-id-param="add-route"])
+    end
+    # KPI tiles carry the mobile telemetry id the streams repaint
+    assert_select "div[id=mob-week-kpis]"
+    # Both bottom sheets ship hidden until mob-sheet opens them
+    assert_select %(div.mob-sheet[data-sheet-id="add-route"][aria-hidden="true"])
+    assert_select %(div.mob-sheet[data-sheet-id="schedule-route"][aria-hidden="true"])
+    # Signed-in shell renders the mobile bottom nav
+    assert_select "nav.app-nav-mobile a", count: 4
+  end
+
+  test "mobile day panel swaps to the swipe slider with dot navigation" do
+    other = @user.routes.create!(source: "upload", title: "Valley loop", duration: 3_600)
+    monday = Date.current.beginning_of_week
+    @user.calendar_entries.create!(route: @route, scheduled_on: monday, start_time: "08:00", end_time: "08:30")
+    @user.calendar_entries.create!(route: other, scheduled_on: monday, start_time: "17:00", end_time: "18:00")
+
+    get calendar_url
+
+    assert_select "article[id=?]", "mob-week-day-#{monday.strftime('%Y%m%d')}" do
+      assert_select %(div[data-controller="mob-slider"] div[data-mob-slider-target="track"]) do
+        assert_select "div.mob-wc__slider-slide > article.mob-wc__entry", count: 2
+      end
+      assert_select "button.mob-wc__slider-dot", count: 2
+    end
+  end
+
+  test "mobile friend view swaps my actions for read-only ones" do
+    friend = User.create!(valid_user_attributes(email: "mobilefriend@example.com"))
+    Friendship.connect!(friend, @user)
+    friend_route = create_friend_route_with_gpx(friend)
+    friend.calendar_entries.create!(route: friend_route,
+                                    scheduled_on: Date.current.beginning_of_week + 1,
+                                    start_time: "07:30", end_time: "08:30")
+
+    get friend_calendar_path(friend.username, week: Date.current.beginning_of_week.iso8601)
+
+    assert_response :success
+    # No scheduling affordances in the friend view
+    assert_select "section.mob-wc" do
+      assert_select "button.mob-wc__addtile", count: 0
+      assert_select "div.mob-sheet", count: 0
+    end
+    assert_select "article[id=?]",
+                  "mob-week-day-#{(Date.current.beginning_of_week + 1).strftime('%Y%m%d')}" do
+      assert_select "button", text: /Join ride/
+    end
+    # The friend's week routes list downloads GPX instead of scheduling
+    assert_select %(a.mob-wc__route-btn[href^="#{download_route_path(friend_route)}"])
+  end
+
+  test "allocate from the grid also streams the mobile day panel and KPI tiles" do
+    post allocate_calendar_path, params: { route_id: @route.id, scheduled_on: "2026-10-28", start_time: "09:30",
+                                           from_calendar: "1", week: "2026-10-26" },
+          headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
+
+    assert_response :ok
+    assert_match(/action="replace" target="mob-week-day-20261028"/, response.body)
+    assert_match(/action="update" target="mob-week-kpis"/, response.body)
+  end
+
+  test "remove_entry from the grid also streams the mobile day panel and KPI tiles" do
+    @user.calendar_entries.create!(route: @route, scheduled_on: Date.new(2026, 10, 28),
+                                   start_time: "08:00", end_time: "09:00")
+
+    delete remove_entry_calendar_path, params: { route_id: @route.id, from_calendar: "1", week: "2026-10-26" },
+          headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
+
+    assert_response :ok
+    assert_match(/action="replace" target="mob-week-day-20261028"/, response.body)
+    assert_match(/action="update" target="mob-week-kpis"/, response.body)
+  end
+
+  test "join streams the mobile day panel too" do
+    friend = User.create!(valid_user_attributes(email: "mobilejoin@example.com"))
+    Friendship.connect!(friend, @user)
+    friend_route = create_friend_route_with_gpx(friend)
+    friend_entry = friend.calendar_entries.create!(route: friend_route, scheduled_on: Date.new(2026, 10, 27),
+                                                   start_time: "07:30", end_time: "08:30")
+
+    post join_calendar_path, params: { entry_id: friend_entry.id, week: "2026-10-26" },
+          headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
+
+    assert_response :ok
+    assert_match(/action="replace" target="mob-week-day-20261027"/, response.body)
+  end
+
   private
 
   # Friend-owned route with an attached, parsed GPX file (mirrors the helper

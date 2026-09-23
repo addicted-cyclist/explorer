@@ -5,3 +5,14 @@
 <%= turbo_stream.replace calendar_day_dom_id(@entry.scheduled_on),
       partial: "day_column", locals: { date: @entry.scheduled_on } %>
 <%= turbo_stream.replace "wc-telemetry", partial: "telemetry_bar" %>
+
+<%# Phase 8: mirror the repaint in the mobile layout — same day panel(s) and
+    the KPI tiles. On pages without mobile calendar DOM (route detail page)
+    these targets simply don't match, so they no-op. %>
+<%= turbo_stream.replace calendar_mobile_day_dom_id(@entry.scheduled_on),
+      partial: "calendars/mobile/day_panel", locals: { date: @entry.scheduled_on } %>
+<% if @moved_from_date && @moved_from_date != @entry.scheduled_on %>
+  <%= turbo_stream.replace calendar_mobile_day_dom_id(@moved_from_date),
+        partial: "calendars/mobile/day_panel", locals: { date: @moved_from_date } %>
+<% end %>
+<%= turbo_stream.update "mob-week-kpis", partial: "calendars/mobile/kpis" %>

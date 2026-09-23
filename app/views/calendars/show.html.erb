@@ -77,3 +77,9 @@
     <%= render "shared/upload_modal", week: @week_start.iso8601 %>
   <% end %>
 </div>
+
+<%# Phase 8 — mobile weekly calendar: same data, rendered next to the
+    desktop grid; CSS swaps the two layouts below 768px (see the .mob-wc
+    section in application.css). The allocate / remove_entry / update_entry /
+    join / toggle_completed streams repaint both layouts. %>
+<%= render "calendars/mobile/show" %>
