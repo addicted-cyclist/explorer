@@ -28,6 +28,7 @@
       <%= calendar_initials(@is_friend_view ? @friend : current_user) %>
     </span>
   </header>
+
   <div id="mob-week-kpi-container">
     <%= render "calendars/mobile/kpis" %>
   </div>
@@ -45,19 +46,8 @@
   </div>
 
   <%# Swipeable day strip: one pill per day with the planned kilometres. %>
-  <div class="mob-wc__strip" role="tablist" aria-label="Days of the week">
-    <% week_dates.each do |date| %>
-      <%= button_tag type: "button",
-            class: class_names("mob-wc__pill", "is-today" => date == Date.current,
-                               "is-selected" => date == initial_date),
-            role: "tab", "aria-selected": (date == initial_date).to_s,
-            data: { mob_week_target: "dayPill", date: date.iso8601,
-                    mob_week_date_param: date.iso8601, action: "mob-week#selectDay" } do %>
-        <span class="mob-wc__pill-name t-label-sm"><%= date.strftime("%a") %></span>
-        <span class="mob-wc__pill-num"><%= date.strftime("%-d") %></span>
-        <span class="mob-wc__pill-km t-label-sm"><%= calendar_day_km_short(date) %></span>
-      <% end %>
-    <% end %>
+  <div class="mob-wc__strip" id="mob-wc-strip" role="tablist" aria-label="Days of the week">
+    <%= render "calendars/mobile/days-strip" %>
   </div>
 
   <%# One panel per day; mob-week shows the selected one. Each panel carries
