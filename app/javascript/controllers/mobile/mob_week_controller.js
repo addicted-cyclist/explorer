@@ -19,7 +19,11 @@ export default class extends Controller {
     "monthLabel",
     "monthGrid",
   ];
-  static values = { initialDate: String, bookedDates: Array, initialMonth: String };
+  static values = {
+    initialDate: String,
+    bookedDates: Array,
+    initialMonth: String,
+  };
 
   connect() {
     this.selectedDate = this.initialDateValue;
@@ -36,11 +40,17 @@ export default class extends Controller {
         this.applySelection();
       };
     };
-    document.addEventListener("turbo:before-stream-render", this.onBeforeStreamRender);
+    document.addEventListener(
+      "turbo:before-stream-render",
+      this.onBeforeStreamRender,
+    );
   }
 
   disconnect() {
-    document.removeEventListener("turbo:before-stream-render", this.onBeforeStreamRender);
+    document.removeEventListener(
+      "turbo:before-stream-render",
+      this.onBeforeStreamRender,
+    );
   }
 
   // ---- day strip ----------------------------------------------------------
@@ -57,7 +67,10 @@ export default class extends Controller {
       pill.setAttribute("aria-selected", active ? "true" : "false");
     });
     this.dayPanelTargets.forEach((panel) => {
-      panel.classList.toggle("is-selected", panel.dataset.date === this.selectedDate);
+      panel.classList.toggle(
+        "is-selected",
+        panel.dataset.date === this.selectedDate,
+      );
     });
   }
 
@@ -70,6 +83,8 @@ export default class extends Controller {
     let visible = 0;
     this.routeRowTargets.forEach((row) => {
       const match = row.dataset.routeTitle.toLowerCase().includes(query);
+      console.log(match);
+      console.log("\ndataset:", row.dataset);
       row.hidden = !match;
       if (match) visible += 1;
     });
@@ -78,7 +93,10 @@ export default class extends Controller {
 
   pickRoute({ params: { routeId } }) {
     this.routeRowTargets.forEach((row) => {
-      row.classList.toggle("is-selected", row.dataset.routeId === String(routeId));
+      row.classList.toggle(
+        "is-selected",
+        row.dataset.routeId === String(routeId),
+      );
     });
     this.addRouteFieldTarget.value = routeId;
     this.addSubmitTarget.disabled = false;
@@ -95,7 +113,12 @@ export default class extends Controller {
   shiftMonth({ params: { delta } }) {
     const [year, month] = this.view;
     const next = month + Number(delta);
-    this.view = next < 0 ? [year - 1, next + 12] : next > 11 ? [year + 1, next - 12] : [year, next];
+    this.view =
+      next < 0
+        ? [year - 1, next + 12]
+        : next > 11
+          ? [year + 1, next - 12]
+          : [year, next];
     this.renderMonthGrid();
   }
 
@@ -128,14 +151,19 @@ export default class extends Controller {
 
     const [year, month] = this.view;
     if (this.hasMonthLabelTarget) {
-      this.monthLabelTarget.textContent =
-        new Date(year, month, 1).toLocaleString("en-US", { month: "long", year: "numeric" });
+      this.monthLabelTarget.textContent = new Date(
+        year,
+        month,
+        1,
+      ).toLocaleString("en-US", { month: "long", year: "numeric" });
     }
 
     const first = new Date(year, month, 1);
     const cursor = new Date(year, month, 1 - first.getDay());
     const today = this.todayISO();
-    const selected = this.hasScheduleDateTarget ? this.scheduleDateTarget.value : "";
+    const selected = this.hasScheduleDateTarget
+      ? this.scheduleDateTarget.value
+      : "";
     const booked = new Set(this.bookedDatesValue || []);
 
     let html = "";
@@ -149,7 +177,9 @@ export default class extends Controller {
         const classes = ["calendar-day"];
         if (iso === today) classes.push("calendar-day--today");
         if (iso === selected) classes.push("calendar-day--selected");
-        const dot = booked.has(iso) ? '<span class="mob-sheet__day-dot" aria-hidden="true"></span>' : "";
+        const dot = booked.has(iso)
+          ? '<span class="mob-sheet__day-dot" aria-hidden="true"></span>'
+          : "";
         html += `<button type="button" class="${classes.join(" ")}" data-date="${iso}" data-action="mob-week#pickDate">${day.getDate()}${dot}</button>`;
       }
     }

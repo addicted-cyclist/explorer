@@ -164,6 +164,10 @@ dt {
   margin: 0;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 input[type="submit"] {
   cursor: pointer;
   border: none;
