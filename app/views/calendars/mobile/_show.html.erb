@@ -28,8 +28,9 @@
       <%= calendar_initials(@is_friend_view ? @friend : current_user) %>
     </span>
   </header>
-
-  <%= render "calendars/mobile/kpis" %>
+  <div id="mob-week-kpi-container">
+    <%= render "calendars/mobile/kpis" %>
+  </div>
 
   <div class="mob-wc__weeknav">
     <%= link_to calendar_week_path_for(@week_start - 7), class: "mob-wc__weeknav-btn",
