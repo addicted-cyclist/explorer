@@ -3367,12 +3367,6 @@ button.wc-entry__slot:hover {
     gap: var(--space-md);
   }
 
-  .mob-wc__title {
-    font-size: 1.5rem;
-    font-weight: 600;
-    letter-spacing: -0.02em;
-  }
-
   .mob-wc__subtitle {
     margin-top: var(--space-2xs);
   }
@@ -3381,8 +3375,8 @@ button.wc-entry__slot:hover {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 2.75rem;
-    height: 2.75rem;
+    width: 3rem;
+    height: 3rem;
     flex-shrink: 0;
     border-radius: var(--radius-full);
     background: var(--color-surface-container-high);
