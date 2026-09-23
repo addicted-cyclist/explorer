@@ -3698,6 +3698,7 @@ button.wc-entry__slot:hover {
     display: flex;
     flex: 0 0 100%;
     scroll-snap-align: start;
+    scroll-snap-stop: always;
   }
 
   .mob-wc__slider-slide > .mob-wc__entry {
