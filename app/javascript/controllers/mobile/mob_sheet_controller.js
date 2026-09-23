@@ -42,9 +42,6 @@ export default class extends Controller {
     sheet.setAttribute("aria-hidden", "false");
     this.backdropTarget.classList.add(this.openClass);
     document.body.classList.add(this.lockedClass);
-
-    const focusable = sheet.querySelector("input:not([type='hidden']), select");
-    if (focusable) focusable.focus({ preventScroll: true });
   }
 
   close() {
@@ -78,7 +75,9 @@ export default class extends Controller {
 
   // Local-noon parsing keeps %A / "%b %-d" day-stable across time zones.
   dayNameOf(iso) {
-    return new Date(`${iso}T12:00:00`).toLocaleString("en-US", { weekday: "long" });
+    return new Date(`${iso}T12:00:00`).toLocaleString("en-US", {
+      weekday: "long",
+    });
   }
 
   dateLabelOf(iso) {
