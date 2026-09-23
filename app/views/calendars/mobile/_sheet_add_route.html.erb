@@ -10,7 +10,7 @@
 
     <header class="mob-sheet__head">
       <div>
-        <h2 class="mob-sheet__title" id="mob-sheet-add-title">Add route</h2>
+        <h2 class="t-title-lg" id="mob-sheet-add-title">Add route</h2>
         <p class="mob-sheet__subtitle t-label-md c-secondary">
           to <span data-mob-sheet-target="field" data-field="dateLabel">a day</span>
         </p>
@@ -48,7 +48,7 @@
             <span class="mob-sheet__row-body">
               <span class="mob-sheet__row-title t-title-sm"><%= route.title %></span>
               <span class="mob-sheet__row-meta t-label-sm c-secondary">
-                <%= format_distance(route.distance) %> km · <%= format_duration(route.duration) %><%= " · #{route.tier}" if route.tier %>
+                <%= format_distance(route.distance) %> km · <%= format_elevation(route.elevation_gain) %> m<%= " · #{route.tier}" if route.tier %>
               </span>
             </span>
           </label>

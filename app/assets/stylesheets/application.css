@@ -217,6 +217,12 @@ input[type="submit"] {
   font-weight: 600;
   letter-spacing: -0.01em;
 }
+.t-title-lg {
+  font-size: 1.25rem;
+  line-height: 1.3rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
 .t-title-md {
   font-size: 1rem;
   line-height: 1.375rem;
@@ -3892,7 +3898,7 @@ button.wc-entry__slot:hover {
   .mob-sheet__handle {
     width: 2.5rem;
     height: 0.25rem;
-    margin: var(--space-xs) auto 0;
+    margin: var(--space-sm) auto 0;
     border-radius: var(--radius-full);
     background: var(--color-surface-container-highest);
     flex-shrink: 0;
@@ -3905,12 +3911,6 @@ button.wc-entry__slot:hover {
     gap: var(--space-md);
     padding: var(--space-xs) var(--space-md) 0;
     flex-shrink: 0;
-  }
-
-  .mob-sheet__title {
-    font-size: 1.25rem;
-    font-weight: 600;
-    letter-spacing: -0.01em;
   }
 
   .mob-sheet__close {
@@ -3976,7 +3976,7 @@ button.wc-entry__slot:hover {
 
   .mob-sheet__row.is-selected {
     background: var(--color-surface-container-high);
-    box-shadow: inset 2px 0 0 var(--color-primary);
+    box-shadow: inset 3px 0 0 var(--color-primary);
   }
 
   .mob-sheet__radio {
@@ -3998,6 +3998,10 @@ button.wc-entry__slot:hover {
     white-space: nowrap;
   }
 
+  .mob-sheet__subtitle {
+    margin-top: var(--space-2xs);
+  }
+
   .mob-sheet__empty {
     padding-top: var(--space-sm);
     text-align: center;
@@ -4006,7 +4010,7 @@ button.wc-entry__slot:hover {
   .mob-sheet__field {
     display: flex;
     flex-direction: column;
-    gap: var(--space-2xs);
+    gap: var(--space-xs);
   }
 
   .mob-sheet__calendar {
@@ -4048,7 +4052,6 @@ button.wc-entry__slot:hover {
     display: flex;
     gap: var(--space-xs);
     padding-top: var(--space-2xs);
-    border-top: 1px solid var(--color-border-subtle);
   }
 
   .mob-sheet__actions .btn {
