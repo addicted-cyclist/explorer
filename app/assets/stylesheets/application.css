@@ -2758,6 +2758,7 @@ a.route-detail__crumb-link:hover {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
+  margin-top: 0.25rem;
   gap: var(--space-2xs);
   color: var(--color-text-secondary);
 }
@@ -3394,12 +3395,13 @@ button.wc-entry__slot:hover {
   .mob-wc__kpi {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 0.15rem;
     min-width: 0;
     padding: var(--space-sm);
     background: var(--color-surface-card);
     border: 1px solid var(--color-border-subtle);
     border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
   }
 
   .mob-wc__kpi-value {
@@ -3468,6 +3470,7 @@ button.wc-entry__slot:hover {
     border-radius: var(--radius-xl);
     background: var(--color-surface-card);
     color: var(--color-text-primary);
+    box-shadow: var(--shadow-sm);
     transition:
       background-color 0.15s ease,
       border-color 0.15s ease;

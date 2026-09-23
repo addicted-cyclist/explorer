@@ -1,22 +1,22 @@
 <%# Mobile mirror of the desktop telemetry bar (wc-telemetry). The
     allocate / remove_entry Turbo Streams re-render this fragment through its
     mob-week-kpis id, same contract as the desktop repaint. %>
-<div class="mob-wc__kpis" id="mob-week-kpis">
+<div class="mob-wc__kpis">
   <% planned_seconds = @week_entries.sum { |entry| entry.route.duration.to_i } %>
   <div class="mob-wc__kpi">
-    <span class="mob-wc__kpi-label t-label-sm t-uppercase c-secondary">Weekly Distance</span>
+    <span class="mob-wc__kpi-label t-label-sm t-uppercase c-secondary">Weekly Planned</span>
     <span class="mob-wc__kpi-value">
       <%= format_distance(@telemetry[:distance]) %> <span class="t-body-sm c-secondary">km</span>
     </span>
   </div>
   <div class="mob-wc__kpi">
     <span class="mob-wc__kpi-label t-label-sm t-uppercase c-secondary">Weekly Elevation</span>
-    <span class="mob-wc__kpi-value">
+    <span class="mob-wc__kpi-value wc-entry__metric--elevation">
       <%= format_elevation(@telemetry[:elevation]) %> <span class="t-body-sm c-secondary">m</span>
     </span>
   </div>
   <div class="mob-wc__kpi">
-    <span class="mob-wc__kpi-label t-label-sm t-uppercase c-secondary">Est. Time</span>
+    <span class="mob-wc__kpi-label t-label-sm t-uppercase c-secondary">Estimated Time</span>
     <span class="mob-wc__kpi-value"><%= format_duration(planned_seconds) %></span>
   </div>
 </div>
