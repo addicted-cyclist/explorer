@@ -8,7 +8,7 @@
          id="<%= calendar_mobile_day_dom_id(date) %>"
          data-mob-week-target="dayPanel" data-date="<%= date.iso8601 %>">
   <header class="mob-wc__panel-head">
-    <h2 class="mob-wc__panel-name"><%= date.strftime("%A") %></h2>
+    <h2 class="t-headline-sm"><%= date.strftime("%A") %></h2>
     <p class="mob-wc__panel-date t-label-md c-secondary"><%= date.strftime("%-d %B %Y") %></p>
   </header>
 
@@ -16,7 +16,7 @@
   <% if entries.empty? %>
     <div class="mob-wc__empty">
       <span class="material-symbols-outlined mob-wc__empty-icon" aria-hidden="true">wb_sunny</span>
-      <p class="mob-wc__empty-title">Rest day</p>
+      <p class="t-title-md">Rest day</p>
       <p class="mob-wc__empty-text t-body-md c-secondary">Nothing scheduled yet.</p>
     </div>
   <% elsif entries.size == 1 %>
