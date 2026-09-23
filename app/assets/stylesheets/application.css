@@ -3347,17 +3347,14 @@ button.wc-entry__slot:hover {
 
 @media (max-width: 768px) {
   /* Layout swap: the desktop week view and the header nav step aside. */
-  .app-nav {
-    display: none;
-  }
-
-  .wc {
-    display: none;
-  }
-
-  .app-main,
+  .app-nav,
+  .wc,
   .app-footer {
-    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+    display: none;
+  }
+
+  .app-main {
+    padding-bottom: calc(3rem + env(safe-area-inset-bottom));
   }
 
   .mob-wc {
