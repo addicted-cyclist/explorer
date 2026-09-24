@@ -28,6 +28,7 @@ export default class extends Controller {
   connect() {
     this.selectedDate = this.initialDateValue;
     this.view = this.viewOf(this.initialMonthValue || this.todayISO());
+    this.renderMonthGrid();
     this.applySelection();
 
     // Day panels are swapped whole by the allocate/remove/join streams;
@@ -83,8 +84,6 @@ export default class extends Controller {
     let visible = 0;
     this.routeRowTargets.forEach((row) => {
       const match = row.dataset.routeTitle.toLowerCase().includes(query);
-      console.log(match);
-      console.log("\ndataset:", row.dataset);
       row.hidden = !match;
       if (match) visible += 1;
     });
