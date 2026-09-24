@@ -61,10 +61,10 @@
 
   <section class="mob-wc__routes" aria-label="Route library">
     <header class="mob-wc__routes-head">
-      <h2 class="mob-wc__routes-title">
+      <h2 class="t-headline-sm">
         <%= @is_friend_view ? "#{calendar_short_name(@friend)}'s week" : "My routes" %>
       </h2>
-      <span class="mob-wc__routes-count t-label-sm c-secondary">
+      <span class="t-label-sm c-secondary">
         <%= pluralize(@sidebar_routes.size, "route") %>
       </span>
     </header>

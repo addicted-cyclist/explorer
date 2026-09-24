@@ -3756,7 +3756,7 @@ button.wc-entry__slot:hover {
   .mob-wc__routes {
     display: flex;
     flex-direction: column;
-    gap: var(--space-sm);
+    gap: var(--space-md);
   }
 
   .mob-wc__routes-head {
@@ -3792,25 +3792,6 @@ button.wc-entry__slot:hover {
     background: var(--color-surface-card);
     border: 1px solid var(--color-border-subtle);
     border-radius: var(--radius-xl);
-  }
-
-  .mob-wc__route-title {
-    font-size: 1.0625rem;
-    font-weight: 600;
-  }
-
-  .mob-wc__route-link {
-    color: inherit;
-  }
-
-  .mob-wc__route-link:hover {
-    color: var(--color-primary);
-  }
-
-  .mob-wc__route-metrics {
-    display: flex;
-    justify-content: space-between;
-    gap: var(--space-xs);
   }
 
   .mob-wc__route-thumb {
