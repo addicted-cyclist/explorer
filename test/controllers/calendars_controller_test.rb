@@ -464,10 +464,14 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
       assert_select %(button[data-action~="mob-sheet#open"][data-mob-sheet-id-param="add-route"])
     end
     # KPI tiles carry the mobile telemetry id the streams repaint
-    assert_select "div[id=mob-week-kpis]"
+    assert_select "div[id=mob-week-kpi-container]"
     # Both bottom sheets ship hidden until mob-sheet opens them
     assert_select %(div.mob-sheet[data-sheet-id="add-route"][aria-hidden="true"])
     assert_select %(div.mob-sheet[data-sheet-id="schedule-route"][aria-hidden="true"])
+    # A successful Turbo submit closes both sheets; the close event then
+    # resets the picker state inside mob-week
+    assert_select %(form[data-action~="turbo:submit-end->mob-sheet#onSubmitEnd"]), count: 2
+    assert_select %(section.mob-wc[data-action~="mob-sheet:closed->mob-week#onSheetClosed"])
     # Signed-in shell renders the mobile bottom nav
     assert_select "nav.app-nav-mobile a", count: 4
   end
@@ -519,7 +523,7 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :ok
     assert_match(/action="replace" target="mob-week-day-20261028"/, response.body)
-    assert_match(/action="update" target="mob-week-kpis"/, response.body)
+    assert_match(/action="update" target="mob-week-kpi-container"/, response.body)
   end
 
   test "remove_entry from the grid also streams the mobile day panel and KPI tiles" do
@@ -531,7 +535,7 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :ok
     assert_match(/action="replace" target="mob-week-day-20261028"/, response.body)
-    assert_match(/action="update" target="mob-week-kpis"/, response.body)
+    assert_match(/action="update" target="mob-week-kpi-container"/, response.body)
   end
 
   test "join streams the mobile day panel too" do
