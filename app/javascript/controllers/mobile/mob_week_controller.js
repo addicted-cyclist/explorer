@@ -128,6 +128,13 @@ export default class extends Controller {
     if (event.detail.id === "schedule-route") this.resetScheduleSheet();
   }
 
+  onScheduleSubmitEnd(event) {
+    if (!event.detail.success) return;
+    const date = this.scheduleDateTarget.value;
+    if (!date) return;
+    this.bookedDatesValue = [...new Set([...this.bookedDatesValue, date])];
+  }
+
   resetAddSheet() {
     if (this.hasSearchTarget) this.searchTarget.value = "";
     this.filterRoutes();
