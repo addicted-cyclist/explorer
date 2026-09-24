@@ -19,7 +19,8 @@
       </button>
     </header>
 
-    <%= form_with url: allocate_calendar_path, method: :post, class: "mob-sheet__form" do %>
+    <%= form_with url: allocate_calendar_path, method: :post, class: "mob-sheet__form",
+          data: { action: "turbo:submit-end->mob-sheet#onSubmitEnd" } do %>
       <%= hidden_field_tag :route_id, nil, id: "mob-schedule-route-id",
             data: { mob_sheet_target: "field", field: "routeId" } %>
       <%= hidden_field_tag :scheduled_on, nil, id: "mob-schedule-date",

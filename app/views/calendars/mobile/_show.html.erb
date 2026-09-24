@@ -7,6 +7,7 @@
 <% initial_date = calendar_mobile_initial_date %>
 <section class="mob-wc"
          data-controller="mob-week mob-sheet"
+         data-action="mob-sheet:closed->mob-week#onSheetClosed"
          data-mob-week-initial-date-value="<%= initial_date.iso8601 %>"
          data-mob-week-booked-dates-value="<%= calendar_booked_dates_json %>"
          data-mob-week-initial-month-value="<%= @week_start.iso8601 %>"
