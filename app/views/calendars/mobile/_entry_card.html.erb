@@ -61,35 +61,5 @@
     </p>
   </div>
 
-  <dl class="mob-wc__entry-metrics t-label-sm">
-    <div class="mob-wc__metric">
-      <dt class="t-uppercase c-secondary">Dist</dt>
-      <dd class="mob-wc__metric-value t-body-lg">
-        <%= format_distance(entry.route.distance) %> <span class="mob-wc__unit">km</span>
-      </dd>
-    </div>
-    <div class="mob-wc__metric">
-      <dt class="t-uppercase c-secondary">Elev</dt>
-      <dd class="mob-wc__metric-value t-body-lg">
-        <%= format_elevation(entry.route.elevation_gain) %> <span class="mob-wc__unit">m</span>
-      </dd>
-    </div>
-    <div class="mob-wc__metric">
-      <dt class="t-uppercase c-secondary">Time</dt>
-      <dd class="mob-wc__metric-value t-body-lg"><%= format_duration(entry.route.duration) %></dd>
-    </div>
-  </dl>
-
-  <% if entry.route.track_svg.present? %>
-    <div class="mob-wc__route-thumb" aria-hidden="true">
-      <svg class="mob-wc__route-track" viewBox="<%= Route::TRACK_SVG_VIEWBOX %>"
-           preserveAspectRatio="xMidYMid meet" focusable="false">
-        <path d="<%= entry.route.track_svg %>"></path>
-      </svg>
-    </div>
-  <% else %>
-    <div class="mob-wc__route-thumb mob-wc__route-thumb--empty" aria-hidden="true">
-      <span class="material-symbols-outlined" aria-hidden="true">route</span>
-    </div>
-  <% end %>
+  <%= render "calendars/mobile/card_metrics_n_thumb", route: entry.route %>
 </article>
