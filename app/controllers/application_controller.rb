@@ -6,7 +6,7 @@ class ApplicationController < ActionController::Base
   # reachable without an account opt out explicitly with
   # skip_before_action:
   #   * PagesController#landing   — marketing root for signed-out visitors
-  #   * PublicCalendarController  — read-only /c/:token shares (phase 7)
+  #   * PublicCalendarController  — read-only /c/:token shares
   # Devise's own controllers (sessions, registrations, passwords) do not
   # inherit from ApplicationController, so they are unaffected.
   before_action :authenticate_user!

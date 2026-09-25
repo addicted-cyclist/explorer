@@ -10,18 +10,6 @@ export default class extends Controller {
   static targets = ["sheet", "backdrop", "field"];
   static classes = ["open", "locked"];
 
-  connect() {
-    this.onKeydown = (event) => {
-      if (event.key === "Escape" && this.current) this.close();
-    };
-    document.addEventListener("keydown", this.onKeydown);
-  }
-
-  disconnect() {
-    document.removeEventListener("keydown", this.onKeydown);
-    document.body.classList.remove(this.lockedClass);
-  }
-
   open({ params: { id, date = "", routeId = "", routeTitle = "" } }) {
     const sheet = this.sheetTargets.find((el) => el.dataset.sheetId === id);
     if (!sheet) return;

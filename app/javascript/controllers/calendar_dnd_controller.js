@@ -17,10 +17,6 @@ export default class extends Controller {
     const card = event.currentTarget;
     this.dragged = card.dataset.calendarDndIdParam;
     card.classList.add("is-dragging");
-    if (event.dataTransfer) {
-      event.dataTransfer.effectAllowed = "move";
-      event.dataTransfer.setData("text/plain", this.dragged);
-    }
   }
 
   dragEnd(event) {
@@ -33,7 +29,6 @@ export default class extends Controller {
   dragOverDay(event) {
     if (!this.dragged) return;
     event.preventDefault();
-    if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
     event.currentTarget.classList.add("wc-day--drag-over");
   }
 
@@ -72,7 +67,6 @@ export default class extends Controller {
   dragOverPool(event) {
     if (!this.dragged) return;
     event.preventDefault();
-    if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
     event.currentTarget.classList.add("wc-sidebar__pool--drag-over");
   }
 
@@ -93,12 +87,15 @@ export default class extends Controller {
 
   removeEntry(event) {
     if (!this.hasRemoveFormTarget) return;
-    this.removeFormTarget.elements["route_id"].value = event.currentTarget.dataset.routeId;
+    this.removeFormTarget.elements["route_id"].value =
+      event.currentTarget.dataset.routeId;
     this.removeFormTarget.requestSubmit();
   }
 
   clearHighlights() {
-    this.dayColumnTargets.forEach((column) => column.classList.remove("wc-day--drag-over"));
+    this.dayColumnTargets.forEach((column) =>
+      column.classList.remove("wc-day--drag-over"),
+    );
     const pool = this.element.querySelector(".wc-sidebar__pool");
     if (pool) pool.classList.remove("wc-sidebar__pool--drag-over");
   }

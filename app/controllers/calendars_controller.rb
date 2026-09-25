@@ -38,6 +38,9 @@ class CalendarsController < ApplicationController
     # The shared upload dialog behind the sidebar's "Import new GPX" CTA
     # (same modal the routes library renders).
     @new_route = current_user.routes.new unless @is_friend_view
+  rescue ActiveRecord::RecordNotFound
+    redirect_to calendar_path,
+    alert: "Can not get access to stranger's calendar!"
   end
 
   # One entry per user+route: re-allocating a scheduled route moves it to the
