@@ -13,7 +13,12 @@
         <span><%= @route.user.name %></span>
       </span>
       <span class="route-detail__crumb-sep">/</span>
-      <span class="route-detail__crumb-link">Routes</span>
+      <%= link_to calendar_path(
+        username: params[:username],
+        week: params[:week]
+      ), class: "route-detail__crumb-link" do %>
+        <span>Calendar</span>
+      <% end %>
     <% end %>
     <span class="route-detail__crumb-sep">/</span>
     <%# id lets update_detail.turbo_stream.erb refresh the title after inline

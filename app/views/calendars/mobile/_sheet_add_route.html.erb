@@ -1,0 +1,76 @@
+<%# Bottom sheet: "Add route to {day}" — search my library, pick one route
+    (radio list), pick a start time, allocate. mob-sheet fills the
+    [data-field] controls from the opening tile's context (date); mob-week
+    tracks the picked row and re-enables the submit button. A successful
+    Turbo submit closes the sheet and the allocate stream repaints the
+    mobile day panel + KPI tiles. %>
+<div class="mob-sheet" data-mob-sheet-target="sheet" data-sheet-id="add-route" aria-hidden="true">
+  <div class="mob-sheet__panel" role="dialog" aria-modal="true" aria-labelledby="mob-sheet-add-title">
+    <div class="mob-sheet__handle" aria-hidden="true"></div>
+
+    <header class="mob-sheet__head">
+      <div>
+        <h2 class="t-title-lg" id="mob-sheet-add-title">Add route</h2>
+        <p class="mob-sheet__subtitle t-label-md c-secondary">
+          to <span data-mob-sheet-target="field" data-field="dateLabel">a day</span>
+        </p>
+      </div>
+      <button type="button" class="icon-btn mob-sheet__close" data-action="mob-sheet#close" aria-label="Close">
+        <span class="material-symbols-outlined ms-18" aria-hidden="true">close</span>
+      </button>
+    </header>
+
+    <%= form_with url: allocate_calendar_path, method: :post, class: "mob-sheet__form",
+          data: { action: "turbo:submit-end->mob-sheet#onSubmitEnd" } do %>
+      <%= hidden_field_tag :route_id, nil, id: "mob-add-route-id",
+            data: { mob_week_target: "addRouteField" } %>
+      <%= hidden_field_tag :scheduled_on, nil, id: "mob-add-scheduled-on",
+            data: { mob_sheet_target: "field", field: "date" } %>
+      <%= hidden_field_tag :from_calendar, "1", id: "mob-add-from-calendar" %>
+      <%= hidden_field_tag :week, @week_start.iso8601, id: "mob-add-week" %>
+
+      <label class="mob-sheet__search">
+        <span class="material-symbols-outlined ms-18" aria-hidden="true">search</span>
+        <span class="sr-only">Search routes</span>
+        <input type="search" class="input t-body-md" placeholder="Search routes..."
+               autocomplete="off" data-mob-week-target="search"
+               data-action="input->mob-week#filterRoutes">
+      </label>
+
+      <div class="mob-sheet__list" role="radiogroup" aria-label="Pick a route">
+        <% @sidebar_routes.each do |route| %>
+          <label class="mob-sheet__row"
+                 data-mob-week-target="routeRow"
+                 data-route-id="<%= route.id %>"
+                 data-route-title="<%= [route.title, route.sport_type, route.tier].compact.join(" ") %>">
+            <input type="radio" name="mob-add-route-picker" value="<%= route.id %>"
+                   class="mob-sheet__radio" data-action="mob-week#pickRoute"
+                   data-mob-week-route-id-param="<%= route.id %>">
+            <span class="mob-sheet__row-body">
+              <span class="mob-sheet__row-title t-title-sm"><%= route.title %></span>
+              <span class="mob-sheet__row-meta t-label-sm c-secondary">
+                <%= format_distance(route.distance) %> km · <%= format_elevation(route.elevation_gain) %> m<%= " · #{route.tier}" if route.tier %>
+              </span>
+            </span>
+          </label>
+        <% end %>
+      </div>
+      <p class="mob-sheet__empty t-body-md c-secondary" data-mob-week-target="pickerEmpty" hidden>
+        No routes match your search.
+      </p>
+
+      <label class="mob-sheet__field">
+        <span class="t-label-md c-secondary">Start time</span>
+        <%= select_tag :start_time, options_for_select(calendar_start_time_options, "08:00"),
+              id: "mob-add-start-time", class: "input t-body-md", aria: { label: "Start time" } %>
+      </label>
+
+      <footer class="mob-sheet__actions">
+        <button type="button" class="btn btn--ghost" data-action="mob-sheet#close">Cancel</button>
+        <button type="submit" class="btn btn--primary" data-mob-week-target="addSubmit" disabled>
+          Add to <span data-mob-sheet-target="field" data-field="dayName">day</span>
+        </button>
+      </footer>
+    <% end %>
+  </div>
+</div>

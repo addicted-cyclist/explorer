@@ -1,0 +1,40 @@
+<%# Mobile route card for the bottom list — my whole library or (friend
+    view) the friend's routes scheduled this week. My view: the Schedule
+    button opens the "Schedule route" sheet with the route as context.
+    Friend view: GPX download, mirroring the desktop sidebar's friend card. %>
+<% route_path_opts = @is_friend_view ? { username: params[:username], week: params[:week] } : {} %>
+<article class="mob-wc__route" id="<%= dom_id(route, :mob_route) %>">
+  <span class="mob-wc__route-tier t-label-sm t-uppercase <%= calendar_tier_class(route.tier) %>">
+    <%= route.tier.presence || "Unrated" %>
+  </span>
+
+  <h3 class="t-title-md">
+    <%= link_to route.title, route_path(route, **route_path_opts),
+          class: "mob-wc__route-link", title: route.title %>
+  </h3>
+
+  <%= render "calendars/mobile/card_metrics_n_thumb", route: route %>
+
+  <footer class="mob-wc__route-footer">
+    <span class="mob-wc__route-sport t-label-md c-secondary">
+      <span class="material-symbols-outlined ms-16" aria-hidden="true">directions_bike</span>
+      <span><%= sport_type_label(route) %></span>
+    </span>
+    <% if @is_friend_view %>
+      <%= link_to download_route_path(route), class: "btn btn--sm btn--ghost mob-wc__route-btn",
+            title: "Download GPX", data: { turbo: false } do %>
+        <span class="material-symbols-outlined ms-16" aria-hidden="true">download</span>
+        <span class="t-label-sm">Download</span>
+      <% end %>
+    <% else %>
+      <button type="button" class="btn btn--sm btn--primary mob-wc__route-btn"
+              data-action="mob-sheet#open"
+              data-mob-sheet-id-param="schedule-route"
+              data-mob-sheet-route-id-param="<%= route.id %>"
+              data-mob-sheet-route-title-param="<%= route.title %>">
+        <span class="material-symbols-outlined ms-16" aria-hidden="true">calendar_month</span>
+        <span class="t-label-sm">Schedule</span>
+      </button>
+    <% end %>
+  </footer>
+</article>

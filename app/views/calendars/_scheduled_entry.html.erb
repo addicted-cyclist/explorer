@@ -1,0 +1,94 @@
+<%# Scheduled card in a day column. My view: completed checkbox, click-to-edit
+    start time row and a hover action dock floating over the card's bottom edge
+    (X unschedules via calendar-dnd#removeEntry). Friend view: read-only — no
+    checkbox/X/editor; the dock always renders and the join partial swaps
+    Join+popover for an inert "Joined" button when joined — the join Turbo
+    Stream passes joined: true explicitly, fresh page renders derive it from
+    @joined_origin_ids via the helper. Title links carry a native
+    tooltip so truncated names stay readable. %>
+<% joined = local_assigns.fetch(:joined) { calendar_entry_joined?(entry) } %>
+<article class="wc-entry<%= " wc-entry--completed" if entry.route.completed? %>"
+         id="<%= dom_id(entry) %>"
+         data-controller="entry-time-editor">
+  <div class="wc-entry__top">
+    <% if @is_friend_view %>
+      <h4 class="wc-entry__title t-title-sm">
+        <%= link_to entry.route.title, route_path(
+          entry.route,
+          username: params[:username],
+          week: params[:week]
+
+        ),
+          class: "wc-entry__link", title: entry.route.title %>
+      </h4>
+    <% else %>
+      <%= button_to toggle_completed_route_path(entry.route), method: :patch,
+            class: "wc-entry__check",
+            params: { from_calendar: "1", week: (@week_start.iso8601 if @week_start) },
+            form: { class: "wc-entry__check-form" },
+            aria: { label: entry.route.completed? ? "Mark as not completed" : "Mark as completed" } do %>
+        <span class="material-symbols-outlined ms-14" aria-hidden="true">check</span>
+      <% end %>
+      <h4 class="wc-entry__title t-title-sm">
+        <%= link_to entry.route.title, route_path(entry.route),
+              class: "wc-entry__link", title: entry.route.title %>
+      </h4>
+    <% end %>
+  </div>
+
+  <div class="wc-entry__metrics t-label-sm">
+    <span class="wc-entry__metric"><%= format_distance(entry.route.distance) %> <span class="wc-entry__unit">km</span></span>
+    <span class="wc-entry__metric wc-entry__metric--elevation"><%= format_elevation(entry.route.elevation_gain) %> <span class="wc-entry__unit">m</span></span>
+  </div>
+
+  <% if @is_friend_view %>
+    <p class="wc-entry__slot t-label-sm">
+      <span class="material-symbols-outlined ms-14" aria-hidden="true">schedule</span>
+      <span><%= entry.start_time&.strftime("%I:%M %p") || "--:--" %></span>
+    </p>
+  <% else %>
+    <button type="button" class="wc-entry__slot t-label-sm" title="Edit start time"
+            aria-label="Edit start time"
+            data-action="entry-time-editor#open">
+      <span class="material-symbols-outlined ms-14" aria-hidden="true">schedule</span>
+      <span><%= entry.start_time&.strftime("%I:%M %p") || "--:--" %></span>
+    </button>
+
+    <div data-entry-time-editor-target="editor" data-action="turbo:submit-end->entry-time-editor#onSubmitEnd" hidden>
+      <%= form_with url: update_entry_calendar_path, method: :patch, class: "wc-entry__editor",
+            data: { entry_time_editor_target: "form" } do |form| %>
+        <%= hidden_field_tag :entry_id, entry.id, id: "wc-entry-id-#{entry.id}" %>
+        <%= hidden_field_tag :from_calendar, "1", id: "wc-entry-from-cal-#{entry.id}" %>
+        <%= hidden_field_tag :week, (@week_start.iso8601 if @week_start), id: "wc-entry-week-#{entry.id}" %>
+        <%= form.label :start_time, "Start time", class: "sr-only", for: "wc-entry-start-#{entry.id}" %>
+        <%= select_tag :start_time,
+              options_for_select(calendar_start_time_options, entry.start_time&.strftime("%H:%M")),
+              id: "wc-entry-start-#{entry.id}",
+              class: "input t-body-md",
+              aria: { label: "Start time" },
+              data: { entry_time_editor_target: "input" } %>
+        <button type="submit" class="btn btn--sm btn--primary">
+          <span class="material-symbols-outlined ms-16" aria-hidden="true">check</span>
+          <span class="t-label-sm">Save</span>
+        </button>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%# Action dock — floats over the card's bottom edge, outside the content
+      flow; revealed on card hover, keyboard focus or an open popover. %>
+  <% if @is_friend_view %>
+    <div class="wc-entry__dock">
+      <%= render "calendars/join_popover", entry: entry, joined: joined %>
+    </div>
+  <% else %>
+    <div class="wc-entry__dock">
+      <button type="button" class="wc-entry__remove" title="Remove from calendar"
+              aria-label="Remove from calendar"
+              data-action="calendar-dnd#removeEntry"
+              data-route-id="<%= entry.route_id %>">
+        <span class="material-symbols-outlined ms-16" aria-hidden="true">close</span>
+      </button>
+    </div>
+  <% end %>
+</article>

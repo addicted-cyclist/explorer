@@ -37,6 +37,30 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Choose at least one GPX file to upload.", flash[:alert]
   end
 
+  test "create opened from the calendar lands back on the visited week" do
+    assert_difference -> { Route.count }, +1 do
+      post routes_path, params: {
+        route: { gpx_files: [ gpx_fixture_upload("exploration.gpx") ] },
+        from_calendar: "1", week: "2026-01-05", commit: "Parse & Import"
+      }
+    end
+
+    assert_redirected_to calendar_path(week: "2026-01-05")
+    assert_equal "Imported route: exploration.", flash[:notice]
+  end
+
+  test "create keeps the calendar origin when the upload is empty" do
+    assert_no_difference -> { Route.count } do
+      post routes_path, params: {
+        route: { gpx_files: [ "" ] },
+        from_calendar: "1", week: "2026-01-05", commit: "Parse & Import"
+      }
+    end
+
+    assert_redirected_to calendar_path(week: "2026-01-05")
+    assert_equal "Choose at least one GPX file to upload.", flash[:alert]
+  end
+
   # Regression from the production log: when the first save! fails (here the
   # filename-derived title exceeds the 200 character limit), the attachment
   # only exists in memory. The cleanup used to call purge_later on that
@@ -160,6 +184,17 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
     # Editable tier select + calendar chip, both absent from the friend view
     assert_match 'name="route[tier]"', response.body
     assert_match "Add to calendar", response.body
+    # Chip + remove forms report submit-end back to the calendar-picker
+    # wrapper: the allocate/remove streams repaint wc-day-* columns, which
+    # don't exist on the detail page — the chip label refreshes client-side
+    assert_select "div.route-detail__calendar[data-controller~=calendar-picker]" do
+      # Both forms must live INSIDE the wrapper: the submit-end handlers are
+      # bound by the calendar-picker controller on it, so a form outside its
+      # scope submits fine but never refreshes the chip label
+      assert_select %(form[data-calendar-picker-target=form][data-action~="turbo:submit-end->calendar-picker#onScheduleSubmitEnd"])
+      assert_select %(form[data-action~="turbo:submit-end->calendar-picker#onRemoveSubmitEnd"])
+      assert_select %(span[data-calendar-picker-target=chipLabel])
+    end
     # gpx.studio embed points at the public tokenized endpoint
     assert_match "gpx.studio/embed?options=", response.body
     # The embed survives full-page renders without reloading
@@ -335,6 +370,41 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :unprocessable_entity
     assert_equal 1_800, route.reload.duration
+  end
+
+  # ---- Phase 7: calendar-originated mutations ---------------------------------
+
+  test "destroy from the calendar sidebar returns to the visited week" do
+    route = create_route_with_gpx(@user)
+
+    delete route_path(route), params: { from_calendar: "1", week: "2026-10-26" }
+
+    assert_redirected_to calendar_path(week: "2026-10-26")
+    assert_equal "Route \"#{route.title}\" deleted.", flash[:notice]
+  end
+
+  test "toggle_completed from the calendar streams the day column repaint" do
+    route = create_route_with_gpx(@user)
+    @user.calendar_entries.create!(route: route, scheduled_on: Date.new(2026, 10, 28),
+                                   start_time: "08:00", end_time: "09:00")
+
+    patch toggle_completed_route_path(route), params: { from_calendar: "1", week: "2026-10-26" },
+          headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
+
+    assert_response :ok
+    assert_equal Mime[:turbo_stream], response.media_type
+    assert_match(/action="replace" target="wc-day-20261028"/, response.body)
+    assert_match(/action="replace" target="mob-week-day-20261028"/, response.body)
+    assert_predicate route.reload, :completed?
+  end
+
+  test "toggle_completed from the library keeps redirecting to the library" do
+    route = create_route_with_gpx(@user)
+
+    patch toggle_completed_route_path(route)
+
+    assert_redirected_to routes_path
+    assert_predicate route.reload, :completed?
   end
 
   private

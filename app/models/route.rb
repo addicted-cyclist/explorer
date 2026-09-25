@@ -26,6 +26,38 @@ class Route < ApplicationRecord
     source == "upload"
   end
 
+  # ---- Deep copy (save to library, calendar join) ------------------------
+  # Attributes carried onto a deep copy: the parsed GPX facts and display
+  # metadata. Ownership, timestamps, source and the completed flag reset.
+  DEEP_COPY_ATTRIBUTES = %w[
+    title description distance elevation_gain elevation_loss min_elevation
+    max_elevation duration tier sport_type track_svg
+  ].freeze
+
+  # Build (unsaved) a duplicate of this route owned by +owner+. The GPX file
+  # is re-attached byte-for-byte under the copy's own blob, so the copy and
+  # the original never share state — editing, re-uploading or deleting one
+  # can never affect the other. Call save! on the result.
+  def deep_copy_for(owner)
+    owner.routes.build(
+      attributes.slice(*DEEP_COPY_ATTRIBUTES).merge(
+        "source" => "upload",
+        "completed" => false
+      )
+    ).tap do |copy|
+      next unless gpx_file.attached?
+
+      # Buffer the bytes up front: the copy's upload is deferred until its
+      # save!, by which time a Tempfile opened here would already be closed.
+      # GPX files are small, so buffering is safe.
+      copy.gpx_file.attach(
+        io: StringIO.new(gpx_file.download),
+        filename: gpx_file.filename,
+        content_type: gpx_file.content_type
+      )
+    end
+  end
+
   # Average speed in km/h implied by distance and moving time. Derived on the
   # fly — the detail page's linked Est. Duration / Moving Pace inputs both
   # just rewrite +duration+. Nil when either input is missing or zero.

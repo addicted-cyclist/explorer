@@ -1,0 +1,31 @@
+<dl class="mob-wc__entry-metrics t-label-sm">
+  <div class="mob-wc__metric">
+    <dt class="t-uppercase c-secondary">Dist</dt>
+    <dd class="mob-wc__metric-value t-body-lg">
+      <%= format_distance(route.distance) %> <span class="mob-wc__unit">km</span>
+    </dd>
+  </div>
+  <div class="mob-wc__metric">
+    <dt class="t-uppercase c-secondary">Elev</dt>
+    <dd class="mob-wc__metric-value t-body-lg">
+      <%= format_elevation(route.elevation_gain) %> <span class="mob-wc__unit">m</span>
+    </dd>
+  </div>
+  <div class="mob-wc__metric">
+    <dt class="t-uppercase c-secondary">Time</dt>
+    <dd class="mob-wc__metric-value t-body-lg"><%= format_duration(route.duration) %></dd>
+  </div>
+</dl>
+
+<% if route.track_svg.present? %>
+  <div class="mob-wc__route-thumb" aria-hidden="true">
+    <svg class="mob-wc__route-track" viewBox="<%= Route::TRACK_SVG_VIEWBOX %>"
+          preserveAspectRatio="xMidYMid meet" focusable="false">
+      <path d="<%= route.track_svg %>"></path>
+    </svg>
+  </div>
+<% else %>
+  <div class="mob-wc__route-thumb mob-wc__route-thumb--empty" aria-hidden="true">
+    <span class="material-symbols-outlined" aria-hidden="true">route</span>
+  </div>
+<% end %>

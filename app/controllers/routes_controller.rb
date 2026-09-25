@@ -23,7 +23,7 @@ class RoutesController < ApplicationController
   def create
     files = Array(params.dig(:route, :gpx_files)).compact_blank
     if files.empty?
-      redirect_to routes_path, alert: "Choose at least one GPX file to upload." and return
+      redirect_to upload_return_path, alert: "Choose at least one GPX file to upload." and return
     end
 
     imported, failed = [], []
@@ -46,33 +46,17 @@ class RoutesController < ApplicationController
     if imported.any?
       notice = "Imported #{'route'.pluralize(imported.size)}: #{imported.map(&:title).join(', ')}."
       notice += " Failed: #{failed.join(', ')}." if failed.any?
-      redirect_to routes_path, notice: notice
+      redirect_to upload_return_path, notice: notice
     else
-      redirect_to routes_path, alert: "No routes were imported. Failed: #{failed.join(', ')}."
+      redirect_to upload_return_path, alert: "No routes were imported. Failed: #{failed.join(', ')}."
     end
   end
 
-  # Deep-copies a friend's (or my own) route into my library. Every column is
-  # copied as a plain value and the GPX file gets a fresh blob, so the copy
-  # and the original never share state — editing, re-uploading or deleting
-  # one can never affect the other.
+  # Deep-copies a friend's (or my own) route into my library — every column
+  # is copied as a plain value and the GPX file gets a fresh blob, so the
+  # copy and the original never share state (Route#deep_copy_for).
   def save
-    saved = current_user.routes.build(
-      title: @route.title,
-      description: @route.description,
-      distance: @route.distance,
-      elevation_gain: @route.elevation_gain,
-      elevation_loss: @route.elevation_loss,
-      min_elevation: @route.min_elevation,
-      max_elevation: @route.max_elevation,
-      duration: @route.duration,
-      tier: @route.tier,
-      sport_type: @route.sport_type,
-      track_svg: @route.track_svg,
-      source: "upload",
-      completed: false
-    )
-    copy_gpx_file(@route, saved)
+    saved = @route.deep_copy_for(current_user)
     saved.save!
     redirect_to route_path(saved), notice: "Saved \"#{saved.title}\" to My Routes."
   rescue ActiveRecord::RecordInvalid => e
@@ -122,12 +106,33 @@ class RoutesController < ApplicationController
   def destroy
     title = @route.title
     @route.destroy
-    redirect_to routes_path, notice: "Route \"#{title}\" deleted."
+    # Deleting from the calendar sidebar's kebab menu bounces back to the
+    # visited week; library deletes keep landing in the library.
+    if params[:from_calendar].present?
+      redirect_to calendar_path(week: params[:week]), notice: "Route \"#{title}\" deleted."
+    else
+      redirect_to routes_path, notice: "Route \"#{title}\" deleted."
+    end
   end
 
   def toggle_completed
     @route.update!(completed: !@route.completed)
-    redirect_to routes_path, notice: @route.completed ? "Marked \"#{@route.title}\" as completed." : "Marked \"#{@route.title}\" as not completed."
+    notice = @route.completed ? "Marked \"#{@route.title}\" as completed." : "Marked \"#{@route.title}\" as not completed."
+    if params[:from_calendar].present?
+      # The checkbox lives in a calendar day column: repaint just that column
+      # and keep the classic redirect as the no-JS fallback.
+      @entry = current_user.calendar_entries.find_by(route: @route)
+      @week_start = resolve_calendar_week
+      @week_entries = current_user.calendar_entries
+                                   .includes(:route)
+                                   .between(@week_start..(@week_start + 6)).to_a
+      respond_to do |format|
+        format.turbo_stream
+        format.html { redirect_to calendar_path(week: params[:week]), notice: notice }
+      end
+    else
+      redirect_to routes_path, notice: notice
+    end
   end
 
   def download
@@ -156,19 +161,20 @@ class RoutesController < ApplicationController
     raise ActiveRecord::RecordNotFound
   end
 
-  # Attach a byte-for-byte copy of +source+'s GPX under +target+'s own blob —
-  # sharing the blob would let a purge on either side destroy both.
-  def copy_gpx_file(source, target)
-    return unless source.gpx_file.attached?
+  # Week context for calendar-originated streams (from_calendar=1): the
+  # visible week rides along in the form payload.
+  def resolve_calendar_week
+    Date.parse(params[:week].to_s).beginning_of_week
+  rescue ArgumentError, TypeError
+    Date.current.beginning_of_week
+  end
 
-    # Read the bytes up front: `source.gpx_file.open` would scope a Tempfile to
-    # this block, but the target's upload is deferred until save! — by then the
-    # Tempfile is already closed. GPX files are small, so buffering is safe.
-    target.gpx_file.attach(
-      io: StringIO.new(source.gpx_file.download),
-      filename: source.gpx_file.filename,
-      content_type: source.gpx_file.content_type
-    )
+  # The shared upload modal also opens from the calendar sidebar's "Import
+  # new GPX" CTA; when it does (from_calendar=1 + week), land back on the
+  # visited week instead of the library (same contract as destroy /
+  # toggle_completed).
+  def upload_return_path
+    params[:from_calendar].present? ? calendar_path(week: params[:week]) : routes_path
   end
 
   def route_params

@@ -5,11 +5,10 @@ import { Controller } from "@hotwired/stimulus";
 // scheduled_on field and submits the wrapping form immediately, Done just
 // closes the popover. Adjacent-month days render muted and inert.
 export default class extends Controller {
-  static targets = ["popover", "label", "grid", "hidden"];
-  static values = { scheduled: String };
+  static targets = ["popover", "label", "grid", "hidden", "form", "chipLabel"];
 
   connect() {
-    this.view = this.viewOf(this.hiddenTarget.value || this.scheduledValue || this.todayISO());
+    this.view = this.viewOf(this.hiddenTarget.value || this.todayISO());
     this.render();
   }
 
@@ -50,19 +49,46 @@ export default class extends Controller {
   submit() {
     if (!this.hiddenTarget.value) return;
     this.close();
-    this.element.requestSubmit();
+    this.formTarget.requestSubmit();
+  }
+
+  // The allocate/remove Turbo Streams only repaint wc-day-* day columns,
+  // which don't exist on the detail page — so the chip label is kept in sync
+  // here, from the date the picker itself just committed.
+  onScheduleSubmitEnd(event) {
+    if (!event.detail.success) return;
+    this.chipLabelTarget.textContent = `Added to ${this.shortDate(this.hiddenTarget.value)}`;
+  }
+
+  onRemoveSubmitEnd(event) {
+    if (!event.detail.success) return;
+    this.hiddenTarget.value = "";
+    this.chipLabelTarget.textContent = "Add to calendar";
+    this.close();
+    this.render();
+  }
+
+  // "Oct 3" for the chip, matching the server-rendered %b %-d format
+  shortDate(iso) {
+    const [year, month, day] = iso.split("-").map(Number);
+    return new Date(year, month - 1, day).toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+    });
   }
 
   // ---- rendering ---------------------------------------------------------
 
   render() {
     const [year, month] = this.view;
-    this.labelTarget.textContent =
-      new Date(year, month, 1).toLocaleString("en-US", { month: "long", year: "numeric" });
+    this.labelTarget.textContent = new Date(year, month, 1).toLocaleString(
+      "en-US",
+      { month: "long", year: "numeric" },
+    );
 
     const first = new Date(year, month, 1);
     const cursor = new Date(year, month, 1 - first.getDay());
-    const selected = this.hiddenTarget.value || this.scheduledValue;
+    const selected = this.hiddenTarget.value;
     const today = this.todayISO();
 
     let html = "";
@@ -84,7 +110,12 @@ export default class extends Controller {
 
   shiftMonth(delta) {
     const [year, month] = this.view;
-    this.view = month + delta < 0 ? [year - 1, 11] : month + delta > 11 ? [year + 1, 0] : [year, month + delta];
+    this.view =
+      month + delta < 0
+        ? [year - 1, 11]
+        : month + delta > 11
+          ? [year + 1, 0]
+          : [year, month + delta];
     this.render();
   }
 

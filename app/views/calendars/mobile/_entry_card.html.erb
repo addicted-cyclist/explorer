@@ -1,0 +1,65 @@
+<%# Scheduled entry card, Friends-card style, for the mobile day panel.
+    My view: completed toggle + Remove. Friend view: read-only, with the
+    Join ride button (or the inert Joined state, derived from
+    @joined_origin_ids exactly like the desktop dock). %>
+<% joined = local_assigns.fetch(:joined) { calendar_entry_joined?(entry) } %>
+<% route_path_opts = @is_friend_view ? { username: params[:username], week: params[:week] } : {} %>
+<article class="mob-wc__entry<%= " mob-wc__entry--completed" if entry.route.completed? %>"
+         id="<%= dom_id(entry, :mob_entry) %>">
+  <div class="mob-wc__entry-header">
+    <div class="mob-wc__entry-badges">
+      <% if @is_friend_view %>
+        <span class="mob-wc__entry-status" aria-hidden="true">
+          <span class="material-symbols-outlined ms-16">groups</span>
+        </span>
+      <% else %>
+        <%= button_to toggle_completed_route_path(entry.route), method: :patch,
+              class: "mob-wc__entry-check",
+              params: { from_calendar: "1", week: (@week_start.iso8601 if @week_start) },
+              aria: { label: entry.route.completed? ? "Mark as not completed" : "Mark as completed" } do %>
+          <span class="material-symbols-outlined ms-16" aria-hidden="true">check</span>
+        <% end %>
+      <% end %>
+      <span class="mob-wc__entry-tier t-label-sm t-uppercase <%= calendar_tier_class(entry.route.tier) %>">
+        <%= entry.route.tier.presence || "Unrated" %>
+      </span>
+    </div>
+    <div class="mob-wc__entry-actions">
+      <% if @is_friend_view %>
+        <% if joined %>
+          <span class="mob-wc__entry-joined t-label-md">
+            <span class="material-symbols-outlined ms-16" aria-hidden="true">check_circle</span>
+            <span>Joined</span>
+          </span>
+        <% else %>
+          <%= button_to join_calendar_path(entry_id: entry.id, week: (@week_start.iso8601 if @week_start)),
+                class: "btn btn--sm btn--primary mob-wc__entry-btn" do %>
+            <span class="material-symbols-outlined ms-16" aria-hidden="true">group_add</span>
+            <span class="t-label-sm">Join ride</span>
+          <% end %>
+        <% end %>
+      <% else %>
+        <%= button_to remove_entry_calendar_path(route_id: entry.route_id, from_calendar: "1",
+                      week: (@week_start.iso8601 if @week_start)),
+              method: :delete, class: "btn btn--sm btn--danger mob-wc__entry-btn",
+              form: { data: { turbo_confirm: "Remove \"#{entry.route.title}\" from your calendar?" } } do %>
+          <span class="material-symbols-outlined ms-16" aria-hidden="true">delete</span>
+          <span class="t-label-sm">Remove</span>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="mob-wc__entry-info">
+    <h3 class="t-title-md">
+      <%= link_to entry.route.title, route_path(entry.route, **route_path_opts),
+            class: "mob-wc__entry-link", title: entry.route.title %>
+    </h3>
+    <p class="mob-wc__entry-time t-label-sm c-secondary">
+      <span class="material-symbols-outlined ms-16" aria-hidden="true">schedule</span>
+      <span><%= entry.start_time&.strftime("%I:%M %p") || "--:--" %></span>
+    </p>
+  </div>
+
+  <%= render "calendars/mobile/card_metrics_n_thumb", route: entry.route %>
+</article>

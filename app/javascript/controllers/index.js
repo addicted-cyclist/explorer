@@ -27,3 +27,27 @@ application.register("pace-duration", PaceDurationController);
 
 import autoGrowController from "./auto_grow_controller";
 application.register("auto-grow", autoGrowController);
+
+import CalendarDndController from "./calendar_dnd_controller";
+application.register("calendar-dnd", CalendarDndController);
+
+import JoinRoutePopoverController from "./join_route_popover_controller";
+application.register("join-route-popover", JoinRoutePopoverController);
+
+import EntryTimeEditorController from "./entry_time_editor_controller";
+application.register("entry-time-editor", EntryTimeEditorController);
+
+import CalendarFiltersController from "./calendar_filters_controller";
+application.register("calendar-filters", CalendarFiltersController);
+
+// Phase 8 — mobile weekly calendar: day state + bottom-sheet pickers
+// (mob-week), the sheets themselves (mob-sheet) and the multi-route swipe
+// slider (mob-slider).
+import MobWeekController from "./mobile/mob_week_controller";
+application.register("mob-week", MobWeekController);
+
+import MobSheetController from "./mobile/mob_sheet_controller";
+application.register("mob-sheet", MobSheetController);
+
+import MobSliderController from "./mobile/mob_slider_controller";
+application.register("mob-slider", MobSliderController);

@@ -1,0 +1,16 @@
+<% if @removed_date %>
+  <%= turbo_stream.replace calendar_day_dom_id(@removed_date),
+        partial: "day_column", locals: { date: @removed_date } %>
+<% end %>
+
+<%= turbo_stream.replace "wc-telemetry", partial: "telemetry_bar" %>
+
+<%# Phase 8: mirror the repaint in the mobile layout. %>
+<% if @removed_date %>
+  <%= turbo_stream.replace calendar_mobile_day_dom_id(@removed_date),
+        partial: "calendars/mobile/day_panel", locals: { date: @removed_date } %>
+<% end %>
+
+<%= turbo_stream.update "mob-week-kpi-container", partial: "calendars/mobile/kpis" %>
+
+<%= turbo_stream.update "mob-wc-strip", partial: "calendars/mobile/days-strip" %>

@@ -1,0 +1,15 @@
+<% week_dates = (@week_start..(@week_start + 6)).to_a %>
+<% initial_date = calendar_mobile_initial_date %>
+
+<% week_dates.each do |date| %>
+  <%= button_tag type: "button",
+        class: class_names("mob-wc__pill", "is-today" => date == Date.current,
+                            "is-selected" => date == initial_date),
+        role: "tab", "aria-selected": (date == initial_date).to_s,
+        data: { mob_week_target: "dayPill", date: date.iso8601,
+                mob_week_date_param: date.iso8601, action: "mob-week#selectDay" } do %>
+    <span class="mob-wc__pill-name t-label-sm"><%= date.strftime("%a") %></span>
+    <span class="mob-wc__pill-num"><%= date.strftime("%-d") %></span>
+    <span class="mob-wc__pill-km t-label-sm"><%= calendar_day_km_short(date) %></span>
+  <% end %>
+<% end %>

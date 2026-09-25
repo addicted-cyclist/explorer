@@ -3,7 +3,7 @@
   <head>
     <title><%= content_for(:title) || "Explorer" %></title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
 
@@ -25,6 +25,10 @@
   <body>
     <%# App shell from design-refs/stitch_explorer_v0.2 route_upload_library_explorer
         (account dropdown added in v0.2) %>
+    <%# /calendar/:username routes to calendars#show with params[:username];
+        a friend's week view highlights the Friends tab, not My calendar %>
+    <% friends_calendar = controller_name == "calendars" && params[:username].present? %>
+    <% friends_route = controller_name == "routes" && params[:username].present? %>
     <header class="app-header">
       <div class="container app-header__inner">
         <div class="app-header__brand">
@@ -36,13 +40,14 @@
           <% if user_signed_in? %>
             <nav class="app-nav" aria-label="Primary">
               <%= link_to "My Routes", routes_path,
-                    class: class_names("app-nav__link", "app-nav__link--active" => controller_name == "routes"),
-                    aria: { current: ("page" if controller_name == "routes") } %>
+                    class: class_names("app-nav__link", "app-nav__link--active" => controller_name == "routes" && !friends_route),
+                    aria: { current: ("page" if controller_name == "routes" && !friends_route) } %>
               <%= link_to "My calendar", calendar_path,
-                    class: class_names("app-nav__link", "app-nav__link--active" => controller_name == "calendar"),
-                    aria: { current: ("page" if controller_name == "calendar") } %>
-              <%# TODO(phase-6+): Friends — no model/controller yet %>
-              <a href="#" class="app-nav__link">Friends</a>
+                    class: class_names("app-nav__link", "app-nav__link--active" => controller_name == "calendars" && !friends_calendar),
+                    aria: { current: ("page" if controller_name == "calendars" && !friends_calendar) } %>
+              <%= link_to "Friends", friends_path,
+                    class: class_names("app-nav__link", "app-nav__link--active" => controller_name == "friends" || friends_calendar || friends_route),
+                    aria: { current: ("page" if controller_name == "friends" || friends_calendar || friends_route) } %>
             </nav>
           <% end %>
         </div>
@@ -96,6 +101,30 @@
         <%= yield %>
       </div>
     </main>
+
+    <%# Phase 8 — mobile bottom nav: the header nav is unreachable on narrow
+        screens, so signed-in users get a fixed thumb-reach bar instead
+        (CSS-only, .app-nav-mobile in application.css). %>
+    <% if user_signed_in? %>
+      <nav class="app-nav-mobile" aria-label="Primary (mobile)">
+        <%= link_to routes_path, class: class_names("app-nav-mobile__link", "is-active" => controller_name == "routes" && !friends_route) do %>
+          <span class="material-symbols-outlined" aria-hidden="true">route</span>
+          <span class="t-label-sm">My Routes</span>
+        <% end %>
+        <%= link_to calendar_path, class: class_names("app-nav-mobile__link", "is-active" => controller_name == "calendars" && !friends_calendar) do %>
+          <span class="material-symbols-outlined" aria-hidden="true">calendar_today</span>
+          <span class="t-label-sm">Calendar</span>
+        <% end %>
+        <%= link_to friends_path, class: class_names("app-nav-mobile__link", "is-active" => controller_name == "friends" || friends_calendar || friends_route) do %>
+          <span class="material-symbols-outlined" aria-hidden="true">group</span>
+          <span class="t-label-sm">Friends</span>
+        <% end %>
+        <%= link_to account_path, class: class_names("app-nav-mobile__link", "is-active" => controller_name == "accounts") do %>
+          <span class="material-symbols-outlined" aria-hidden="true">manage_accounts</span>
+          <span class="t-label-sm">Account</span>
+        <% end %>
+      </nav>
+    <% end %>
 
     <footer class="app-footer">
       <div class="container app-footer__inner">
