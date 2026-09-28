@@ -1,0 +1,82 @@
+<% content_for :title, "Account settings" %>
+
+<div class="account">
+  <section class="library-hero">
+    <div>
+      <h1 class="t-headline-lg">My account</h1>
+      <p class="t-body-lg c-secondary library-hero__lede">
+        Profile, privacy and sharing preferences. Full profile and password
+        editing arrive with the next account update.
+      </p>
+    </div>
+  </section>
+
+  <%# Read-only profile summary (Phase 9 ships the page; the editors are
+      Phase 11 scope per the technical notes). %>
+  <section class="account__card" aria-labelledby="account-profile">
+    <h2 class="t-title-md" id="account-profile">Profile</h2>
+    <dl class="account__profile">
+      <div class="account__profile-row">
+        <dt class="t-label-sm t-uppercase c-tertiary">Name</dt>
+        <dd class="t-body-md"><%= current_user.name.presence || "—" %></dd>
+      </div>
+      <div class="account__profile-row">
+        <dt class="t-label-sm t-uppercase c-tertiary">Username</dt>
+        <dd class="t-body-md">@<%= current_user.username %></dd>
+      </div>
+      <div class="account__profile-row">
+        <dt class="t-label-sm t-uppercase c-tertiary">Email</dt>
+        <dd class="t-body-md"><%= current_user.email %></dd>
+      </div>
+    </dl>
+  </section>
+
+  <%# The public-calendar share card — the only on/off toggle for the share
+      (Phase 9). The checkbox form auto-submits on change; enabling generates
+      the public_token, disabling clears it so old links die immediately. %>
+  <section class="account__card" aria-labelledby="account-sharing">
+    <h2 class="t-title-md" id="account-sharing">Public calendar</h2>
+    <p class="t-body-md c-secondary">
+      When on, anyone with the link can view a read-only copy of the week you
+      are sharing — no account needed. Route details and your route library
+      stay private.
+    </p>
+
+    <%= form_with model: current_user, url: account_path, method: :patch,
+          class: "account__toggle-form", data: { controller: "auto-submit" } do |form| %>
+      <label class="account__switch">
+        <%= form.check_box :calendar_public,
+              class: "account__switch-input",
+              checked: current_user.calendar_public?,
+              aria: { label: "Make my calendar public" } %>
+        <span class="account__switch-track" aria-hidden="true"><span class="account__switch-thumb"></span></span>
+        <span class="t-body-md account__switch-text">
+          <%= current_user.calendar_public? ? "Public — visible via share link" : "Private — only friends can view" %>
+        </span>
+      </label>
+      <%# No-JS fallback: auto-submit needs JS, so offer an explicit Save. %>
+      <noscript><button type="submit" class="btn btn--sm btn--secondary">Save</button></noscript>
+    <% end %>
+
+    <% if current_user.calendar_public? %>
+      <div class="account__share">
+        <p class="t-label-sm t-uppercase c-tertiary">Share link</p>
+        <div class="account__share-row">
+          <input class="input t-body-md" type="text" readonly autocomplete="off"
+                 value="<%= public_calendar_url(current_user.public_token) %>"
+                 aria-label="Public calendar share link">
+          <button type="button" class="btn btn--sm btn--primary"
+                  data-controller="share-button"
+                  data-share-button-url-value="<%= public_calendar_url(current_user.public_token) %>"
+                  data-action="share-button#copy">
+            <span class="material-symbols-outlined ms-16" aria-hidden="true">content_copy</span>
+            <span data-share-button-target="label">Copy</span>
+          </button>
+        </div>
+        <p class="t-body-sm c-tertiary">
+          Turning the calendar back to private invalidates this link.
+        </p>
+      </div>
+    <% end %>
+  </section>
+</div>
