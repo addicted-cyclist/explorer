@@ -127,6 +127,14 @@ class RouteTest < ActiveSupport::TestCase
     assert_predicate route, :valid?
   end
 
+  test "moving_duration falls back to one hour for zero or nil durations" do
+    assert_equal 1_800, @user.routes.build(source: "upload", title: "Ride", duration: 1_800).moving_duration
+    assert_equal Route::DEFAULT_MOVING_DURATION,
+                 @user.routes.build(source: "upload", title: "Ride", duration: nil).moving_duration
+    assert_equal Route::DEFAULT_MOVING_DURATION,
+                 @user.routes.build(source: "upload", title: "Ride", duration: 0).moving_duration
+  end
+
   private
 
   # The track thumbnail is an SVG path fitted into the 100x60 viewBox:
