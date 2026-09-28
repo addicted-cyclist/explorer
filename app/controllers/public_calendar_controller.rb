@@ -3,7 +3,9 @@
 # calendar is made public in account settings) is the capability: anyone
 # holding the link can browse the owner's visible week read-only, download
 # the scheduled routes' GPX files (public signed-id endpoint) and join rides
-# onto their own calendar. A disabled share or unknown token 404s.
+# onto their own calendar. A disabled share or unknown token 404s. Guests
+# clicking Join get the intent parked in session — after sign-in / sign-up,
+# ApplicationController#after_sign_in_path_for finishes the join for them.
 class PublicCalendarController < ApplicationController
   include CalendarWeekSupport
 
@@ -41,14 +43,17 @@ class PublicCalendarController < ApplicationController
   # same semantics as the friend view's Join (deep-copy + own entry, linked
   # via origin_entry, idempotent via CalendarEntry.join_ride!). Signed-in
   # visitors stay on the public page — the dock swaps to "Joined" in place;
-  # guests are bounced to sign-in with the share URL stored so Devise
-  # returns them here afterwards.
+  # guests park the join intent in session, and the sign-in / sign-up flow
+  # completes it (see ApplicationController#after_sign_in_path_for).
   def join
     prepare_shared_owner
     origin_entry = @owner.calendar_entries.find(params[:entry_id])
 
     unless user_signed_in?
-      store_location_for(:user, request.fullpath)
+      # Park the join intent — Devise's after_sign_in_path_for completes it
+      # right after sign-in / sign-up and lands on the shared week. (Storing
+      # the POST URL itself would send a GET at this POST-only route.)
+      session[:pending_public_join] = { token: params[:token], entry_id: origin_entry.id, week: params[:week] }
       return redirect_to new_user_session_path,
                          alert: "Sign in to add \"#{origin_entry.route.title}\" to your calendar."
     end

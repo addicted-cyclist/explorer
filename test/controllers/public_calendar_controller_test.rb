@@ -79,14 +79,46 @@ class PublicCalendarControllerTest < ActionDispatch::IntegrationTest
 
   # ---- join ----------------------------------------------------------------
 
-  test "guest joining is bounced to sign in with the share URL stored" do
+  test "guest joining parks the intent in session and bounces to sign in" do
     post public_calendar_join_path(@owner.public_token, entry_id: @entry.id)
 
     assert_redirected_to new_user_session_path
     assert_match(/Sign in to add "Ridge loop"/, flash[:alert])
-    assert_equal public_calendar_join_path(@owner.public_token, entry_id: @entry.id),
-                 session[:user_return_to]
+    pending = session[:pending_public_join].to_h.symbolize_keys
+    assert_equal @owner.public_token, pending[:token]
+    assert_equal @entry.id, pending[:entry_id].to_i
     assert_empty CalendarEntry.where(origin_entry_id: @entry.id)
+  end
+
+  test "parked join completes automatically after sign in" do
+    post public_calendar_join_path(@owner.public_token, entry_id: @entry.id)
+    visitor = User.create!(valid_user_attributes(email: "latejoiner@example.com"))
+
+    post user_session_path, params: { user: { email: visitor.email, password: "password123" } }
+
+    copy = visitor.calendar_entries.sole
+    assert_equal @entry.id, copy.origin_entry_id
+    assert_equal "Ridge loop", copy.route.title
+    assert_redirected_to public_calendar_path(@owner.public_token)
+    follow_redirect!
+    assert_response :success
+    assert_match "wc-join--joined", response.body
+    assert_match(/You joined "Ridge loop"/, flash[:notice])
+  end
+
+  test "parked join completes automatically after sign up" do
+    post public_calendar_join_path(@owner.public_token, entry_id: @entry.id)
+
+    post user_registration_path, params: { user: {
+      email: "fresh@example.com", password: "password123", password_confirmation: "password123",
+      first_name: "Fern", last_name: "Fresh", username: "fresh_rider"
+    } }
+
+    fresh = User.find_by!(email: "fresh@example.com")
+    assert_equal @entry.id, fresh.calendar_entries.sole.origin_entry_id
+    assert_redirected_to public_calendar_path(@owner.public_token)
+    follow_redirect!
+    assert_match "wc-join--joined", response.body
   end
 
   test "signed-in visitor joins from the public page and stays there" do
