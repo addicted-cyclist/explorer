@@ -1,17 +1,25 @@
-<%# Mobile route card for the bottom list — my whole library or (friend
-    view) the friend's routes scheduled this week. My view: the Schedule
-    button opens the "Schedule route" sheet with the route as context.
-    Friend view: GPX download, mirroring the desktop sidebar's friend card. %>
+<%# Mobile route card for the bottom list — my whole library, (friend view)
+    the friend's routes scheduled this week, or (public share, Phase 9) the
+    shared week's routes. My view: the Schedule button opens the "Schedule
+    route" sheet with the route as context. Friend view: GPX download, like
+    the desktop sidebar's friend card. Public share: plain-text title (route
+    detail stays auth-gated) + signed-id GPX download. %>
 <% route_path_opts = @is_friend_view ? { username: params[:username], week: params[:week] } : {} %>
 <article class="mob-wc__route" id="<%= dom_id(route, :mob_route) %>">
   <span class="mob-wc__route-tier t-label-sm t-uppercase <%= calendar_tier_class(route.tier) %>">
     <%= route.tier.presence || "Unrated" %>
   </span>
 
-  <h3 class="t-title-md">
-    <%= link_to route.title, route_path(route, **route_path_opts),
-          class: "mob-wc__route-link", title: route.title %>
-  </h3>
+  <% if @is_public_view %>
+    <h3 class="t-title-md">
+      <span class="mob-wc__route-link" title="<%= route.title %>"><%= route.title %></span>
+    </h3>
+  <% else %>
+    <h3 class="t-title-md">
+      <%= link_to route.title, route_path(route, **route_path_opts),
+            class: "mob-wc__route-link", title: route.title %>
+    </h3>
+  <% end %>
 
   <%= render "calendars/mobile/card_metrics_n_thumb", route: route %>
 
@@ -20,11 +28,19 @@
       <span class="material-symbols-outlined ms-16" aria-hidden="true">directions_bike</span>
       <span><%= sport_type_label(route) %></span>
     </span>
-    <% if @is_friend_view %>
+    <% if @is_public_view %>
+      <% if route.gpx_file.attached? %>
+        <%= link_to calendar_public_gpx_path(route), class: "btn btn--sm btn--ghost mob-wc__route-btn",
+              title: "Download GPX", data: { turbo: false } do %>
+          <span class="material-symbols-outlined ms-16" aria-hidden="true">download</span>
+          <span class="t-label-sm">Download GPX</span>
+        <% end %>
+      <% end %>
+    <% elsif @is_friend_view %>
       <%= link_to download_route_path(route), class: "btn btn--sm btn--ghost mob-wc__route-btn",
             title: "Download GPX", data: { turbo: false } do %>
         <span class="material-symbols-outlined ms-16" aria-hidden="true">download</span>
-        <span class="t-label-sm">Download</span>
+        <span class="t-label-sm">Download GPX</span>
       <% end %>
     <% else %>
       <button type="button" class="btn btn--sm btn--primary mob-wc__route-btn"

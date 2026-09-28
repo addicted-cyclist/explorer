@@ -2,16 +2,22 @@
     start time row and a hover action dock floating over the card's bottom edge
     (X unschedules via calendar-dnd#removeEntry). Friend view: read-only — no
     checkbox/X/editor; the dock always renders and the join partial swaps
-    Join+popover for an inert "Joined" button when joined — the join Turbo
-    Stream passes joined: true explicitly, fresh page renders derive it from
-    @joined_origin_ids via the helper. Title links carry a native
-    tooltip so truncated names stay readable. %>
+    Join+popover for an inert "Joined" button when joined. Public share
+    (Phase 9): like the friend card, but the title is plain text (route detail
+    pages stay auth-gated) and the dock join posts to the public join
+    endpoint — the join Turbo Stream passes joined: true explicitly, fresh
+    page renders derive it from @joined_origin_ids via the helper. Title
+    links carry a native tooltip so truncated names stay readable. %>
 <% joined = local_assigns.fetch(:joined) { calendar_entry_joined?(entry) } %>
 <article class="wc-entry<%= " wc-entry--completed" if entry.route.completed? %>"
          id="<%= dom_id(entry) %>"
          data-controller="entry-time-editor">
   <div class="wc-entry__top">
-    <% if @is_friend_view %>
+    <% if @is_public_view %>
+      <h4 class="wc-entry__title t-title-sm">
+        <span class="wc-entry__link" title="<%= entry.route.title %>"><%= entry.route.title %></span>
+      </h4>
+    <% elsif @is_friend_view %>
       <h4 class="wc-entry__title t-title-sm">
         <%= link_to entry.route.title, route_path(
           entry.route,
@@ -41,7 +47,7 @@
     <span class="wc-entry__metric wc-entry__metric--elevation"><%= format_elevation(entry.route.elevation_gain) %> <span class="wc-entry__unit">m</span></span>
   </div>
 
-  <% if @is_friend_view %>
+  <% if calendar_read_only? %>
     <p class="wc-entry__slot t-label-sm">
       <span class="material-symbols-outlined ms-14" aria-hidden="true">schedule</span>
       <span><%= entry.start_time&.strftime("%I:%M %p") || "--:--" %></span>
@@ -77,9 +83,13 @@
 
   <%# Action dock — floats over the card's bottom edge, outside the content
       flow; revealed on card hover, keyboard focus or an open popover. %>
-  <% if @is_friend_view %>
+  <% if @is_public_view %>
     <div class="wc-entry__dock">
-      <%= render "calendars/join_popover", entry: entry, joined: joined %>
+      <%= render "calendars/public_join_dock", entry: entry, joined: joined %>
+    </div>
+  <% elsif @is_friend_view %>
+    <div class="wc-entry__dock">
+      <%= render "calendars/friend_join_dock", entry: entry, joined: joined %>
     </div>
   <% else %>
     <div class="wc-entry__dock">

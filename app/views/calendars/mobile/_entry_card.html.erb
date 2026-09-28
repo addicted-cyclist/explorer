@@ -1,16 +1,19 @@
 <%# Scheduled entry card, Friends-card style, for the mobile day panel.
     My view: completed toggle + Remove. Friend view: read-only, with the
     Join ride button (or the inert Joined state, derived from
-    @joined_origin_ids exactly like the desktop dock). %>
+    @joined_origin_ids exactly like the desktop dock). Public share
+    (Phase 9): like the friend card, but the title is plain text and the
+    join posts to the public join endpoint (guests are bounced to sign-in
+    and returned here afterwards). %>
 <% joined = local_assigns.fetch(:joined) { calendar_entry_joined?(entry) } %>
 <% route_path_opts = @is_friend_view ? { username: params[:username], week: params[:week] } : {} %>
 <article class="mob-wc__entry<%= " mob-wc__entry--completed" if entry.route.completed? %>"
          id="<%= dom_id(entry, :mob_entry) %>">
   <div class="mob-wc__entry-header">
     <div class="mob-wc__entry-badges">
-      <% if @is_friend_view %>
+      <% if calendar_read_only? %>
         <span class="mob-wc__entry-status" aria-hidden="true">
-          <span class="material-symbols-outlined ms-16">groups</span>
+          <span class="material-symbols-outlined ms-16"><%= @is_public_view ? "public" : "groups" %></span>
         </span>
       <% else %>
         <%= button_to toggle_completed_route_path(entry.route), method: :patch,
@@ -25,7 +28,20 @@
       </span>
     </div>
     <div class="mob-wc__entry-actions">
-      <% if @is_friend_view %>
+      <% if @is_public_view %>
+        <% if joined %>
+          <span class="mob-wc__entry-joined t-label-md">
+            <span class="material-symbols-outlined ms-16" aria-hidden="true">check_circle</span>
+            <span>Joined</span>
+          </span>
+        <% else %>
+          <%= button_to public_calendar_join_path(params[:token], entry_id: entry.id, week: (@week_start.iso8601 if @week_start)),
+                class: "btn btn--sm btn--primary mob-wc__entry-btn" do %>
+            <span class="material-symbols-outlined ms-16" aria-hidden="true">group_add</span>
+            <span class="t-label-sm">Join ride</span>
+          <% end %>
+        <% end %>
+      <% elsif @is_friend_view %>
         <% if joined %>
           <span class="mob-wc__entry-joined t-label-md">
             <span class="material-symbols-outlined ms-16" aria-hidden="true">check_circle</span>
@@ -51,10 +67,16 @@
   </div>
 
   <div class="mob-wc__entry-info">
-    <h3 class="t-title-md">
-      <%= link_to entry.route.title, route_path(entry.route, **route_path_opts),
-            class: "mob-wc__entry-link", title: entry.route.title %>
-    </h3>
+    <% if @is_public_view %>
+      <h3 class="t-title-md">
+        <span class="mob-wc__entry-link" title="<%= entry.route.title %>"><%= entry.route.title %></span>
+      </h3>
+    <% else %>
+      <h3 class="t-title-md">
+        <%= link_to entry.route.title, route_path(entry.route, **route_path_opts),
+              class: "mob-wc__entry-link", title: entry.route.title %>
+      </h3>
+    <% end %>
     <p class="mob-wc__entry-time t-label-sm c-secondary">
       <span class="material-symbols-outlined ms-16" aria-hidden="true">schedule</span>
       <span><%= entry.start_time&.strftime("%I:%M %p") || "--:--" %></span>
