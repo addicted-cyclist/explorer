@@ -1,8 +1,11 @@
 Rails.application.routes.draw do
   devise_for :users, controllers: { registrations: "users/registrations" }
 
-  # Public read-only calendar via shareable token (no auth)
+  # Phase 9 — public read-only calendar share. The owner's public_token is
+  # the capability: show renders the shared week, join books a ride onto the
+  # visitor's own calendar. Both skip the Devise gate inside the controller.
   get "c/:token", to: "public_calendar#show", as: :public_calendar
+  post "c/:token/join", to: "public_calendar#join", as: :public_calendar_join
 
   authenticated :user do
     root "routes#index", as: :authenticated_root
