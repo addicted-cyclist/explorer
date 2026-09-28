@@ -30,17 +30,17 @@
     </span>
     <% if @is_public_view %>
       <% if route.gpx_file.attached? %>
-        <%= link_to calendar_public_gpx_path(route), class: "btn btn--sm btn--ghost mob-wc__route-btn",
+        <%= link_to calendar_public_gpx_path(route), class: "btn btn--sm mob-wc__route-btn",
               title: "Download GPX", data: { turbo: false } do %>
           <span class="material-symbols-outlined ms-16" aria-hidden="true">download</span>
-          <span class="t-label-sm">Download GPX</span>
+          <span class="t-label-md">Download GPX</span>
         <% end %>
       <% end %>
     <% elsif @is_friend_view %>
-      <%= link_to download_route_path(route), class: "btn btn--sm btn--ghost mob-wc__route-btn",
+      <%= link_to download_route_path(route), class: "btn btn--sm mob-wc__route-btn",
             title: "Download GPX", data: { turbo: false } do %>
         <span class="material-symbols-outlined ms-16" aria-hidden="true">download</span>
-        <span class="t-label-sm">Download GPX</span>
+        <span class="t-label-md">Download GPX</span>
       <% end %>
     <% else %>
       <button type="button" class="btn btn--sm btn--primary mob-wc__route-btn"

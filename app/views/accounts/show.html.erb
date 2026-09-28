@@ -65,7 +65,7 @@
           <input class="input t-body-md" type="text" readonly autocomplete="off"
                  value="<%= public_calendar_url(current_user.public_token) %>"
                  aria-label="Public calendar share link">
-          <button type="button" class="btn btn--sm btn--primary"
+          <button type="button" class="btn btn--primary"
                   data-controller="share-button"
                   data-share-button-url-value="<%= public_calendar_url(current_user.public_token) %>"
                   data-action="share-button#copy">

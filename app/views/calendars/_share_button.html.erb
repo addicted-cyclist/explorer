@@ -2,7 +2,7 @@
     the share is on: copies the public link to the clipboard with a short
     "Copied!" flash. The mobile header renders the native-share icon
     variant; the toggle itself lives in account settings. %>
-<button type="button" class="wc-share-btn"
+<button type="button" class="btn wc-share-btn"
         data-controller="share-button"
         data-share-button-url-value="<%= public_calendar_url(current_user.public_token) %>"
         data-action="share-button#copy"
