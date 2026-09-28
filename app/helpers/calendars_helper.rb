@@ -44,13 +44,41 @@ module CalendarsHelper
     week_start != Date.current.beginning_of_week
   end
 
-  # Nav/toolbar href for stepping weeks, friend-view aware.
+  # Nav/toolbar href for stepping weeks — public share, friend view aware.
   def calendar_week_path_for(week_start)
-    if @is_friend_view
+    if @is_public_view
+      public_calendar_path(@owner.public_token, week: week_start.iso8601)
+    elsif @is_friend_view
       friend_calendar_path(@friend.username, week: week_start.iso8601)
     else
       calendar_path(week: week_start.iso8601)
     end
+  end
+
+  # ---- Phase 9 — public share view ------------------------------------------
+
+  # The calendar's owner for the rendered view — public share, friend, or me.
+  # Headers, avatars and titles all read from this one accessor.
+  def calendar_view_user
+    return @owner if @is_public_view
+    return @friend if @is_friend_view
+
+    current_user
+  end
+
+  # True when the rendered week view is read-only (a friend's calendar or a
+  # public share): no drag-and-drop, no editors, no library management.
+  def calendar_read_only?
+    @is_friend_view.present? || @is_public_view.present?
+  end
+
+  # Public, capability-tokenized GPX download URL (signed blob id — no auth).
+  # The share view routes downloads through gpx_files#show instead of the
+  # auth-gated routes#download. Nil when the route has no attached file.
+  def calendar_public_gpx_path(route)
+    return unless route.gpx_file.attached?
+
+    gpx_file_path(route.gpx_file.blob.signed_id, route.gpx_file.filename.to_s)
   end
 
   # ---- Phase 8 — mobile weekly calendar -----------------------------------
@@ -96,7 +124,13 @@ module CalendarsHelper
 
   # Mobile page title, mirroring the desktop hero heading.
   def calendar_title
-    @is_friend_view ? "#{@friend.name}'s Calendar" : "My Calendar"
+    if @is_public_view
+      "#{@owner.name}'s Calendar"
+    elsif @is_friend_view
+      "#{@friend.name}'s Calendar"
+    else
+      "My Calendar"
+    end
   end
 
   # Short display name ("Marc") for the mobile friend-view headers.
