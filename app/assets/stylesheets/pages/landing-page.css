@@ -1,0 +1,161 @@
+/* ------------------------------------------------------------------ */
+/* Landing page (pages/landing)                                       */
+/* ------------------------------------------------------------------ */
+
+/* Large hero CTA (ref: px-7 py-3.5 rounded-xl text-sm) */
+.btn--lg {
+  height: 3.25rem;
+  padding-inline: 1.75rem;
+  border-radius: var(--radius-xl);
+  font-size: 0.875rem;
+  line-height: 1.125rem;
+}
+
+/* Centered hero column (ref max-w-3xl) inside the app shell main */
+.landing {
+  max-width: 48rem;
+  margin-inline: auto;
+  padding-block: var(--space-2xl);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+@media (min-width: 768px) {
+  .landing {
+    padding-block: 6rem;
+  }
+}
+
+/* Pill variant of the micro badge (hero eyebrow) */
+.badge--pill {
+  padding: var(--space-2xs) var(--space-sm);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-card);
+  box-shadow: var(--shadow-sm);
+  font-size: 0.75rem;
+  line-height: 1.125rem;
+  margin-bottom: var(--space-xl);
+}
+
+/* Ref hero is text-4xl→6xl bold; Inter is loaded at 400–600, so weight 600
+   with tightened tracking stands in for the synthetic bold */
+.landing__title {
+  color: var(--color-text-primary);
+  font-size: 2.25rem;
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  margin-bottom: var(--space-lg);
+}
+
+@media (min-width: 640px) {
+  .landing__title {
+    font-size: 3rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .landing__title {
+    font-size: 3.75rem;
+  }
+}
+
+.landing__lede {
+  max-width: 36rem;
+  color: var(--color-text-secondary);
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  margin: 0 auto var(--space-xl);
+}
+
+@media (min-width: 768px) {
+  .landing__lede {
+    font-size: 1.25rem;
+  }
+}
+
+.landing__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-md);
+  width: 100%;
+  max-width: 21rem;
+  margin-inline: auto;
+}
+
+.landing__actions .btn {
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .landing__actions {
+    flex-direction: row;
+    justify-content: center;
+    width: auto;
+    max-width: none;
+  }
+
+  .landing__actions .btn {
+    width: auto;
+  }
+}
+
+/* Quiet arrow inside the carbon CTA (ref: text-neutral-400) */
+.landing__cta-arrow {
+  color: var(--color-text-tertiary);
+}
+
+.landing__features {
+  width: 100%;
+  margin-top: var(--space-3xl);
+  padding-top: var(--space-2xl);
+  border-top: 1px solid var(--color-border-subtle);
+  display: grid;
+  gap: var(--space-lg);
+  text-align: left;
+}
+
+@media (min-width: 640px) {
+  .landing__features {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.feature-card {
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xl);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.feature-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-canvas);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-sm);
+}
+
+.feature-card__title {
+  color: var(--color-text-primary);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-bottom: var(--space-2xs);
+}
+
+.feature-card__text {
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.125rem;
+}

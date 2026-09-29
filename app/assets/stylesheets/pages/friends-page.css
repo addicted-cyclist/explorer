@@ -1,0 +1,46 @@
+/* Friends directory */
+.friends {
+  display: flex;
+  flex-direction: column;
+  /* gap: var(--space-sm); */
+}
+
+.friends__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: var(--space-md);
+  margin: 0;
+  padding: 0;
+}
+
+.friends__card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+}
+
+.friends__avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 3rem;
+  height: 3rem;
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.friends__id {
+  flex: 1;
+  min-width: 0;
+}
+
+.friends__id p {
+  margin: 0;
+}
