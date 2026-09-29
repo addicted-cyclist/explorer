@@ -67,6 +67,16 @@ class Route < ApplicationRecord
     distance / (duration / 3600.0)
   end
 
+  # Moving time used for calendar end-time math. Zero/nil durations (GPX
+  # files without usable timestamps) fall back to the 1-hour default —
+  # `0.presence` is 0, so a bare `duration.presence || default` would compute
+  # end == start and trip the entry's end-time validation.
+  DEFAULT_MOVING_DURATION = 1.hour
+
+  def moving_duration
+    duration.to_i.positive? ? duration : DEFAULT_MOVING_DURATION
+  end
+
   # ---- Track thumbnail (route library) ----------------------------------
   # The parsed track is downsampled and projected into this fixed viewBox;
   # the stored string is only the SVG path data ("M x,y L x,y …").

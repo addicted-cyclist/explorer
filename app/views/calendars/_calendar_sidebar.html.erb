@@ -1,10 +1,10 @@
-<% count_label = @is_friend_view ? "planned" : "ready" %>
+<% count_label = calendar_read_only? ? "planned" : "ready" %>
 
 <aside class="wc-sidebar" data-controller="calendar-filters">
   <header class="wc-sidebar__head">
     <div class="wc-sidebar__title">
-      <span class="material-symbols-outlined wc-sidebar__glyph" aria-hidden="true"><%= @is_friend_view ? "route" : "explore" %></span>
-      <h2 class="t-headline-sm"><%= @is_friend_view ? "This Week's Routes" : "Routes" %></h2>
+      <span class="material-symbols-outlined wc-sidebar__glyph" aria-hidden="true"><%= calendar_read_only? ? "route" : "explore" %></span>
+      <h2 class="t-headline-sm"><%= calendar_read_only? ? "This Week's Routes" : "Routes" %></h2>
     </div>
     <span class="wc-sidebar__count t-label-md">
       <span data-calendar-filters-target="count"><%= @sidebar_routes.size %></span> <%= count_label %>
@@ -21,21 +21,21 @@
   </div>
 
   <div class="wc-sidebar__pool"
-       data-action="<%= %w[dragover->calendar-dnd#dragOverPool dragleave->calendar-dnd#dragLeavePool drop->calendar-dnd#dropOnPool].join(" ") unless @is_friend_view %>">
+       data-action="<%= %w[dragover->calendar-dnd#dragOverPool dragleave->calendar-dnd#dragLeavePool drop->calendar-dnd#dropOnPool].join(" ") unless calendar_read_only? %>">
     <div data-calendar-filters-target="list">
-      <%= render partial: "sidebar_route", collection: @sidebar_routes, as: :route %>
+      <%= render partial: "calendars/sidebar_route", collection: @sidebar_routes, as: :route %>
     </div>
     <p class="wc-sidebar__no-match t-body-sm c-tertiary" data-calendar-filters-target="empty" hidden>
       No routes match "<span data-calendar-filters-target="query"></span>"
     </p>
     <% if @sidebar_routes.empty? %>
       <p class="wc-sidebar__empty t-body-sm c-tertiary">
-        <%= @is_friend_view ? "No routes scheduled this week." : "Your library is empty — import a GPX to get started." %>
+        <%= calendar_read_only? ? "No routes scheduled this week." : "Your library is empty — import a GPX to get started." %>
       </p>
     <% end %>
   </div>
 
-  <% unless @is_friend_view %>
+  <% unless calendar_read_only? %>
     <p class="wc-sidebar__hint">
       <span class="material-symbols-outlined ms-16" aria-hidden="true">touch_app</span>
       <span class="t-body-sm">Drag any route onto a calendar day to schedule it.</span>

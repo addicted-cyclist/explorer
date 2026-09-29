@@ -51,3 +51,9 @@ application.register("mob-sheet", MobSheetController);
 
 import MobSliderController from "./mobile/mob_slider_controller";
 application.register("mob-slider", MobSliderController);
+
+// Phase 9 — public-calendar share controls: clipboard copy with a "Copied!"
+// flash (desktop button + account page) and the native OS share sheet with
+// a clipboard fallback (mobile header icon).
+import ShareButtonController from "./share_button_controller";
+application.register("share-button", ShareButtonController);

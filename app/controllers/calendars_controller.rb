@@ -4,9 +4,11 @@
 # two callers: the route detail page (plain redirects, Phase 6 behavior) and
 # the calendar grid (from_calendar=1 — Turbo Stream fragment swaps of the
 # affected day column plus the telemetry bar, with a redirect fallback for
-# no-JS browsers).
+# no-JS browsers). The public share (Phase 9) lives in
+# PublicCalendarController; both controllers share CalendarWeekSupport.
 class CalendarsController < ApplicationController
-  DEFAULT_DURATION = 1.hour
+  include CalendarWeekSupport
+
   DEFAULT_START_TIME = "08:00"
 
   # GET /calendar (mine) — drag routes from the sidebar onto days.
@@ -39,6 +41,8 @@ class CalendarsController < ApplicationController
     # (same modal the routes library renders).
     @new_route = current_user.routes.new unless @is_friend_view
   rescue ActiveRecord::RecordNotFound
+    # prepare_friend_view's guard: a stranger's (or a pending-friend's)
+    # calendar stays invisible — bounce to my calendar with an alert.
     redirect_to calendar_path,
     alert: "Can not get access to stranger's calendar!"
   end
@@ -58,7 +62,7 @@ class CalendarsController < ApplicationController
     end
 
     entry.start_time = parse_start_time
-    entry.end_time = entry.start_time + moving_duration(route)
+    entry.end_time = entry.start_time + route.moving_duration
     entry.save!
 
     respond_to do |format|
@@ -84,7 +88,7 @@ class CalendarsController < ApplicationController
   def update_entry
     entry = current_user.calendar_entries.find(params[:entry_id])
     entry.start_time = parse_start_time
-    entry.end_time = entry.start_time + moving_duration(entry.route)
+    entry.end_time = entry.start_time + entry.route.moving_duration
     entry.save!
 
     respond_to do |format|
@@ -122,30 +126,18 @@ class CalendarsController < ApplicationController
     end
   end
 
-  # Join a friend's scheduled ride: deep-copies their route into my library
-  # (own GPX blob, see Route#deep_copy_for) and books my own entry on the
-  # same date and time, linked back via origin_entry so the dock keeps its
-  # "Joined" state across renders. The card swaps to the inert "Joined"
-  # state in place; without JS we bounce back to the friend's calendar.
+  # Join a friend's scheduled ride: the model-level CalendarEntry.join_ride!
+  # deep-copies their route into my library (own GPX blob, see
+  # Route#deep_copy_for) and books my own entry on the same date and time,
+  # linked back via origin_entry so the dock keeps its "Joined" state across
+  # renders. The card swaps to the inert "Joined" state in place; without JS
+  # we bounce back to the friend's calendar.
   def join
     friend_entry = CalendarEntry.find(params[:entry_id])
     friend = friend_entry.user
     raise ActiveRecord::RecordNotFound unless current_user.friends_with?(friend)
 
-    # Idempotent: a repeated join of the same ride (double POST, stale UI)
-    # never deep-copies twice — the existing copy is just repainted.
-    joined_entry = current_user.calendar_entries.find_by(origin_entry_id: friend_entry.id)
-    if joined_entry.nil?
-      route = friend_entry.route.deep_copy_for(current_user)
-      route.save!
-      joined_entry = current_user.calendar_entries.create!(
-        route: route,
-        origin_entry: friend_entry,
-        scheduled_on: friend_entry.scheduled_on,
-        start_time: friend_entry.start_time,
-        end_time: joined_end_time(route, friend_entry)
-      )
-    end
+    joined_entry = CalendarEntry.join_ride!(friend_entry, owner: current_user)
 
     respond_to do |format|
       format.turbo_stream do
@@ -175,8 +167,8 @@ class CalendarsController < ApplicationController
   private
 
   # Shared template branch: my calendar vs a friend's. Only accepted friends
-  # are viewable; strangers (and the current user's own username) get a 404
-  # like the scoped finds.
+  # are viewable — an unknown username, a stranger's calendar, or a
+  # pending-friend request all 404 (the show rescue bounces to my calendar).
   def prepare_friend_view
     @is_friend_view = params[:username].present?
     return unless @is_friend_view
@@ -187,16 +179,9 @@ class CalendarsController < ApplicationController
     @friend = friend
   end
 
-  # ?week=YYYY-MM-DD pins the visible week; anything unparsable falls back to
-  # the current Monday-start week.
-  def resolve_week_start
-    Date.parse(params[:week].to_s).beginning_of_week
-  rescue ArgumentError, TypeError
-    Date.current.beginning_of_week
-  end
-
   # Recomputes the week context after a mutation so stream templates can
   # repaint the affected day column(s) and the telemetry bar from fresh data.
+  # (?week resolution + telemetry totals live in CalendarWeekSupport.)
   def prepare_week_state
     @week_start = resolve_week_start
     @is_friend_view = false
@@ -204,30 +189,6 @@ class CalendarsController < ApplicationController
                                 .includes(:route)
                                 .between(@week_start..(@week_start + 6)).to_a
     @telemetry = build_telemetry(@week_entries)
-  end
-
-  # Weekly telemetry bar totals (design: "Weekly Planned" km, elevation, count).
-  def build_telemetry(entries)
-    {
-      distance: entries.sum { |entry| entry.route.distance.to_f },
-      elevation: entries.sum { |entry| entry.route.elevation_gain.to_f },
-      workouts: entries.size
-    }
-  end
-
-  # The joined entry keeps the friend's scheduled slot; if their end time is
-  # missing, rebuild it from my copy's moving duration.
-  def joined_end_time(copy, friend_entry)
-    friend_entry.end_time ||
-      friend_entry.start_time + moving_duration(copy)
-  end
-
-  # Moving duration in seconds for end-time math. Zero/nil durations (GPX
-  # files without usable timestamps) fall back to the 1-hour default —
-  # `0.presence` is 0, so a bare `duration.presence || default` would compute
-  # end == start and trip the end-time validation.
-  def moving_duration(route)
-    route.duration.to_i.positive? ? route.duration : DEFAULT_DURATION
   end
 
   # The detail page (no from_calendar param) keeps its Phase 6 redirect

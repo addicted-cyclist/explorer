@@ -18,4 +18,10 @@
     <span class="wc-telemetry__label t-label-sm t-uppercase">Workouts</span>
     <span class="wc-telemetry__value t-headline-sm"><%= @telemetry[:workouts] %></span>
   </div>
+
+  <%# Phase 9 — "Share calendar" on my own calendar while the share is on
+      (the toggle lives in account settings); visitors never see it. %>
+  <% if !calendar_read_only? && current_user.calendar_public? %>
+    <%= render "calendars/share_button" %>
+  <% end %>
 </div>

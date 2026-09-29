@@ -199,21 +199,26 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     assert_select %(a.app-nav__link--active[href="#{calendar_path}"]), count: 0
   end
 
-  test "show 404s a stranger's calendar" do
+  # prepare_friend_view 404s strangers/pending friends; the show rescue
+  # converts that into a friendly bounce back to my calendar (kept on
+  # purpose — see the rescue's comment in the controller).
+  test "show bounces a stranger's calendar back to mine with an alert" do
     stranger = User.create!(valid_user_attributes(email: "stranger@example.com"))
 
     get friend_calendar_path(stranger.username)
 
-    assert_response :not_found
+    assert_redirected_to calendar_path
+    assert_match(/Can not get access to stranger's calendar!/, flash[:alert])
   end
 
-  test "show 404s a pending friendship's calendar" do
+  test "show bounces a pending friendship's calendar back to mine with an alert" do
     pending_friend = User.create!(valid_user_attributes(email: "pending@example.com"))
     Friendship.connect!(pending_friend, @user, status: "pending")
 
     get friend_calendar_path(pending_friend.username)
 
-    assert_response :not_found
+    assert_redirected_to calendar_path
+    assert_match(/Can not get access to stranger's calendar!/, flash[:alert])
   end
 
   test "friend calendar redirects guests to sign in" do
@@ -222,6 +227,25 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     get friend_calendar_path("anyone")
 
     assert_redirected_to new_user_session_path
+  end
+
+  # ---- Phase 9: public share ------------------------------------------------
+
+  test "my calendar shows the Share calendar button while the share is on" do
+    @user.update!(calendar_public: true)
+
+    get calendar_path
+
+    assert_response :success
+    assert_select ".wc-share-btn", text: /Share calendar/
+    assert_match public_calendar_url(@user.public_token), response.body
+  end
+
+  test "my calendar hides the Share button while the calendar is private" do
+    get calendar_path
+
+    assert_response :success
+    assert_select ".wc-share-btn", count: 0
   end
 
   # ---- Phase 7: calendar-originated Turbo Streams -----------------------------

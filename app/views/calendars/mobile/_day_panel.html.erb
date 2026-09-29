@@ -40,7 +40,7 @@
     </div>
   <% end %>
 
-  <% unless @is_friend_view %>
+  <% unless calendar_read_only? %>
     <button type="button" class="mob-wc__addtile t-label-md"
             data-action="mob-sheet#open"
             data-mob-sheet-id-param="add-route"
