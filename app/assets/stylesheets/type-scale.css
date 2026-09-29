@@ -93,3 +93,6 @@
 .c-success {
   color: var(--color-track-split);
 }
+.c-elevation {
+  color: var(--color-track-elevation);
+}
