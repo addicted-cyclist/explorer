@@ -27,9 +27,9 @@
   </div>
 
   <div class="route-card__badges">
-    <span class="badge route-card__badge--tier t-body-sm"><%= route.tier.presence || "Unrated" %></span>
-    <span class="badge route-card__badge--sport t-body-sm"><%= sport_type_label(route) %></span>
-    <span class="badge route-card__badge--done t-body-sm" <%= "hidden" unless route.completed? %>>
+    <span class="badge badge--tier t-label-md"><%= route.tier.presence || "Unrated" %></span>
+    <span class="badge badge--sport t-label-md"><%= sport_type_label(route) %></span>
+    <span class="badge badge--done t-label-md" <%= "hidden" unless route.completed? %>>
       <span class="material-symbols-outlined ms-16">check_circle</span>
       Done
     </span>

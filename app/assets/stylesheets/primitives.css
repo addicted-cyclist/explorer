@@ -35,6 +35,25 @@
   letter-spacing: 0.02em;
 }
 
+.badge--tier {
+  color: var(--color-text-primary);
+}
+
+.badge--sport {
+  color: var(--color-text-secondary);
+}
+
+.badge--done {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--color-track-split);
+}
+
+.badge--done[hidden] {
+  display: none !important;
+}
+
 .badge--accent {
   color: var(--color-accent-route);
 }
