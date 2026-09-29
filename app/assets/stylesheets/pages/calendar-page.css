@@ -4,8 +4,10 @@
 /* bar. Reuses the token system above; .ms-14 extends the icon ramp.    */
 /* ------------------------------------------------------------------ */
 
-.ms-14 {
-  font-size: 0.875rem;
+.mob-wc,
+.app-nav-mobile,
+.mob-sheet {
+  display: none;
 }
 
 .wc {

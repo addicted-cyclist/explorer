@@ -6,18 +6,16 @@
 /* shared .btn/.input ramp. Above 768px nothing here applies.           */
 /* ------------------------------------------------------------------ */
 
-.mob-wc,
-.app-nav-mobile,
-.mob-sheet {
-  display: none;
-}
-
 @media (max-width: 768px) {
   /* Layout swap: the desktop week view and the header nav step aside. */
   .app-nav,
   .wc,
   .app-footer {
     display: none;
+  }
+
+  .app-nav-mobile {
+    display: grid;
   }
 
   .app-main {
