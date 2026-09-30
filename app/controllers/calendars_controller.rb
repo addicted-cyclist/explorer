@@ -47,13 +47,11 @@ class CalendarsController < ApplicationController
     alert: "Can not get access to stranger's calendar!"
   end
 
-  # One entry per user+route: re-allocating a scheduled route moves it to the
-  # new date. End time = start + the route's moving duration (1 hour when
+  # One entry per user+route. End time = start + the route's moving duration (1 hour when
   # unknown or zero). Drops from the calendar grid submit with from_calendar=1.
   def allocate
     route = current_user.routes.find(params[:route_id])
     entry = current_user.calendar_entries.find_or_initialize_by(route_id: route.id)
-    moved_from = entry.new_record? ? nil : entry.scheduled_on
     entry.scheduled_on = parse_scheduled_date
 
     if entry.scheduled_on.nil?
@@ -69,7 +67,6 @@ class CalendarsController < ApplicationController
       format.turbo_stream do
         prepare_week_state
         @entry = entry
-        @moved_from_date = moved_from
         render :allocate
       end
       format.html do

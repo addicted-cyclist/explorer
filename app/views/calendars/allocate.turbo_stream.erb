@@ -1,8 +1,3 @@
-<% if @moved_from_date && @moved_from_date != @entry.scheduled_on %>
-  <%= turbo_stream.replace calendar_day_dom_id(@moved_from_date),
-        partial: "day_column", locals: { date: @moved_from_date } %>
-<% end %>
-
 <%= turbo_stream.replace calendar_day_dom_id(@entry.scheduled_on),
       partial: "day_column", locals: { date: @entry.scheduled_on } %>
 
@@ -13,11 +8,6 @@
     these targets simply don't match, so they no-op. %>
 <%= turbo_stream.replace calendar_mobile_day_dom_id(@entry.scheduled_on),
       partial: "calendars/mobile/day_panel", locals: { date: @entry.scheduled_on } %>
-
-<% if @moved_from_date && @moved_from_date != @entry.scheduled_on %>
-  <%= turbo_stream.replace calendar_mobile_day_dom_id(@moved_from_date),
-        partial: "calendars/mobile/day_panel", locals: { date: @moved_from_date } %>
-<% end %>
 
 <%= turbo_stream.update "mob-week-kpi-container", partial: "calendars/mobile/kpis" %>
 
