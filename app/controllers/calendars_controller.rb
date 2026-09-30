@@ -1,10 +1,10 @@
 # The weekly training calendar (Phase 7). `show` renders my week (/calendar)
 # or an accepted friend's week (/calendar/:username) from one template that
-# branches on @is_friend_view. allocate / update_entry / remove_entry serve
-# two callers: the route detail page (plain redirects, Phase 6 behavior) and
-# the calendar grid (from_calendar=1 — Turbo Stream fragment swaps of the
-# affected day column plus the telemetry bar, with a redirect fallback for
-# no-JS browsers). The public share (Phase 9) lives in
+# branches on @is_friend_view. allocate / update_entry / remove_entry /
+# toggle_completed serve the calendar grid (from_calendar=1 — Turbo Stream
+# fragment swaps of the affected day column plus the telemetry bar, with a
+# redirect fallback for no-JS browsers); allocate / update_entry / remove_entry
+# also serve the route detail page with plain redirects (Phase 6 behavior). The public share (Phase 9) lives in
 # PublicCalendarController; both controllers share CalendarWeekSupport.
 class CalendarsController < ApplicationController
   include CalendarWeekSupport
@@ -47,11 +47,14 @@ class CalendarsController < ApplicationController
     alert: "Can not get access to stranger's calendar!"
   end
 
-  # One entry per user+route. End time = start + the route's moving duration (1 hour when
-  # unknown or zero). Drops from the calendar grid submit with from_calendar=1.
+  # Every drop / calendar-picker pick books a fresh entry — a route may live
+  # on the calendar several times (even twice on one day), and new entries are
+  # never born completed. End time = start + the route's moving duration (1
+  # hour when unknown or zero). Drops from the calendar grid submit with
+  # from_calendar=1.
   def allocate
     route = current_user.routes.find(params[:route_id])
-    entry = current_user.calendar_entries.find_or_initialize_by(route_id: route.id)
+    entry = current_user.calendar_entries.new(route: route, completed: false)
     entry.scheduled_on = parse_scheduled_date
 
     if entry.scheduled_on.nil?
@@ -79,6 +82,34 @@ class CalendarsController < ApplicationController
                 alert: "Could not schedule route: #{e.message}"
   end
 
+  # Per-entry completed checkbox on my scheduled cards. Completion lives on
+  # the entry and syncs one-way into the my routes: checking an entry marks a
+  # not-yet-done route done, unchecking only clears the entry — a route's
+  # Done state never regresses from the calendar. Without JS we bounce back
+  # to the visited week.
+  def toggle_completed
+    entry = current_user.calendar_entries.find(params[:entry_id])
+    entry.completed = !entry.completed
+    # One-way sync: entry → route only (routes.completed is the my route's
+    # aggregate Done badge and stays sticky once earned).
+    entry.route.update!(completed: true) if entry.completed? && !entry.route.completed?
+    entry.save!
+
+    respond_to do |format|
+      format.turbo_stream do
+        prepare_week_state
+        @entry = entry
+        render :toggle_completed
+      end
+      format.html do
+        notice = entry.completed? ? "Marked \"#{entry.route.title}\" as completed." : "Marked \"#{entry.route.title}\" as not completed."
+        redirect_to calendar_fallback_path(route_path(entry.route)), notice: notice
+      end
+    end
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to calendar_path(week: params[:week]), alert: "Could not update entry: #{e.message}"
+  end
+
   # Start-time editor on my scheduled cards; end time keeps the moving
   # duration (1 hour when unknown). Scoped to the current user's entries —
   # anything else 404s like the scoped finds.
@@ -103,12 +134,16 @@ class CalendarsController < ApplicationController
     redirect_to calendar_path(week: params[:week]), alert: "Could not update start time: #{e.message}"
   end
 
-  # Unschedules a route without deleting it from the library (calendar day
-  # drop-out / detail page's "Remove from calendar").
+  # Unschedules ONE entry without deleting the route from the library (dock
+  # X / mobile Remove / detail page's "Remove from calendar"). A route may
+  # hold several entries — only the requested one goes. Scoped to the current
+  # user's entries; the detail page's always-rendered Remove button (with
+  # nothing scheduled) degrades to the same no-op bounce as before.
   def remove_entry
-    route = current_user.routes.find(params[:route_id])
-    removed_date = current_user.calendar_entries.find_by(route_id: route.id)&.scheduled_on
-    current_user.calendar_entries.where(route_id: route.id).destroy_all
+    entry = current_user.calendar_entries.find_by(id: params[:entry_id])
+    route = entry&.route || current_user.routes.find_by(id: params[:route_id])
+    removed_date = entry&.scheduled_on
+    entry&.destroy
 
     respond_to do |format|
       format.turbo_stream do
@@ -117,8 +152,12 @@ class CalendarsController < ApplicationController
         render :remove_entry
       end
       format.html do
-        redirect_to calendar_fallback_path(route_path(route)),
-                    notice: "Removed \"#{route.title}\" from your calendar."
+        if route
+          redirect_to calendar_fallback_path(route_path(route)),
+                      notice: "Removed \"#{route.title}\" from your calendar."
+        else
+          redirect_to routes_path, alert: "That entry is no longer on your calendar."
+        end
       end
     end
   end

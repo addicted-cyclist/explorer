@@ -73,6 +73,18 @@ class CalendarEntryTest < ActiveSupport::TestCase
     assert_equal "10:00", joined.end_time.strftime("%H:%M")
   end
 
+  test "join_ride! books a fresh, not-completed entry even when the origin ride is done" do
+    owner = User.create!(valid_user_attributes(email: "doneorigin@example.com"))
+    origin_route = owner.routes.create!(source: "upload", title: "Done climb", duration: 3_600, completed: true)
+    origin = owner.calendar_entries.create!(route: origin_route, scheduled_on: Date.new(2026, 10, 28),
+                                            start_time: "09:00", end_time: "10:00", completed: true)
+
+    joined = CalendarEntry.join_ride!(origin, owner: @user)
+
+    assert_not_predicate joined, :completed?
+    assert_not_predicate joined.route, :completed?
+  end
+
   test "join_ride! is idempotent — no second copy for a repeated join" do
     owner = User.create!(valid_user_attributes(email: "origin3@example.com"))
     origin_route = owner.routes.create!(source: "upload", title: "Once only", duration: 3_600)

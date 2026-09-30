@@ -43,6 +43,9 @@ class CalendarEntry < ApplicationRecord
       origin_entry: origin_entry,
       scheduled_on: origin_entry.scheduled_on,
       start_time: origin_entry.start_time,
+      # A joined ride is a fresh plan — never born completed, even when the
+      # origin ride (or its route) is already done.
+      completed: false,
       # The joined entry keeps the origin's scheduled slot; if the origin's
       # end time is missing (legacy rows), rebuild it from the copy's moving
       # duration.

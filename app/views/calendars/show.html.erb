@@ -74,7 +74,7 @@
       <% end %>
       <%= form_with url: remove_entry_calendar_path, method: :delete, class: "wc-dnd-form",
             data: { calendar_dnd_target: "removeForm" } do %>
-        <%= hidden_field_tag :route_id, nil, id: "wc-dnd-remove-route-id" %>
+        <%= hidden_field_tag :entry_id, nil, id: "wc-dnd-remove-entry-id" %>
         <%= hidden_field_tag :from_calendar, "1", id: "wc-dnd-remove-from-calendar" %>
         <%= hidden_field_tag :week, @week_start.iso8601, id: "wc-dnd-remove-week" %>
       <% end %>

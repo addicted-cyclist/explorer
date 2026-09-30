@@ -9,7 +9,7 @@
     page renders derive it from @joined_origin_ids via the helper. Title
     links carry a native tooltip so truncated names stay readable. %>
 <% joined = local_assigns.fetch(:joined) { calendar_entry_joined?(entry) } %>
-<article class="wc-entry<%= " wc-entry--completed" if entry.route.completed? %>"
+<article class="wc-entry<%= " wc-entry--completed" if entry.completed? %>"
          id="<%= dom_id(entry) %>"
          data-controller="entry-time-editor">
   <div class="wc-entry__top">
@@ -28,11 +28,11 @@
           class: "wc-entry__link", title: entry.route.title %>
       </h4>
     <% else %>
-      <%= button_to toggle_completed_route_path(entry.route), method: :patch,
+      <%= button_to toggle_completed_calendar_path, method: :patch,
             class: "wc-entry__check",
-            params: { from_calendar: "1", week: (@week_start.iso8601 if @week_start) },
+            params: { entry_id: entry.id, from_calendar: "1", week: (@week_start.iso8601 if @week_start) },
             form: { class: "wc-entry__check-form" },
-            aria: { label: entry.route.completed? ? "Mark as not completed" : "Mark as completed" } do %>
+            aria: { label: entry.completed? ? "Mark as not completed" : "Mark as completed" } do %>
         <span class="material-symbols-outlined ms-14" aria-hidden="true">check</span>
       <% end %>
       <h4 class="wc-entry__title t-title-sm">
@@ -96,7 +96,7 @@
       <button type="button" class="wc-entry__remove" title="Remove from calendar"
               aria-label="Remove from calendar"
               data-action="calendar-dnd#removeEntry"
-              data-route-id="<%= entry.route_id %>">
+              data-entry-id="<%= entry.id %>">
         <span class="material-symbols-outlined ms-16" aria-hidden="true">close</span>
       </button>
     </div>

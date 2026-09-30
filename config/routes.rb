@@ -34,6 +34,7 @@ Rails.application.routes.draw do
     collection do
       post "allocate"
       patch "update_entry"
+      patch "toggle_completed"
       delete "remove_entry"
       post "join"
     end

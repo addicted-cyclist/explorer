@@ -14,7 +14,17 @@ class RoutesController < ApplicationController
   # friend gets the read-only OTHER view with Save Route (see show.html.erb).
   def show
     @is_owner = @route.user == current_user
-    @calendar_entry = @is_owner ? current_user.calendar_entries.find_by(route: @route) : nil
+    # The add-to-calendar chip tracks this route's next upcoming entry (the
+    # route can be scheduled several times); with nothing upcoming it falls
+    # back to the most recent one, so the popover keeps managing an entry.
+    @calendar_entry =
+      if @is_owner
+        current_user.calendar_entries.where(route: @route)
+                    .order(:scheduled_on, :start_time)
+                    .find_by(scheduled_on: Date.current..) ||
+        current_user.calendar_entries.where(route: @route)
+                    .order(scheduled_on: :desc, start_time: :desc).first
+      end
   end
 
   def edit
@@ -115,24 +125,13 @@ class RoutesController < ApplicationController
     end
   end
 
+  # Library-only kebab action: flips the route's stored Done badge. The
+  # calendar's per-entry checkboxes answer to CalendarsController
+  # #toggle_completed instead (one-way entry → route sync).
   def toggle_completed
     @route.update!(completed: !@route.completed)
     notice = @route.completed ? "Marked \"#{@route.title}\" as completed." : "Marked \"#{@route.title}\" as not completed."
-    if params[:from_calendar].present?
-      # The checkbox lives in a calendar day column: repaint just that column
-      # and keep the classic redirect as the no-JS fallback.
-      @entry = current_user.calendar_entries.find_by(route: @route)
-      @week_start = resolve_calendar_week
-      @week_entries = current_user.calendar_entries
-                                   .includes(:route)
-                                   .between(@week_start..(@week_start + 6)).to_a
-      respond_to do |format|
-        format.turbo_stream
-        format.html { redirect_to calendar_path(week: params[:week]), notice: notice }
-      end
-    else
-      redirect_to routes_path, notice: notice
-    end
+    redirect_to routes_path, notice: notice
   end
 
   def download
@@ -161,18 +160,9 @@ class RoutesController < ApplicationController
     raise ActiveRecord::RecordNotFound
   end
 
-  # Week context for calendar-originated streams (from_calendar=1): the
-  # visible week rides along in the form payload.
-  def resolve_calendar_week
-    Date.parse(params[:week].to_s).beginning_of_week
-  rescue ArgumentError, TypeError
-    Date.current.beginning_of_week
-  end
-
   # The shared upload modal also opens from the calendar sidebar's "Import
   # new GPX" CTA; when it does (from_calendar=1 + week), land back on the
-  # visited week instead of the library (same contract as destroy /
-  # toggle_completed).
+  # visited week instead of the library (same contract as destroy).
   def upload_return_path
     params[:from_calendar].present? ? calendar_path(week: params[:week]) : routes_path
   end

@@ -69,6 +69,9 @@
   <%= form_with url: remove_entry_calendar_path, method: :delete, id: "calendar-remove-form",
                 class: "calendar-remove-form",
                 data: { action: "turbo:submit-end->calendar-picker#onRemoveSubmitEnd" } do %>
+    <%= hidden_field_tag :entry_id, @calendar_entry&.id %>
+    <%# route_id stays as the no-JS fallback target for the Remove click when
+        nothing is scheduled (the controller treats that as a no-op bounce). %>
     <%= hidden_field_tag :route_id, @route.id %>
   <% end %>
 </div>
