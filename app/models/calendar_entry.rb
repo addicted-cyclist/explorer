@@ -25,6 +25,24 @@ class CalendarEntry < ApplicationRecord
     [ scheduled_on, start_time ? start_time.seconds_since_midnight : Float::INFINITY ]
   end
 
+  # The entry a route's add-to-calendar picker manages: the next upcoming
+  # one, else the most recent — so the popover keeps an entry to reschedule
+  # or remove even when every ride is in the past. Nil when the route was
+  # never scheduled.
+  def self.tracked_by_route(route, owner)
+    tracked_entry_from(owner.calendar_entries.where(route: route).order(:scheduled_on, :start_time))
+  end
+
+  # The .tracked_by_route policy applied to a preloaded, ordered list — the
+  # library grid resolves every card's picker state from one query
+  # (RoutesController#index) instead of one per route.
+  def self.tracked_entry_from(entries)
+    entries = entries.to_a
+    entries.select { |entry| entry.scheduled_on >= Date.current }
+           .min_by(&:calendar_sort_key) ||
+      entries.max_by(&:calendar_sort_key)
+  end
+
   # Join a scheduled ride (friend view / public share): deep-copies the
   # origin's route into +owner+'s library (own GPX blob, see
   # Route#deep_copy_for) and books +owner+'s own entry on the same date and

@@ -405,6 +405,28 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
     assert_match "Added to #{upcoming.scheduled_on.strftime('%b %-d')}", response.body
   end
 
+  test "index cards carry per-route picker state with unique remove forms" do
+    route = create_route_with_gpx(@user)
+    create_route_with_gpx(@user, attrs: { title: "Other loop" })
+    upcoming = @user.calendar_entries.create!(route: route, scheduled_on: Date.current + 3,
+                                              start_time: "08:00", end_time: "09:00")
+
+    get routes_path
+
+    assert_response :success
+    # Both cards render the icon-variant picker; the chip label target only
+    # exists on the detail page's chip.
+    assert_select "div[data-controller=calendar-picker]", count: 2
+    assert_select "[data-calendar-picker-target=chipLabel]", count: 0
+    # The card manages the route's tracked entry, not a shared stale one.
+    assert_select %(input[name=scheduled_on][value="#{upcoming.scheduled_on.iso8601}"]), count: 1
+    assert_select %(input[name=entry_id][value="#{upcoming.id}"]), count: 2 # Done (allocate) + Remove forms
+    # Each popover's Remove must hit its own route's form.
+    remove_ids = css_select("form.calendar-remove-form").map { |form| form["id"] }
+    assert_equal 2, remove_ids.uniq.size
+    assert_select %(button[form^="calendar-remove-form-"]), count: 2
+  end
+
   private
 
   # Route with an attached, already parsed GPX file (metadata populated).

@@ -1,15 +1,35 @@
 import { Controller } from "@hotwired/stimulus";
 
-// Month-grid date picker for "Add to my calendar" (design: route_detail).
-// Renders the grid client-side; picking a date (or Today) fills the hidden
-// scheduled_on field and submits the wrapping form immediately, Done just
-// closes the popover. Adjacent-month days render muted and inert.
+// Month-grid date picker for "Add to my calendar".
+// Renders the grid client-side; picking a date (or Today) only stages it so
+// the user can still pick a start time, Done submits the wrapping form with
+// both (rescheduling the picker's tracked entry instead of stacking a
+// duplicate), and outside click / Escape dismiss without commit (same
+// disclosure pattern as the dropdown). Adjacent-month days render muted and
+// inert.
 export default class extends Controller {
-  static targets = ["popover", "label", "grid", "hidden", "form", "chipLabel"];
+  static targets = [
+    "popover",
+    "trigger",
+    "label",
+    "grid",
+    "hidden",
+    "form",
+    "chipLabel",
+  ];
 
   connect() {
     this.view = this.viewOf(this.hiddenTarget.value || this.todayISO());
     this.render();
+    this.boundOutsideClick = this.handleOutsideClick.bind(this);
+    this.boundKeydown = this.handleKeydown.bind(this);
+    document.addEventListener("click", this.boundOutsideClick);
+    document.addEventListener("keydown", this.boundKeydown);
+  }
+
+  disconnect() {
+    document.removeEventListener("click", this.boundOutsideClick);
+    document.removeEventListener("keydown", this.boundKeydown);
   }
 
   toggle() {
@@ -24,6 +44,21 @@ export default class extends Controller {
     this.popoverTarget.hidden = true;
   }
 
+  // Clicking anywhere outside the picker dismisses the open popover
+  // without committing.
+  handleOutsideClick(event) {
+    if (!this.popoverTarget.hidden && !this.element.contains(event.target))
+      this.close();
+  }
+
+  // Escape dismisses and hands focus back to the disclosure trigger.
+  handleKeydown(event) {
+    if (event.key === "Escape" && !this.popoverTarget.hidden) {
+      this.close();
+      if (this.hasTriggerTarget) this.triggerTarget.focus();
+    }
+  }
+
   prev() {
     this.shiftMonth(-1);
   }
@@ -32,38 +67,45 @@ export default class extends Controller {
     this.shiftMonth(1);
   }
 
-  // A date click commits straight away: hidden field + submit.
+  // A date click only stages it — the user still picks a start time before
+  // committing with Done.
   pick(event) {
+    event.stopPropagation();
+
     this.hiddenTarget.value = event.currentTarget.dataset.date;
-    this.submit();
+    this.render();
   }
 
-  // Today jumps to and commits today's date.
+  // Today stages today's date and jumps the view to the current month.
   today() {
     this.hiddenTarget.value = this.todayISO();
     this.view = this.viewOf(this.hiddenTarget.value);
     this.render();
-    this.submit();
   }
 
-  submit() {
-    if (!this.hiddenTarget.value) return;
+  // Done commits the staged date together with the chosen start time; with
+  // nothing staged there is nothing to commit — just close.
+  done() {
+    if (this.hiddenTarget.value) this.formTarget.requestSubmit();
     this.close();
-    this.formTarget.requestSubmit();
   }
 
-  // The allocate/remove Turbo Streams only repaint wc-day-* day columns,
-  // which don't exist on the detail page — so the chip label is kept in sync
-  // here, from the date the picker itself just committed.
+  // The allocate/remove Turbo Streams repaint the whole picker fragment with
+  // fresh server state; these submit-end refreshes are the same-tick preview
+  // from the date the picker itself just committed. The card variant renders
+  // no chip label, hence the guard.
   onScheduleSubmitEnd(event) {
     if (!event.detail.success) return;
-    this.chipLabelTarget.textContent = `Added to ${this.shortDate(this.hiddenTarget.value)}`;
+    if (this.hasChipLabelTarget) {
+      this.chipLabelTarget.textContent = `Added to ${this.shortDate(this.hiddenTarget.value)}`;
+    }
   }
 
   onRemoveSubmitEnd(event) {
     if (!event.detail.success) return;
     this.hiddenTarget.value = "";
-    this.chipLabelTarget.textContent = "Add to calendar";
+    if (this.hasChipLabelTarget)
+      this.chipLabelTarget.textContent = "Add to calendar";
     this.close();
     this.render();
   }

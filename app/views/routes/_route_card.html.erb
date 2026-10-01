@@ -5,7 +5,7 @@
   data-elevation="<%= route.elevation_gain.to_f %>"
   data-duration="<%= route.duration.to_i %>"
   data-created="<%= route.created_at.to_i * 1000 %>">
-  <%= link_to route_path(route) do %> 
+  <%= link_to route_path(route) do %>
     <div class="route-card__thumb">
       <% if route.track_svg.present? %>
         <svg class="route-card__track" viewBox="<%= Route::TRACK_SVG_VIEWBOX %>"
@@ -72,9 +72,11 @@
         <span class="material-symbols-outlined ms-18">map</span>
         <span>View Map</span>
       <% end %>
-      <button type="button" class="icon-btn" disabled title="Calendar planning arrives in a later phase.">
-        <span class="material-symbols-outlined">calendar_add_on</span>
-      </button>
+      <%# Per-route picker state from index (next upcoming entry, else most
+          recent); nil renders the "Add to calendar" default. %>
+      <%= render "detail_calendar", route: route,
+                                    calendar_entry: (@calendar_entries_by_route || {})[route.id],
+                                    route_card: true %>
     </div>
     <%= render "shared/shared_card_menu", route: route %>
   </footer>

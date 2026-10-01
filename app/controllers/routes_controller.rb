@@ -8,6 +8,14 @@ class RoutesController < ApplicationController
     @routes = current_user.routes.order(created_at: :desc)
     @stats = library_stats(@routes)
     @new_route = Route.new
+    # One query for the whole grid: each card's calendar button tracks the
+    # route's next upcoming entry (else its most recent), so it can commit a
+    # reschedule or a Remove without a reload.
+    @calendar_entries_by_route = current_user.calendar_entries
+                                             .where(route: @routes)
+                                             .order(:scheduled_on, :start_time)
+                                             .group_by(&:route_id)
+                                             .transform_values { |entries| CalendarEntry.tracked_entry_from(entries) }
   end
 
   # Phase 6 detail page: the owner gets the editable MY view, an accepted
@@ -19,11 +27,7 @@ class RoutesController < ApplicationController
     # back to the most recent one, so the popover keeps managing an entry.
     @calendar_entry =
       if @is_owner
-        current_user.calendar_entries.where(route: @route)
-                    .order(:scheduled_on, :start_time)
-                    .find_by(scheduled_on: Date.current..) ||
-        current_user.calendar_entries.where(route: @route)
-                    .order(scheduled_on: :desc, start_time: :desc).first
+        CalendarEntry.tracked_by_route(@route, current_user)
       end
   end
 

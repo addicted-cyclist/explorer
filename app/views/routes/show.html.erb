@@ -72,7 +72,7 @@
                        class: "route-detail__select t-label-md", aria: { label: "Difficulty tier" } %>
           <span class="material-symbols-outlined ms-16 route-detail__select-caret">expand_more</span>
         <% end %>
-        <%= render "detail_calendar" %>
+        <%= render "detail_calendar", route: @route, calendar_entry: @calendar_entry, route_card: false %>
       <% end %>
       <%= link_to download_route_path(@route), data: { turbo: false },
                   class: @is_owner ? "btn btn--primary route-detail__btn" : "btn btn--secondary route-detail__btn" do %>

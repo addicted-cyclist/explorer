@@ -31,6 +31,56 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 7, @user.calendar_entries.find_by(scheduled_on: Date.new(2026, 11, 2)).start_time.hour
   end
 
+  test "allocate with the picker's tracked entry reschedules it instead of duplicating" do
+    entry = @user.calendar_entries.create!(route: @route, scheduled_on: Date.current + 3,
+                                           start_time: "08:00", end_time: "09:00")
+
+    post allocate_calendar_path, params: { route_id: @route.id, scheduled_on: (Date.current + 5).iso8601,
+                                           start_time: "09:30", entry_id: entry.id, picker_mode: "chip" },
+          headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
+
+    assert_response :ok
+    assert_equal 1, @user.calendar_entries.count # moved, not stacked
+    entry.reload
+    assert_equal Date.current + 5, entry.scheduled_on
+    assert_equal "09:30", entry.start_time.strftime("%H:%M")
+    # The day it left repaints alongside the new day, and the chip keeps
+    # managing the same (moved) entry.
+    assert_match(/action="replace" target="wc-day-#{(Date.current + 3).strftime('%Y%m%d')}"/, response.body)
+    assert_match(/action="replace" target="wc-day-#{(Date.current + 5).strftime('%Y%m%d')}"/, response.body)
+    assert_match "Added to #{(Date.current + 5).strftime('%b %-d')}", response.body
+  end
+
+  test "allocate with a tracked entry can change just its start time" do
+    entry = @user.calendar_entries.create!(route: @route, scheduled_on: Date.new(2026, 10, 28),
+                                           start_time: "08:00", end_time: "08:30")
+
+    post allocate_calendar_path, params: { route_id: @route.id, scheduled_on: "2026-10-28",
+                                           start_time: "09:30", entry_id: entry.id }
+
+    assert_redirected_to route_path(@route)
+    assert_equal 1, @user.calendar_entries.count
+    assert_equal "09:30", entry.reload.start_time.strftime("%H:%M")
+    assert_equal "10:00", entry.end_time.strftime("%H:%M") # end recomputed from the duration
+  end
+
+  test "allocate with someone else's entry falls back to booking a fresh one" do
+    stranger = User.create!(valid_user_attributes(email: "stranger@example.com"))
+    foreign = stranger.calendar_entries.create!(
+      route: stranger.routes.create!(source: "upload", title: "Not mine"),
+      scheduled_on: Date.new(2026, 10, 28), start_time: "08:00", end_time: "08:30"
+    )
+
+    post allocate_calendar_path, params: { route_id: @route.id, scheduled_on: "2026-11-02",
+                                           start_time: "08:00", entry_id: foreign.id }
+
+    assert_redirected_to route_path(@route)
+    mine = @user.calendar_entries.sole
+    assert_equal Date.new(2026, 11, 2), mine.scheduled_on
+    assert_not_equal foreign.id, mine.id
+    assert_equal Date.new(2026, 10, 28), foreign.reload.scheduled_on # untouched
+  end
+
   test "allocating a completed route books a fresh, not-completed entry" do
     @route.update!(completed: true)
 
@@ -435,6 +485,49 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     assert_match(/action="replace" target="wc-telemetry"/, response.body)
     assert_empty @user.calendar_entries.reload
     assert_predicate @user.routes.exists?(@route.id), :present? # unscheduled, not deleted
+  end
+
+  # ---- Routes pages: the add-to-calendar picker repaints -----------------------
+
+  test "allocate from a library card repaints that card's picker" do
+    post allocate_calendar_path, params: { route_id: @route.id, scheduled_on: Date.current.iso8601,
+                                           start_time: "08:00", picker_mode: "card" },
+          headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
+
+    assert_response :ok
+    assert_match(/action="replace" target="calendar_picker_route_#{@route.id}"/, response.body)
+    # Card variant: the committed date prefills the (icon-only) picker.
+    # [^>]* — Rails renders name, id, then value on hidden inputs.
+    assert_match(/name="scheduled_on"[^>]*value="#{Date.current.iso8601}"/, response.body)
+    assert_no_match /Added to/, response.body
+  end
+
+  test "allocate from the detail page chip repaints its label" do
+    post allocate_calendar_path, params: { route_id: @route.id, scheduled_on: Date.current.iso8601,
+                                           start_time: "08:00", picker_mode: "chip" },
+          headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
+
+    assert_response :ok
+    assert_match(/action="replace" target="calendar_picker_route_#{@route.id}"/, response.body)
+    assert_match "Added to #{Date.current.strftime('%b %-d')}", response.body
+    # The repainted picker commits (Done) against the fresh entry, so a
+    # second commit reschedules it instead of stacking a duplicate.
+    assert_match(/name="entry_id"[^>]*value="\d+"/, response.body)
+  end
+
+  test "remove_entry from a library card repaints the picker without the removed entry" do
+    entry = @user.calendar_entries.create!(route: @route, scheduled_on: Date.current + 3,
+                                           start_time: "08:00", end_time: "09:00")
+
+    delete remove_entry_calendar_path, params: { entry_id: entry.id, picker_mode: "card" },
+          headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
+
+    assert_response :ok
+    assert_match(/action="replace" target="calendar_picker_route_#{@route.id}"/, response.body)
+    # Nothing tracked anymore: the picker is back to its empty default
+    # (nil hidden values render without a value attribute at all).
+    assert_no_match(/name="scheduled_on"[^>]*value=/, response.body)
+    assert_no_match(/name="entry_id"[^>]*value=/, response.body)
   end
 
   # ---- Phase 7: joining a friend's ride ---------------------------------------

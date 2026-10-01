@@ -47,14 +47,19 @@ class CalendarsController < ApplicationController
     alert: "Can not get access to stranger's calendar!"
   end
 
-  # Every drop / calendar-picker pick books a fresh entry — a route may live
-  # on the calendar several times (even twice on one day), and new entries are
-  # never born completed. End time = start + the route's moving duration (1
-  # hour when unknown or zero). Drops from the calendar grid submit with
+  # Drops on the calendar grid book a fresh entry — a route may live on the
+  # calendar several times (even twice on one day) — while the routes pages'
+  # picker commits against its tracked entry (hidden entry_id): Done moves
+  # that entry to the picked date/time instead of stacking a duplicate. A
+  # foreign or wrong-route entry_id silently falls back to a fresh booking,
+  # and new entries are never born completed. End time = start + the route's
+  # moving duration (1 hour when unknown or zero). Grid drops submit with
   # from_calendar=1.
   def allocate
     route = current_user.routes.find(params[:route_id])
-    entry = current_user.calendar_entries.new(route: route, completed: false)
+    entry = current_user.calendar_entries.find_by(id: params[:entry_id], route: route) ||
+            current_user.calendar_entries.new(route: route, completed: false)
+    previous_date = entry.scheduled_on
     entry.scheduled_on = parse_scheduled_date
 
     if entry.scheduled_on.nil?
@@ -70,6 +75,15 @@ class CalendarsController < ApplicationController
       format.turbo_stream do
         prepare_week_state
         @entry = entry
+        # A reschedule that moved days also repaints the day it left (see
+        # allocate.turbo_stream.erb); fresh week data already carries the move.
+        @previous_date = previous_date if previous_date && previous_date != entry.scheduled_on
+        # The routes pages' add-to-calendar picker (library card icon / detail
+        # chip) repaints from fresh state — allocate/remove_entry streams
+        # replace its dom_id'd wrapper; the grid targets come from
+        # prepare_week_state above.
+        @picker_route = route
+        @picker_entry = CalendarEntry.tracked_by_route(route, current_user)
         render :allocate
       end
       format.html do
@@ -149,6 +163,11 @@ class CalendarsController < ApplicationController
       format.turbo_stream do
         prepare_week_state
         @removed_date = removed_date
+        # Repaint the routes pages' picker too (library card / detail chip):
+        # after the destroy it renders its "Add to calendar" default, or falls
+        # back to the route's most recent entry.
+        @picker_route = route
+        @picker_entry = route ? CalendarEntry.tracked_by_route(route, current_user) : nil
         render :remove_entry
       end
       format.html do

@@ -1,6 +1,16 @@
 <%= turbo_stream.replace calendar_day_dom_id(@entry.scheduled_on),
       partial: "day_column", locals: { date: @entry.scheduled_on } %>
 
+<%# A picker reschedule that moved days repaints the day it left too — both
+    layouts. @previous_date is nil for a fresh booking (grid drops never move
+    anything); a date outside the visible week simply no-ops. %>
+<% if @previous_date %>
+  <%= turbo_stream.replace calendar_day_dom_id(@previous_date),
+        partial: "day_column", locals: { date: @previous_date } %>
+  <%= turbo_stream.replace calendar_mobile_day_dom_id(@previous_date),
+        partial: "calendars/mobile/day_panel", locals: { date: @previous_date } %>
+<% end %>
+
 <%= turbo_stream.replace "wc-telemetry", partial: "telemetry_bar" %>
 
 <%# Phase 8: mirror the repaint in the mobile layout — same day panel(s) and
@@ -12,3 +22,12 @@
 <%= turbo_stream.update "mob-week-kpi-container", partial: "calendars/mobile/kpis" %>
 
 <%= turbo_stream.update "mob-wc-strip", partial: "calendars/mobile/days-strip" %>
+
+<%# The routes pages' add-to-calendar picker (library card icon / detail
+    chip) repaints from fresh state, so the booked entry is immediately
+    removable without a reload. A no-op on pages without the picker, e.g.
+    the calendar grid. %>
+<%= turbo_stream.replace dom_id(@picker_route, :calendar_picker),
+      partial: "routes/detail_calendar",
+      locals: { route: @picker_route, calendar_entry: @picker_entry,
+                route_card: params[:picker_mode] == "card" } %>
