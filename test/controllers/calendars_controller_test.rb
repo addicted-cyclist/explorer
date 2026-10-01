@@ -687,6 +687,33 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "same-day same-time entries keep their slide order across a completed toggle" do
+    other = @user.routes.create!(source: "upload", title: "Valley loop", duration: 3_600)
+    monday = Date.current.beginning_of_week
+    older = @user.calendar_entries.create!(route: @route, scheduled_on: monday,
+                                           start_time: "08:00", end_time: "08:30")
+    newer = @user.calendar_entries.create!(route: other, scheduled_on: monday,
+                                           start_time: "08:00", end_time: "08:30")
+    # dom_id(entry, :mob_entry) as the _entry_card partial renders it.
+    expected = %W[mob_entry_calendar_entry_#{older.id} mob_entry_calendar_entry_#{newer.id}]
+
+    get calendar_url
+
+    # Same day AND start time: creation order decides — and must survive the
+    # UPDATE a completed toggle performs (heap order used to reshuffle it).
+    assert_equal expected,
+                 css_select("div.mob-wc__slider-slide > article.mob-wc__entry").map { |el| el["id"] }
+
+    patch toggle_completed_calendar_path, params: { entry_id: older.id, from_calendar: "1" },
+          headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
+    assert_response :ok
+
+    get calendar_url
+
+    assert_equal expected,
+                 css_select("div.mob-wc__slider-slide > article.mob-wc__entry").map { |el| el["id"] }
+  end
+
   test "mobile friend view swaps my actions for read-only ones" do
     friend = User.create!(valid_user_attributes(email: "mobilefriend@example.com"))
     Friendship.connect!(friend, @user)

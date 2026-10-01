@@ -17,9 +17,13 @@ class CalendarsController < ApplicationController
     prepare_friend_view
     @week_start = resolve_week_start
     owner = @is_friend_view ? @friend : current_user
+    # Total order for within-day rendering: date, start time, then id as the
+    # tiebreaker — without it same-time entries follow heap order, which an
+    # UPDATE (e.g. a completed toggle) reshuffles between renders.
     @week_entries = owner.calendar_entries
                          .includes(:route)
-                         .between(@week_start..(@week_start + 6)).to_a
+                         .between(@week_start..(@week_start + 6))
+                         .order(:scheduled_on, :start_time, :id).to_a
     # Friend view: which of this week's rides I already joined — the dock
     # shows the inert "Joined" state for them, stable across reloads.
     @joined_origin_ids =
@@ -240,9 +244,12 @@ class CalendarsController < ApplicationController
   def prepare_week_state
     @week_start = resolve_week_start
     @is_friend_view = false
+    # Same total order as #show (see there): stream repaints must agree with
+    # the full render, and the id tiebreaker keeps same-time entries stable.
     @week_entries = current_user.calendar_entries
                                 .includes(:route)
-                                .between(@week_start..(@week_start + 6)).to_a
+                                .between(@week_start..(@week_start + 6))
+                                .order(:scheduled_on, :start_time, :id).to_a
     @telemetry = build_telemetry(@week_entries)
   end
 
