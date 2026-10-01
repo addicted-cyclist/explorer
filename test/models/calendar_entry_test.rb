@@ -31,6 +31,14 @@ class CalendarEntryTest < ActiveSupport::TestCase
     assert_includes @entry.errors[:end_time], "must be after start time"
   end
 
+  test "allows an end time before the start time as a midnight-crossing ride" do
+    # end_time is a bare time-of-day; the controller derives it as
+    # start + moving duration, so 23:30 + 1h wraps to 00:30 on the next day.
+    @entry.start_time = "23:30"
+    @entry.end_time = "00:30"
+    assert_predicate @entry, :valid?
+  end
+
   test "between matches only entries inside the date range" do
     @entry.save!
     other = @user.calendar_entries.create!(route: @route, scheduled_on: Date.new(2026, 11, 3),

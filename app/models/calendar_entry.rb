@@ -73,11 +73,13 @@ class CalendarEntry < ApplicationRecord
 
   private
 
+  # end_time is a bare time-of-day (no date column) and the app only derives
+  # it as start + the route's moving duration — so an end earlier than the
+  # start is a midnight-crossing ride (end on the next day), never garbage.
+  # Only an end equal to the start (zero duration) is invalid.
   def end_time_after_start_time
     return if start_time.blank? || end_time.blank?
 
-    if end_time <= start_time
-      errors.add(:end_time, "must be after start time")
-    end
+    errors.add(:end_time, "must be after start time") if end_time == start_time
   end
 end

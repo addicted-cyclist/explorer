@@ -111,6 +111,21 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 9, entry.end_time.hour
   end
 
+  test "allocate books an overnight ride whose end wraps past midnight" do
+    @route.update_columns(duration: nil) # the one-hour default, as in the reported case
+
+    post allocate_calendar_path, params: { route_id: @route.id, scheduled_on: "2026-10-28",
+                                           start_time: "23:30" }
+
+    assert_redirected_to route_path(@route)
+    entry = @user.calendar_entries.sole
+    assert_equal "23:30", entry.start_time.strftime("%H:%M")
+    # 23:30 + the one-hour moving duration lands on the next day's 00:30 —
+    # an end before the start is a midnight-crossing ride, not garbage.
+    assert_equal "00:30", entry.end_time.strftime("%H:%M")
+    assert_nil flash[:alert]
+  end
+
   test "allocate with a blank date asks for a valid date instead of a validation dump" do
     post allocate_calendar_path, params: { route_id: @route.id, scheduled_on: "" }
 
