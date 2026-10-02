@@ -76,6 +76,15 @@
   line-height: 0.875rem;
 }
 
+/* Large hero CTA (ref: px-7 py-3.5 rounded-xl text-sm) */
+.btn--lg {
+  height: 3.25rem;
+  padding-inline: 1.75rem;
+  border-radius: var(--radius-xl);
+  font-size: 0.875rem;
+  line-height: 1.125rem;
+}
+
 /* Full-width variant (auth submit buttons) */
 .btn--block {
   width: 100%;

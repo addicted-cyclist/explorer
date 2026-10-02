@@ -7,15 +7,15 @@
                                     action: "dragover->calendar-dnd#dragOverDay dragleave->calendar-dnd#dragLeaveDay drop->calendar-dnd#dropOnDay" }) unless calendar_read_only? %>>
   <header class="wc-day__head">
     <div class="wc-day__dow">
-      <span class="t-label-lg"><%= date.strftime("%a").upcase %></span>
-      <span class="wc-day__date t-label-md"><%= date.strftime("%-d") %></span>
+      <span class="t-label-lg c-primary"><%= date.strftime("%a").upcase %></span>
+      <span class="t-label-md c-tertiary"><%= date.strftime("%-d") %></span>
     </div>
-    <span class="wc-day__km t-label-sm"><%= calendar_day_km(day_entries) %></span>
+    <span class="wc-day__km t-label-sm c-secondary"><%= calendar_day_km(day_entries) %></span>
   </header>
 
   <div class="wc-day__body">
     <% if day_entries.empty? %>
-      <div class="wc-day__empty">
+      <div class="wc-day__empty c-tertiary">
         <% if calendar_read_only? %>
           <span class="material-symbols-outlined ms-18" aria-hidden="true">snooze</span>
           <span class="t-body-sm">Rest Day</span>

@@ -82,7 +82,8 @@ export default class extends Controller {
   restoreSliderPositions(positions) {
     Object.entries(positions).forEach(([panelId, index]) => {
       const panel = document.getElementById(panelId);
-      const track = panel && panel.querySelector("[data-mob-slider-target='track']");
+      const track =
+        panel && panel.querySelector("[data-mob-slider-target='track']");
       const slide = track && track.children[index];
       if (slide) track.scrollTo({ left: slide.offsetLeft });
     });

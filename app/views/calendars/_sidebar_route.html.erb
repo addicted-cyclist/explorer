@@ -13,25 +13,25 @@
   <header class="wc-route-card__head">
     <% if @is_public_view %>
       <h3 class="wc-route-card__title t-title-md">
-        <span class="wc-route-card__link" title="<%= route.title %>"><%= route.title %></span>
+        <span class="c-primary" title="<%= route.title %>"><%= route.title %></span>
       </h3>
       <% if route.gpx_file.attached? %>
-        <%= link_to calendar_public_gpx_path(route), class: "wc-gpx-btn", title: "Download GPX", data: { turbo: false } do %>
+        <%= link_to calendar_public_gpx_path(route), class: "wc-gpx-btn c-secondary", title: "Download GPX", data: { turbo: false } do %>
           <span class="material-symbols-outlined ms-16" aria-hidden="true">download</span>
           <span class="t-label-sm">GPX</span>
         <% end %>
       <% end %>
     <% elsif @is_friend_view %>
       <h3 class="wc-route-card__title t-title-md">
-        <%= link_to route.title, route_path(route), class: "wc-route-card__link" %>
+        <%= link_to route.title, route_path(route), class: "c-primary" %>
       </h3>
-      <%= link_to download_route_path(route), class: "wc-gpx-btn", title: "Download GPX", data: { turbo: false } do %>
+      <%= link_to download_route_path(route), class: "wc-gpx-btn c-secondary", title: "Download GPX", data: { turbo: false } do %>
         <span class="material-symbols-outlined ms-16" aria-hidden="true">download</span>
         <span class="t-label-sm">GPX</span>
       <% end %>
     <% else %>
       <h3 class="wc-route-card__title t-title-md">
-        <%= link_to route.title, route_path(route), class: "wc-route-card__link" %>
+        <%= link_to route.title, route_path(route), class: "c-primary" %>
       </h3>
       <%= render "shared/shared_card_menu", route: route, from_calendar: true, week: @week_start.iso8601 %>
     <% end %>
@@ -52,7 +52,7 @@
     <% end %>
   </div>
 
-  <footer class="wc-route-card__metrics t-label-sm">
+  <footer class="wc-route-card__metrics t-label-sm c-secondary">
     <span class="wc-route-card__metric"><span class="material-symbols-outlined ms-14" aria-hidden="true">straighten</span><span><%= format_distance(route.distance) %> km</span></span>
     <span class="wc-route-card__metric"><span class="material-symbols-outlined ms-14" aria-hidden="true">north_east</span><span><%= format_elevation(route.elevation_gain) %> m</span></span>
     <span class="wc-route-card__metric"><span class="material-symbols-outlined ms-14" aria-hidden="true">timer</span><span><%= format_duration(route.duration) %></span></span>

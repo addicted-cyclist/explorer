@@ -36,13 +36,13 @@
   </div>
 
   <% unless calendar_read_only? %>
-    <p class="wc-sidebar__hint">
+    <p class="wc-sidebar__hint c-secondary">
       <span class="material-symbols-outlined ms-16" aria-hidden="true">touch_app</span>
       <span class="t-body-sm">Drag any route onto a calendar day to schedule it.</span>
     </p>
     <%# Opens the shared upload modal (rendered in show.html.erb); without JS
         it falls back to the routes library, which has its own modal. %>
-    <%= link_to routes_path, class: "wc-sidebar__cta t-label-md",
+    <%= link_to routes_path, class: "wc-sidebar__cta t-label-md c-primary",
                 data: { modal_open: "upload" }, "aria-haspopup": "dialog" do %>
       <span class="material-symbols-outlined ms-18" aria-hidden="true">add_circle</span>
       <span>Import new GPX</span>

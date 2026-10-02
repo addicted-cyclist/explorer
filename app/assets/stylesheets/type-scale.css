@@ -76,23 +76,3 @@
 .t-uppercase {
   text-transform: uppercase;
 }
-
-/* Content color helpers */
-.c-primary {
-  color: var(--color-text-primary);
-}
-.c-secondary {
-  color: var(--color-text-secondary);
-}
-.c-tertiary {
-  color: var(--color-text-tertiary);
-}
-.c-accent {
-  color: var(--color-accent-route);
-}
-.c-success {
-  color: var(--color-track-split);
-}
-.c-elevation {
-  color: var(--color-track-elevation);
-}

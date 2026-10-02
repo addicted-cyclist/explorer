@@ -15,7 +15,7 @@
   <div class="wc-entry__top">
     <% if @is_public_view %>
       <h4 class="wc-entry__title t-title-sm">
-        <span class="wc-entry__link" title="<%= entry.route.title %>"><%= entry.route.title %></span>
+        <span class="wc-entry__link c-primary" title="<%= entry.route.title %>"><%= entry.route.title %></span>
       </h4>
     <% elsif @is_friend_view %>
       <h4 class="wc-entry__title t-title-sm">
@@ -25,7 +25,7 @@
           week: params[:week]
 
         ),
-          class: "wc-entry__link", title: entry.route.title %>
+          class: "wc-entry__link c-primary", title: entry.route.title %>
       </h4>
     <% else %>
       <%= button_to toggle_completed_calendar_path, method: :patch,
@@ -37,23 +37,23 @@
       <% end %>
       <h4 class="wc-entry__title t-title-sm">
         <%= link_to entry.route.title, route_path(entry.route),
-              class: "wc-entry__link", title: entry.route.title %>
+              class: "wc-entry__link c-primary", title: entry.route.title %>
       </h4>
     <% end %>
   </div>
 
   <div class="wc-entry__metrics t-label-sm">
-    <span class="wc-entry__metric"><%= format_distance(entry.route.distance) %> <span class="wc-entry__unit">km</span></span>
-    <span class="wc-entry__metric wc-entry__metric--elevation"><%= format_elevation(entry.route.elevation_gain) %> <span class="wc-entry__unit">m</span></span>
+    <span class="wc-entry__metric c-primary"><%= format_distance(entry.route.distance) %> <span class="wc-entry__unit c-secondary">km</span></span>
+    <span class="wc-entry__metric c-elevation"><%= format_elevation(entry.route.elevation_gain) %> <span class="wc-entry__unit c-secondary">m</span></span>
   </div>
 
   <% if calendar_read_only? %>
-    <p class="wc-entry__slot t-label-sm">
+    <p class="wc-entry__slot t-label-sm c-secondary">
       <span class="material-symbols-outlined ms-14" aria-hidden="true">schedule</span>
       <span><%= entry.start_time&.strftime("%I:%M %p") || "--:--" %></span>
     </p>
   <% else %>
-    <button type="button" class="wc-entry__slot t-label-sm" title="Edit start time"
+    <button type="button" class="wc-entry__slot t-label-sm c-secondary" title="Edit start time"
             aria-label="Edit start time"
             data-action="entry-time-editor#open">
       <span class="material-symbols-outlined ms-14" aria-hidden="true">schedule</span>
@@ -93,7 +93,7 @@
     </div>
   <% else %>
     <div class="wc-entry__dock">
-      <button type="button" class="wc-entry__remove" title="Remove from calendar"
+      <button type="button" class="wc-entry__remove c-secondary" title="Remove from calendar"
               aria-label="Remove from calendar"
               data-action="calendar-dnd#removeEntry"
               data-entry-id="<%= entry.id %>">

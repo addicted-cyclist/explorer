@@ -2,15 +2,6 @@
 /* Landing page (pages/landing)                                       */
 /* ------------------------------------------------------------------ */
 
-/* Large hero CTA (ref: px-7 py-3.5 rounded-xl text-sm) */
-.btn--lg {
-  height: 3.25rem;
-  padding-inline: 1.75rem;
-  border-radius: var(--radius-xl);
-  font-size: 0.875rem;
-  line-height: 1.125rem;
-}
-
 /* Centered hero column (ref max-w-3xl) inside the app shell main */
 .landing {
   max-width: 48rem;
@@ -26,18 +17,6 @@
   .landing {
     padding-block: 6rem;
   }
-}
-
-/* Pill variant of the micro badge (hero eyebrow) */
-.badge--pill {
-  padding: var(--space-2xs) var(--space-sm);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-full);
-  background: var(--color-surface-card);
-  box-shadow: var(--shadow-sm);
-  font-size: 0.75rem;
-  line-height: 1.125rem;
-  margin-bottom: var(--space-xl);
 }
 
 /* Ref hero is text-4xl→6xl bold; Inter is loaded at 400–600, so weight 600
@@ -125,7 +104,7 @@
   }
 }
 
-.feature-card {
+.landing-card {
   background: var(--color-surface-card);
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-xl);
@@ -133,7 +112,7 @@
   box-shadow: var(--shadow-sm);
 }
 
-.feature-card__icon {
+.landing-card__icon {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -145,7 +124,7 @@
   margin-bottom: var(--space-sm);
 }
 
-.feature-card__title {
+.landing-card__title {
   color: var(--color-text-primary);
   font-size: 0.875rem;
   line-height: 1.25rem;
@@ -154,7 +133,7 @@
   margin-bottom: var(--space-2xs);
 }
 
-.feature-card__text {
+.landing-card__text {
   color: var(--color-text-secondary);
   font-size: 0.75rem;
   line-height: 1.125rem;

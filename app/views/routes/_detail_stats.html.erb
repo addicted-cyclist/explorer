@@ -4,7 +4,7 @@
   <div class="route-detail__stat">
     <span class="route-detail__stat-label t-code-sm t-uppercase">Distance</span>
     <div class="route-detail__stat-value-row">
-      <span class="route-detail__stat-value t-headline-md"><%= format_distance(@route.distance) %></span>
+      <span class="t-headline-md"><%= format_distance(@route.distance) %></span>
       <span class="t-code-sm c-secondary">km</span>
     </div>
   </div>
@@ -12,7 +12,7 @@
   <div class="route-detail__stat">
     <span class="route-detail__stat-label t-code-sm t-uppercase">Elevation Gain</span>
     <div class="route-detail__stat-value-row">
-      <span class="route-detail__stat-value t-headline-md c-elevation"><%= format_elevation(@route.elevation_gain) %></span>
+      <span class="t-headline-md c-elevation"><%= format_elevation(@route.elevation_gain) %></span>
       <span class="t-code-sm c-secondary">m</span>
     </div>
   </div>
@@ -20,7 +20,7 @@
   <div class="route-detail__stat">
     <span class="route-detail__stat-label t-code-sm t-uppercase">Max Altitude</span>
     <div class="route-detail__stat-value-row">
-      <span class="route-detail__stat-value t-headline-md">
+      <span class="t-headline-md">
         <%= @route.max_elevation.present? ? number_with_delimiter(@route.max_elevation.round) : "&mdash;".html_safe %>
       </span>
       <span class="t-code-sm c-secondary">m</span>
@@ -59,7 +59,7 @@
     <div class="route-detail__stat">
       <span class="route-detail__stat-label t-code-sm t-uppercase">Est. Duration</span>
       <div class="route-detail__stat-value-row">
-        <span class="route-detail__stat-value t-headline-md">
+        <span class="t-headline-md">
           <%= format_duration_input(@route.duration).presence || "&mdash;".html_safe %>
         </span>
       </div>
@@ -67,7 +67,7 @@
     <div class="route-detail__stat">
       <span class="route-detail__stat-label t-code-sm t-uppercase">Moving Pace</span>
       <div class="route-detail__stat-value-row">
-        <span class="route-detail__stat-value t-headline-md"><%= format_pace(@route.moving_pace) %></span>
+        <span class="t-headline-md"><%= format_pace(@route.moving_pace) %></span>
         <span class="t-code-sm c-secondary">km/h</span>
       </div>
     </div>

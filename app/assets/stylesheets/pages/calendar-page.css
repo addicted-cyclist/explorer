@@ -1,7 +1,7 @@
 /* ------------------------------------------------------------------ */
-/* Phase 7 — Weekly training calendar (.wc-*)                           */
-/* Sidebar route pool + 7 Monday-start day columns over a telemetry     */
-/* bar. Reuses the token system above; .ms-14 extends the icon ramp.    */
+/* Phase 7 — Weekly training calendar (.wc-*)                         */
+/* Sidebar route pool + 7 Monday-start day columns over a telemetry   */
+/* bar. Reuses the token system above;                                */
 /* ------------------------------------------------------------------ */
 
 .mob-wc,
@@ -27,7 +27,6 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2xs);
-  color: var(--color-text-secondary);
   transition: color 0.15s ease;
 }
 
@@ -42,7 +41,6 @@
   padding: 0.125rem var(--space-xs);
   border-radius: var(--radius-full);
   background: var(--color-surface-container-low);
-  color: var(--color-text-secondary);
 }
 
 /* Header row: heading left, profile chip right */
@@ -103,7 +101,6 @@
   gap: var(--space-2xs);
   padding: var(--space-2xs) var(--space-xs);
   border-radius: var(--radius-lg);
-  color: var(--color-text-secondary);
   transition:
     color 0.15s ease,
     background 0.15s ease;
@@ -136,7 +133,6 @@
   padding: 0.125rem var(--space-xs);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-full);
-  color: var(--color-text-primary);
 }
 
 /* Layout: sidebar + day grid */
@@ -254,7 +250,6 @@
   padding: var(--space-xs) var(--space-sm);
   background: var(--color-surface-container-low);
   border-radius: var(--radius-lg);
-  color: var(--color-text-secondary);
 }
 
 .wc-sidebar__cta {
@@ -265,7 +260,6 @@
   padding: var(--space-xs);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-lg);
-  color: var(--color-text-primary);
   transition: background 0.15s ease;
 }
 
@@ -324,10 +318,6 @@
   min-width: 0;
 }
 
-.wc-route-card__link {
-  color: var(--color-text-primary);
-}
-
 .wc-route-card__link:hover {
   text-decoration: underline;
 }
@@ -344,7 +334,6 @@
   padding: 0.125rem var(--space-xs);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
-  color: var(--color-text-secondary);
   transition: color 0.15s ease;
 }
 
@@ -389,7 +378,6 @@
   justify-content: space-between;
   margin-top: 0.25rem;
   gap: var(--space-2xs);
-  color: var(--color-text-secondary);
 }
 
 .wc-route-card__metric {
@@ -439,19 +427,13 @@
 }
 
 .wc-day__dow .t-label-lg {
-  color: var(--color-text-primary);
   font-weight: 600;
-}
-
-.wc-day__date {
-  color: var(--color-text-tertiary);
 }
 
 .wc-day__km {
   padding: 0.125rem var(--space-2xs);
   border-radius: var(--radius-full);
   background: var(--color-surface-canvas);
-  color: var(--color-text-secondary);
   white-space: nowrap;
 }
 
@@ -473,7 +455,6 @@
   padding: var(--space-sm);
   border: 2px dashed var(--color-border-subtle);
   border-radius: var(--radius-lg);
-  color: var(--color-text-tertiary);
   text-align: center;
 }
 
@@ -620,7 +601,6 @@
   border: 0;
   border-radius: var(--radius-full);
   background: transparent;
-  color: var(--color-text-secondary);
   cursor: pointer;
   transition:
     background-color 0.15s ease,
@@ -643,17 +623,11 @@
 .wc-entry__metric {
   display: flex;
   flex-direction: column;
-  color: var(--color-text-primary);
   font-weight: 600;
   white-space: nowrap;
 }
 
-.wc-entry__metric--elevation {
-  color: var(--color-track-elevation);
-}
-
 .wc-entry__unit {
-  color: var(--color-text-secondary);
   font-weight: 400;
 }
 
@@ -667,7 +641,6 @@
   padding: 0;
   border: 0;
   background: none;
-  color: var(--color-text-secondary);
   text-align: left;
 }
 
@@ -707,7 +680,6 @@ button.wc-entry__slot:hover {
   gap: var(--space-2xs);
   padding: var(--space-xs);
   border-radius: var(--radius-full);
-  color: var(--color-text-primary);
   transition: background 0.15s ease;
 }
 
@@ -790,10 +762,6 @@ button.wc-entry__slot:hover {
   border-left: 1px solid var(--color-border-subtle);
 }
 
-.wc-popover__stat--elevation {
-  color: var(--color-track-elevation);
-}
-
 .wc-popover__riders {
   display: flex;
   align-items: center;
@@ -850,21 +818,12 @@ button.wc-entry__slot:hover {
   height: 2.5rem;
   border-radius: var(--radius-full);
   background: var(--color-surface-canvas);
-  color: var(--color-text-secondary);
 }
 
 .wc-telemetry__stat {
   display: flex;
   flex-direction: column;
   gap: var(--space-2xs);
-}
-
-.wc-telemetry__label {
-  color: var(--color-text-tertiary);
-}
-
-.wc-telemetry__value {
-  color: var(--color-text-primary);
 }
 
 .wc-telemetry__sep {
@@ -879,7 +838,6 @@ button.wc-entry__slot:hover {
   margin-left: auto;
   border: 1px solid var(--color-border-strong);
   background: var(--color-surface-canvas);
-  color: var(--color-text-primary);
   transition: background 0.15s ease;
 }
 
