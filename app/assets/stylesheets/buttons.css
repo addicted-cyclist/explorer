@@ -39,7 +39,6 @@
 /* Secondary: raised card surface, darkens on hover */
 .btn--secondary {
   background: var(--color-surface-card);
-  color: var(--color-text-primary);
 }
 
 .btn--secondary:hover {
@@ -49,7 +48,6 @@
 /* Ghost: transparent, quiet label */
 .btn--ghost {
   background: transparent;
-  color: var(--color-text-secondary);
   box-shadow: none;
 }
 
@@ -61,7 +59,6 @@
 /* Destructive: card surface with route-accent label, soft fill on hover */
 .btn--danger {
   background: var(--color-surface-card);
-  color: var(--color-accent-route);
 }
 
 .btn--danger:hover {

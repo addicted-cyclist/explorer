@@ -30,14 +30,14 @@
 
       <div class="mob-sheet__calendar">
         <div class="calendar-popover__head">
-          <span class="calendar-popover__month t-label-md" data-mob-week-target="monthLabel"></span>
+          <span class="calendar-popover__month c-primary t-label-md" data-mob-week-target="monthLabel"></span>
           <div class="calendar-popover__nav">
-            <button type="button" class="calendar-popover__nav-btn"
+            <button type="button" class="calendar-popover__nav-btn c-secondary"
                     data-action="mob-week#shiftMonth" data-mob-week-delta-param="-1"
                     aria-label="Previous month">
               <span class="material-symbols-outlined ms-18">chevron_left</span>
             </button>
-            <button type="button" class="calendar-popover__nav-btn"
+            <button type="button" class="calendar-popover__nav-btn c-secondary"
                     data-action="mob-week#shiftMonth" data-mob-week-delta-param="1"
                     aria-label="Next month">
               <span class="material-symbols-outlined ms-18">chevron_right</span>
@@ -59,7 +59,7 @@
       </label>
 
       <footer class="mob-sheet__actions">
-        <button type="button" class="btn btn--ghost" data-action="mob-sheet#close">Cancel</button>
+        <button type="button" class="btn btn--ghost c-secondary" data-action="mob-sheet#close">Cancel</button>
         <button type="submit" class="btn btn--primary" data-mob-week-target="scheduleSubmit" disabled>
           Schedule Route
         </button>

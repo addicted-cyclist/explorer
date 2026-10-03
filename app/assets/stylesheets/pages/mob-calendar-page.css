@@ -49,7 +49,6 @@
     flex-shrink: 0;
     border-radius: var(--radius-full);
     background: var(--color-surface-container-high);
-    color: var(--color-text-primary);
     font-weight: 600;
   }
 
@@ -64,7 +63,6 @@
     border: 1px solid var(--color-border-subtle);
     border-radius: var(--radius-full);
     background: var(--color-surface-card);
-    color: var(--color-text-primary);
   }
 
   /* KPI tiles (mobile mirror of .wc-telemetry) */
@@ -114,7 +112,6 @@
     border: 1px solid var(--color-border-subtle);
     border-radius: var(--radius-full);
     background: var(--color-surface-card);
-    color: var(--color-text-primary);
     transition: background-color 0.15s ease;
   }
 
@@ -151,7 +148,6 @@
     border: 1px solid var(--color-border-subtle);
     border-radius: var(--radius-xl);
     background: var(--color-surface-card);
-    color: var(--color-text-primary);
     box-shadow: var(--shadow-sm);
     transition:
       background-color 0.15s ease,
@@ -161,10 +157,6 @@
   .mob-wc__pill-num {
     font-size: 1.125rem;
     font-weight: 600;
-  }
-
-  .mob-wc__pill-km {
-    color: var(--color-text-tertiary);
   }
 
   .mob-wc__pill.is-today {
@@ -217,7 +209,6 @@
 
   .mob-wc__empty-icon {
     font-size: 1.75rem;
-    color: var(--color-text-tertiary);
   }
 
   /* Scheduled entry card (Friends-card style) */
@@ -268,7 +259,6 @@
     border: 1.5px solid var(--color-border-strong);
     border-radius: var(--radius-full);
     background: transparent;
-    color: var(--color-text-primary);
     transition:
       background-color 0.15s ease,
       border-color 0.15s ease,
@@ -294,7 +284,6 @@
     flex-shrink: 0;
     border-radius: var(--radius-full);
     background: var(--color-surface-container-high);
-    color: var(--color-text-secondary);
   }
 
   .mob-wc__entry-link {
@@ -337,7 +326,6 @@
 
   .mob-wc__unit {
     font-weight: 500;
-    color: var(--color-text-secondary);
   }
 
   .mob-wc__entry-actions {
@@ -354,7 +342,6 @@
     display: inline-flex;
     align-items: center;
     gap: var(--space-2xs);
-    color: var(--color-text-secondary);
   }
 
   /* Multi-entry day: swipe slider with dot navigation */
@@ -416,7 +403,6 @@
     border: 2px dashed var(--color-border-strong);
     border-radius: var(--radius-xl);
     background: transparent;
-    color: var(--color-text-secondary);
     transition:
       background-color 0.15s ease,
       color 0.15s ease;
@@ -491,10 +477,6 @@
     stroke-linecap: round;
     stroke-linejoin: round;
     vector-effect: non-scaling-stroke;
-  }
-
-  .mob-wc__route-thumb--empty {
-    color: var(--color-text-tertiary);
   }
 
   .mob-wc__route-footer {
@@ -593,7 +575,6 @@
     border: 1px solid var(--color-border-subtle);
     border-radius: var(--radius-lg);
     background: var(--color-surface-card);
-    color: var(--color-text-tertiary);
   }
 
   .mob-sheet__search .input {

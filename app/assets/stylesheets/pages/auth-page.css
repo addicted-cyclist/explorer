@@ -33,7 +33,6 @@
 
 .auth-card__title {
   margin: 0 0 var(--space-sm);
-  color: var(--color-text-primary);
   font-size: 1.375rem; /* 22px per auth refs */
   line-height: 1.75rem;
   font-weight: 600;
@@ -43,7 +42,6 @@
 
 .auth-card__lede {
   margin: 0 0 var(--space-lg);
-  color: var(--color-text-secondary);
   font-size: 0.875rem;
   line-height: 1.25rem;
   text-align: center;
@@ -57,7 +55,6 @@
 }
 
 .auth-field__aside {
-  color: var(--color-text-secondary);
   font-size: 0.8125rem;
   line-height: 1rem;
   font-weight: 500;
@@ -70,7 +67,6 @@
 
 .auth-field__hint {
   margin: var(--space-2xs) 0 0;
-  color: var(--color-text-tertiary);
   font-size: 0.75rem;
   line-height: 1rem;
 }
@@ -98,14 +94,12 @@
 
 .auth-card__footer-text {
   margin: 0;
-  color: var(--color-text-secondary);
   font-size: 0.8125rem;
   line-height: 1.25rem;
 }
 
 .auth-card__footer-link {
   margin-left: var(--space-2xs);
-  color: var(--color-text-primary);
   font-weight: 600;
   transition: color 0.15s ease;
 }

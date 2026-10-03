@@ -114,30 +114,12 @@
 }
 
 .stat-card__label {
-  color: var(--color-text-secondary);
   font-weight: 500;
   padding-top: 0.125rem;
 }
 
 .stat-card__icon {
   flex-shrink: 0;
-  color: var(--color-text-primary);
-}
-
-.stat-card__icon--distance {
-  color: var(--color-text-secondary);
-}
-
-.stat-card__icon--elevation {
-  color: var(--color-track-elevation);
-}
-
-.stat-card__icon--routes {
-  color: var(--color-track-split);
-}
-
-.stat-card__icon--synced {
-  color: var(--color-accent-route);
 }
 
 .stat-card__value {
@@ -147,21 +129,11 @@
   gap: 0.25rem;
 }
 
-.stat-card__primary {
-  color: var(--color-text-primary);
-}
-
-.stat-card__secondary {
-  color: var(--color-text-secondary);
-}
-
 .stat-card__sep {
-  color: var(--color-text-tertiary);
   margin-inline: 0.125rem;
 }
 
 .stat-card__unit {
-  color: var(--color-text-tertiary);
   letter-spacing: 0.04em;
 }
 
@@ -230,7 +202,6 @@
   top: 50%;
   left: 0.625rem;
   transform: translateY(-50%);
-  color: var(--color-text-tertiary);
   pointer-events: none;
 }
 
@@ -304,7 +275,6 @@
   padding-inline: var(--space-sm);
   border-radius: var(--radius-lg);
   background: var(--color-surface-canvas);
-  color: var(--color-text-tertiary);
 }
 
 .filter-bar__sort select {
@@ -404,7 +374,6 @@
   flex-direction: column;
   align-items: center;
   gap: var(--space-2xs);
-  color: var(--color-text-tertiary);
 }
 
 .route-card__thumb-overlay {
@@ -429,10 +398,6 @@
   right: 0.5rem;
 }
 
-.route-card__thumb-overlay--ago .t-body-sm {
-  color: var(--color-text-secondary);
-}
-
 .route-card__badges {
   display: flex;
   flex-wrap: wrap;
@@ -441,7 +406,6 @@
 }
 
 .route-card__title {
-  color: var(--color-text-primary);
   letter-spacing: -0.01em;
 }
 
@@ -455,12 +419,7 @@
   color: var(--color-accent-route);
 }
 
-.route-card__desc {
-  color: var(--color-text-secondary);
-}
-
 .route-card__desc--empty {
-  color: var(--color-text-tertiary);
   font-style: italic;
 }
 
@@ -482,12 +441,7 @@
   text-align: center;
 }
 
-.route-card__metric > .t-code-sm {
-  color: var(--color-text-tertiary);
-}
-
 .route-card__metric-value {
-  color: var(--color-text-primary);
   font-weight: 600;
   white-space: nowrap;
 }

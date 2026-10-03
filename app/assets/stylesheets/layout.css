@@ -56,7 +56,6 @@
 }
 
 .brand-name {
-  color: var(--color-text-primary);
   font-size: 1.125rem;
   line-height: 1.5rem;
   font-weight: 600;
@@ -81,7 +80,6 @@
   align-items: center;
   height: var(--nav-height);
   border-bottom: 2px solid transparent;
-  color: var(--color-text-secondary);
   font-size: 0.8125rem;
   line-height: 1rem;
   font-weight: 500;
@@ -96,7 +94,6 @@
 }
 
 .app-nav__link--active {
-  color: var(--color-text-primary);
   border-bottom-color: var(--color-primary);
 }
 
@@ -123,7 +120,6 @@
   gap: 2px;
   padding: var(--space-2xs) var(--space-xs);
   border-radius: var(--radius-md);
-  color: var(--color-text-secondary);
   transition: color 0.15s ease;
 }
 
@@ -166,7 +162,6 @@
 }
 
 .account-chip__chevron {
-  color: var(--color-text-secondary);
   transition: color 0.15s ease;
 }
 
@@ -203,7 +198,6 @@
 }
 
 .account-menu__user {
-  color: var(--color-text-primary);
   font-weight: 500;
   line-height: 1.25;
   overflow-wrap: anywhere;
@@ -222,7 +216,6 @@
   gap: var(--space-xs);
   padding: var(--space-xs) var(--space-sm);
   border-radius: var(--radius-lg);
-  color: var(--color-text-primary);
   font-weight: 400;
   text-decoration: none;
   transition: background-color 0.15s ease;
@@ -233,12 +226,7 @@
 }
 
 .account-menu__item--danger {
-  color: var(--color-accent-route);
   font-weight: 500;
-}
-
-.account-menu__icon {
-  color: var(--color-text-secondary);
 }
 
 .account-menu__item--danger .account-menu__icon {
@@ -340,10 +328,6 @@
   outline-offset: 2px;
 }
 
-.account__switch-text {
-  color: var(--color-text-secondary);
-}
-
 .account__share {
   display: flex;
   flex-direction: column;
@@ -416,7 +400,6 @@
 }
 
 .app-footer__copy {
-  color: var(--color-text-tertiary);
   font-size: 0.6875rem;
   line-height: 0.875rem;
   font-weight: 500;
@@ -430,7 +413,6 @@
 }
 
 .app-footer__link {
-  color: var(--color-text-secondary);
   font-size: 0.6875rem;
   line-height: 0.875rem;
   font-weight: 500;

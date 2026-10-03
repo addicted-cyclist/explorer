@@ -34,19 +34,22 @@
         <div class="app-header__brand">
           <%= link_to user_signed_in? ? authenticated_root_path : unauthenticated_root_path, class: "brand-link" do %>
             <%= image_tag "explorer_logo.svg", alt: "Explorer logo", class: "brand-logo" %>
-            <span class="brand-name">Explorer</span>
+            <span class="brand-name c-primary">Explorer</span>
           <% end %>
 
           <% if user_signed_in? %>
             <nav class="app-nav" aria-label="Primary">
               <%= link_to "My Routes", routes_path,
-                    class: class_names("app-nav__link", "app-nav__link--active" => controller_name == "routes" && !friends_route),
+                    class: class_names("app-nav__link", { "app-nav__link--active": controller_name == "routes" && !friends_route },
+                                       (controller_name == "routes" && !friends_route) ? "c-primary" : "c-secondary"),
                     aria: { current: ("page" if controller_name == "routes" && !friends_route) } %>
               <%= link_to "My calendar", calendar_path,
-                    class: class_names("app-nav__link", "app-nav__link--active" => controller_name == "calendars" && !friends_calendar),
+                    class: class_names("app-nav__link", { "app-nav__link--active": controller_name == "calendars" && !friends_calendar },
+                                       (controller_name == "calendars" && !friends_calendar) ? "c-primary" : "c-secondary"),
                     aria: { current: ("page" if controller_name == "calendars" && !friends_calendar) } %>
               <%= link_to "Friends", friends_path,
-                    class: class_names("app-nav__link", "app-nav__link--active" => controller_name == "friends" || friends_calendar || friends_route),
+                    class: class_names("app-nav__link", { "app-nav__link--active": controller_name == "friends" || friends_calendar || friends_route },
+                                       (controller_name == "friends" || friends_calendar || friends_route) ? "c-primary" : "c-secondary"),
                     aria: { current: ("page" if controller_name == "friends" || friends_calendar || friends_route) } %>
             </nav>
           <% end %>
@@ -62,28 +65,28 @@
                 <span class="account-chip__avatar">
                   <span class="material-symbols-outlined ms-18">person</span>
                 </span>
-                <span class="material-symbols-outlined ms-18 account-chip__chevron">expand_more</span>
+                <span class="material-symbols-outlined ms-18 account-chip__chevron c-secondary">expand_more</span>
               </button>
 
               <div class="account-menu" data-dropdown-target="menu" hidden role="menu">
                 <div class="account-menu__header">
-                  <p class="account-menu__user"><%= current_user.name.presence || current_user.email %></p>
+                  <p class="account-menu__user c-primary"><%= current_user.name.presence || current_user.email %></p>
                 </div>
                 <div class="account-menu__items">
-                  <%= link_to account_path, class: "account-menu__item", role: "menuitem" do %>
-                    <span class="material-symbols-outlined ms-18 account-menu__icon">account_circle</span>
+                  <%= link_to account_path, class: "account-menu__item c-primary", role: "menuitem" do %>
+                    <span class="material-symbols-outlined ms-18 account-menu__icon c-secondary">account_circle</span>
                     <span>Account Settings</span>
                   <% end %>
                   <%= link_to destroy_user_session_path, data: { turbo_method: :delete },
-                        class: "account-menu__item account-menu__item--danger", role: "menuitem" do %>
-                    <span class="material-symbols-outlined ms-18 account-menu__icon">logout</span>
+                        class: "account-menu__item account-menu__item--danger c-accent", role: "menuitem" do %>
+                    <span class="material-symbols-outlined ms-18 account-menu__icon c-secondary">logout</span>
                     <span>Log out</span>
                   <% end %>
                 </div>
               </div>
             </div>
           <% else %>
-            <%= link_to "Sign in", new_user_session_path, class: "btn btn--ghost" %>
+            <%= link_to "Sign in", new_user_session_path, class: "btn btn--ghost c-secondary" %>
             <%= link_to "Sign up", new_user_registration_path, class: "btn btn--primary" %>
           <% end %>
         </div>
@@ -93,7 +96,7 @@
     <main class="app-main">
       <div class="container app-main__inner">
         <% if notice.present? %>
-          <p class="flash flash--notice"><%= notice %></p>
+          <p class="flash flash--notice c-primary"><%= notice %></p>
         <% end %>
         <% if alert.present? %>
           <p class="flash flash--alert"><%= alert %></p>
@@ -107,19 +110,19 @@
         (CSS-only, .app-nav-mobile in application.css). %>
     <% if user_signed_in? %>
       <nav class="app-nav-mobile" aria-label="Primary (mobile)">
-        <%= link_to routes_path, class: class_names("app-nav-mobile__link", "is-active" => controller_name == "routes" && !friends_route) do %>
+        <%= link_to routes_path, class: class_names("app-nav-mobile__link", "c-secondary", "is-active" => controller_name == "routes" && !friends_route) do %>
           <span class="material-symbols-outlined" aria-hidden="true">route</span>
           <span class="t-label-sm">My Routes</span>
         <% end %>
-        <%= link_to calendar_path, class: class_names("app-nav-mobile__link", "is-active" => controller_name == "calendars" && !friends_calendar) do %>
+        <%= link_to calendar_path, class: class_names("app-nav-mobile__link", "c-secondary", "is-active" => controller_name == "calendars" && !friends_calendar) do %>
           <span class="material-symbols-outlined" aria-hidden="true">calendar_today</span>
           <span class="t-label-sm">Calendar</span>
         <% end %>
-        <%= link_to friends_path, class: class_names("app-nav-mobile__link", "is-active" => controller_name == "friends" || friends_calendar || friends_route) do %>
+        <%= link_to friends_path, class: class_names("app-nav-mobile__link", "c-secondary", "is-active" => controller_name == "friends" || friends_calendar || friends_route) do %>
           <span class="material-symbols-outlined" aria-hidden="true">group</span>
           <span class="t-label-sm">Friends</span>
         <% end %>
-        <%= link_to account_path, class: class_names("app-nav-mobile__link", "is-active" => controller_name == "accounts") do %>
+        <%= link_to account_path, class: class_names("app-nav-mobile__link", "c-secondary", "is-active" => controller_name == "accounts") do %>
           <span class="material-symbols-outlined" aria-hidden="true">manage_accounts</span>
           <span class="t-label-sm">Account</span>
         <% end %>
@@ -128,12 +131,12 @@
 
     <footer class="app-footer">
       <div class="container app-footer__inner">
-        <span class="app-footer__copy">© 2026 Explorer System Inc. All rights reserved.</span>
+        <span class="app-footer__copy c-tertiary">© 2026 Explorer System Inc. All rights reserved.</span>
         <nav class="app-footer__nav" aria-label="Footer">
-          <a href="#" class="app-footer__link">Contact</a>
-          <a href="#" class="app-footer__link">Contribute</a>
-          <a href="#" class="app-footer__link">API / Docs</a>
-          <a href="#" class="app-footer__link">Terms</a>
+          <a href="#" class="app-footer__link c-secondary">Contact</a>
+          <a href="#" class="app-footer__link c-secondary">Contribute</a>
+          <a href="#" class="app-footer__link c-secondary">API / Docs</a>
+          <a href="#" class="app-footer__link c-secondary">Terms</a>
         </nav>
       </div>
     </footer>

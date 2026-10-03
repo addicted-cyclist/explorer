@@ -185,11 +185,6 @@
 
 .wc-sidebar__glyph {
   font-size: 1.25rem;
-  color: var(--color-accent-route);
-}
-
-.wc-sidebar__count {
-  color: var(--color-text-tertiary);
 }
 
 .wc-sidebar__search {
@@ -201,7 +196,6 @@
   top: 50%;
   left: var(--space-xs);
   transform: translateY(-50%);
-  color: var(--color-text-tertiary);
   pointer-events: none;
 }
 
@@ -369,7 +363,6 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-2xs);
-  color: var(--color-text-tertiary);
 }
 
 .wc-route-card__metrics {
@@ -543,7 +536,6 @@
 .wc-entry__link {
   display: block;
   overflow: hidden;
-  color: var(--color-text-primary);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -681,10 +673,6 @@ button.wc-entry__slot:hover {
   padding: var(--space-xs);
   border-radius: var(--radius-full);
   transition: background 0.15s ease;
-}
-
-.wc-join--joined {
-  color: var(--color-track-split);
 }
 
 .wc-join__btn:hover {

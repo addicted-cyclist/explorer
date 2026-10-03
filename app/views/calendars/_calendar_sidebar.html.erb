@@ -3,16 +3,16 @@
 <aside class="wc-sidebar" data-controller="calendar-filters">
   <header class="wc-sidebar__head">
     <div class="wc-sidebar__title">
-      <span class="material-symbols-outlined wc-sidebar__glyph" aria-hidden="true"><%= calendar_read_only? ? "route" : "explore" %></span>
+      <span class="material-symbols-outlined wc-sidebar__glyph c-accent" aria-hidden="true"><%= calendar_read_only? ? "route" : "explore" %></span>
       <h2 class="t-headline-sm"><%= calendar_read_only? ? "This Week's Routes" : "Routes" %></h2>
     </div>
-    <span class="wc-sidebar__count t-label-md">
+    <span class="wc-sidebar__count t-label-md c-tertiary">
       <span data-calendar-filters-target="count"><%= @sidebar_routes.size %></span> <%= count_label %>
     </span>
   </header>
 
   <div class="wc-sidebar__search">
-    <span class="material-symbols-outlined ms-18 wc-sidebar__search-icon" aria-hidden="true">search</span>
+    <span class="material-symbols-outlined ms-18 wc-sidebar__search-icon c-tertiary" aria-hidden="true">search</span>
     <%= text_field_tag :route_filter, nil, class: "input wc-sidebar__search-input t-body-md",
           placeholder: "Filter routes by name or distance...",
           autocomplete: "off",

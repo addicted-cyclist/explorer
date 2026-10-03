@@ -139,12 +139,12 @@ export default class extends Controller {
       day.setDate(cursor.getDate() + i);
       const iso = this.isoOf(day);
       if (day.getMonth() === month) {
-        const classes = ["calendar-day"];
+        const classes = ["calendar-day", "c-primary"];
         if (iso === today) classes.push("calendar-day--today");
         if (iso === selected) classes.push("calendar-day--selected");
         html += `<button type="button" class="${classes.join(" ")}" data-date="${iso}" data-action="calendar-picker#pick">${day.getDate()}</button>`;
       } else {
-        html += `<span class="calendar-day calendar-day--muted">${day.getDate()}</span>`;
+        html += `<span class="calendar-day c-primary calendar-day--muted c-tertiary">${day.getDate()}</span>`;
       }
     }
     this.gridTarget.innerHTML = html;

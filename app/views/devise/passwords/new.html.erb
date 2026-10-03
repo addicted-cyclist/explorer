@@ -3,8 +3,8 @@
     <div class="auth-card__body">
       <%= image_tag "explorer_logo.svg", alt: "Explorer logo", size: "80x80",
                     class: "auth-card__logo" %>
-      <h1 class="auth-card__title">Reset your password</h1>
-      <p class="auth-card__lede">
+      <h1 class="auth-card__title c-primary">Reset your password</h1>
+      <p class="auth-card__lede c-secondary">
         Enter your verified email or username and we'll send you instructions
         to reset your password.
       </p>
@@ -15,11 +15,11 @@
         <%= render "devise/shared/error_messages", resource: resource %>
 
         <div class="auth-field">
-          <%= f.label :email, "Email address or username", class: "field-label" %>
+          <%= f.label :email, "Email address or username", class: "field-label c-secondary" %>
           <%# text_field (not email_field) so username-only requests pass browser validation %>
           <%= f.text_field :email, autofocus: true, autocomplete: "username",
                            placeholder: "Enter email or username", class: "input" %>
-          <p class="auth-field__hint">We'll email you a secure link valid for 1 hour.</p>
+          <p class="auth-field__hint c-tertiary">We'll email you a secure link valid for 1 hour.</p>
         </div>
 
         <%= f.submit "Send reset instructions", class: "btn btn--primary btn--block" %>
@@ -27,10 +27,10 @@
     </div>
 
     <footer class="auth-card__footer">
-      <p class="auth-card__footer-text">
+      <p class="auth-card__footer-text c-secondary">
         Remember your password?
         <%= link_to "Sign in", new_session_path(resource_name),
-                    class: "auth-card__footer-link" %>
+                    class: "auth-card__footer-link c-primary" %>
       </p>
     </footer>
   </div>

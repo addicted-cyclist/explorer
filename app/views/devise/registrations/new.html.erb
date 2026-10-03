@@ -3,8 +3,8 @@
     <div class="auth-card__body">
       <%= image_tag "explorer_logo.svg", alt: "Explorer logo", size: "80x80",
                     class: "auth-card__logo" %>
-      <h1 class="auth-card__title">Create your account</h1>
-      <p class="auth-card__lede">Welcome! Please fill in the details to get started</p>
+      <h1 class="auth-card__title c-primary">Create your account</h1>
+      <p class="auth-card__lede c-secondary">Welcome! Please fill in the details to get started</p>
 
       <%= form_for resource, as: resource_name,
                    url: registration_path(resource_name),
@@ -13,44 +13,44 @@
 
         <div class="auth-grid">
           <div class="auth-field">
-            <%= f.label :first_name, "First name", class: "field-label" %>
+            <%= f.label :first_name, "First name", class: "field-label c-secondary" %>
             <%= f.text_field :first_name, placeholder: "Enter first name",
                              autofocus: true, autocomplete: "given-name",
                              class: "input" %>
           </div>
 
           <div class="auth-field">
-            <%= f.label :last_name, "Last name", class: "field-label" %>
+            <%= f.label :last_name, "Last name", class: "field-label c-secondary" %>
             <%= f.text_field :last_name, placeholder: "Enter last name",
                              autocomplete: "family-name", class: "input" %>
           </div>
         </div>
 
         <div class="auth-field">
-          <%= f.label :username, class: "field-label" %>
+          <%= f.label :username, class: "field-label c-secondary" %>
           <%= f.text_field :username, autocomplete: "username",
                            placeholder: "Letters, numbers and underscores", class: "input" %>
         </div>
 
         <div class="auth-field">
-          <%= f.label :email, "Email address", class: "field-label" %>
+          <%= f.label :email, "Email address", class: "field-label c-secondary" %>
           <%= f.email_field :email, autocomplete: "email",
                             placeholder: "Enter your email address", class: "input" %>
         </div>
 
         <div class="auth-field">
-          <%= f.label :password, class: "field-label" %>
+          <%= f.label :password, class: "field-label c-secondary" %>
           <%= f.password_field :password, autocomplete: "new-password",
                                placeholder: "Enter your password", class: "input" %>
           <% if @minimum_password_length %>
-            <p class="auth-field__hint">
+            <p class="auth-field__hint c-tertiary">
               <%= @minimum_password_length %> characters minimum
             </p>
           <% end %>
         </div>
 
         <div class="auth-field">
-          <%= f.label :password_confirmation, "Confirm password", class: "field-label" %>
+          <%= f.label :password_confirmation, "Confirm password", class: "field-label c-secondary" %>
           <%= f.password_field :password_confirmation, autocomplete: "new-password",
                                placeholder: "Confirm your password", class: "input" %>
         </div>
@@ -60,10 +60,10 @@
     </div>
 
     <footer class="auth-card__footer">
-      <p class="auth-card__footer-text">
+      <p class="auth-card__footer-text c-secondary">
         Already have an account?
         <%= link_to "Sign in", new_session_path(resource_name),
-                    class: "auth-card__footer-link" %>
+                    class: "auth-card__footer-link c-primary" %>
       </p>
     </footer>
   </div>

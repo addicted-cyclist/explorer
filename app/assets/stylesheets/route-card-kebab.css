@@ -34,7 +34,6 @@
   border: 0;
   border-radius: var(--radius-md);
   background: transparent;
-  color: var(--color-text-primary);
   text-align: left;
   text-decoration: none;
   cursor: pointer;
@@ -45,10 +44,10 @@
   background: var(--color-surface-canvas);
 }
 
-.menu-item--danger {
+.menu-item.menu-item--danger {
   color: var(--color-on-error-container);
 }
 
-.menu-item--danger:hover {
+.menu-item.menu-item--danger:hover {
   background: var(--color-accent-route-soft);
 }

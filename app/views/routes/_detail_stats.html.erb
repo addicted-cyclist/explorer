@@ -2,7 +2,7 @@
     edits without re-rendering the page (and its gpx.studio iframe). %>
 <div class="route-detail__stats" id="route-detail-stats">
   <div class="route-detail__stat">
-    <span class="route-detail__stat-label t-code-sm t-uppercase">Distance</span>
+    <span class="route-detail__stat-label t-code-sm t-uppercase c-tertiary">Distance</span>
     <div class="route-detail__stat-value-row">
       <span class="t-headline-md"><%= format_distance(@route.distance) %></span>
       <span class="t-code-sm c-secondary">km</span>
@@ -10,7 +10,7 @@
   </div>
 
   <div class="route-detail__stat">
-    <span class="route-detail__stat-label t-code-sm t-uppercase">Elevation Gain</span>
+    <span class="route-detail__stat-label t-code-sm t-uppercase c-tertiary">Elevation Gain</span>
     <div class="route-detail__stat-value-row">
       <span class="t-headline-md c-elevation"><%= format_elevation(@route.elevation_gain) %></span>
       <span class="t-code-sm c-secondary">m</span>
@@ -18,7 +18,7 @@
   </div>
 
   <div class="route-detail__stat">
-    <span class="route-detail__stat-label t-code-sm t-uppercase">Max Altitude</span>
+    <span class="route-detail__stat-label t-code-sm t-uppercase c-tertiary">Max Altitude</span>
     <div class="route-detail__stat-value-row">
       <span class="t-headline-md">
         <%= @route.max_elevation.present? ? number_with_delimiter(@route.max_elevation.round) : "&mdash;".html_safe %>
@@ -36,7 +36,7 @@
       <%= hidden_field_tag :from_detail, "1" %>
       <%= f.hidden_field :duration, data: { pace_duration_target: "hidden" } %>
       <div class="route-detail__stat">
-        <span class="route-detail__stat-label t-code-sm t-uppercase">Est. Duration</span>
+        <span class="route-detail__stat-label t-code-sm t-uppercase c-tertiary">Est. Duration</span>
         <div class="route-detail__stat-value-row">
           <input type="text" value="<%= format_duration_input(@route.duration) %>"
                  class="route-detail__metric-input t-headline-md" aria-label="Estimated duration"
@@ -45,7 +45,7 @@
         </div>
       </div>
       <div class="route-detail__stat">
-        <span class="route-detail__stat-label t-code-sm t-uppercase">Moving Pace</span>
+        <span class="route-detail__stat-label t-code-sm t-uppercase c-tertiary">Moving Pace</span>
         <div class="route-detail__stat-value-row">
           <input type="text" value="<%= format_pace(@route.moving_pace) %>"
                  class="route-detail__metric-input t-headline-md" aria-label="Moving pace in km/h"
@@ -57,7 +57,7 @@
     <% end %>
   <% else %>
     <div class="route-detail__stat">
-      <span class="route-detail__stat-label t-code-sm t-uppercase">Est. Duration</span>
+      <span class="route-detail__stat-label t-code-sm t-uppercase c-tertiary">Est. Duration</span>
       <div class="route-detail__stat-value-row">
         <span class="t-headline-md">
           <%= format_duration_input(@route.duration).presence || "&mdash;".html_safe %>
@@ -65,7 +65,7 @@
       </div>
     </div>
     <div class="route-detail__stat">
-      <span class="route-detail__stat-label t-code-sm t-uppercase">Moving Pace</span>
+      <span class="route-detail__stat-label t-code-sm t-uppercase c-tertiary">Moving Pace</span>
       <div class="route-detail__stat-value-row">
         <span class="t-headline-md"><%= format_pace(@route.moving_pace) %></span>
         <span class="t-code-sm c-secondary">km/h</span>

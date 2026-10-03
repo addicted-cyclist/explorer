@@ -7,16 +7,16 @@
 
 <section class="landing" aria-labelledby="landing-title">
   <div class="landing__hero">
-    <p class="badge badge--pill">
+    <p class="badge badge--pill c-primary">
       <span class="status-dot" aria-hidden="true"></span>
       Inspired by passionate cyclists
     </p>
 
-    <h1 class="landing__title" id="landing-title">
+    <h1 class="landing__title c-primary" id="landing-title">
       Track, organize, and inspect your outdoor routes.
     </h1>
 
-    <p class="landing__lede">
+    <p class="landing__lede c-secondary">
       A minimalist platform to upload GPX trails, analyse elevation profiles,
       schedule weekly rides, and share adventures with friends.
     </p>
@@ -24,40 +24,40 @@
     <div class="landing__actions">
       <%= link_to new_user_registration_path, class: "btn btn--primary btn--lg" do %>
         <span>Create account</span>
-        <span class="material-symbols-outlined ms-16 landing__cta-arrow" aria-hidden="true">arrow_forward</span>
+        <span class="material-symbols-outlined ms-16 landing__cta-arrow c-tertiary" aria-hidden="true">arrow_forward</span>
       <% end %>
-      <%= link_to "Sign in", new_user_session_path, class: "btn btn--secondary btn--lg" %>
+      <%= link_to "Sign in", new_user_session_path, class: "btn btn--secondary btn--lg c-primary" %>
     </div>
   </div>
 
   <div class="landing__features">
     <article class="landing-card">
-      <div class="landing-card__icon" aria-hidden="true">
+      <div class="landing-card__icon c-primary" aria-hidden="true">
         <span class="material-symbols-outlined ms-16">map</span>
       </div>
-      <h2 class="landing-card__title">GPX Studio Sync</h2>
-      <p class="landing-card__text">
+      <h2 class="landing-card__title c-primary">GPX Studio Sync</h2>
+      <p class="landing-card__text c-secondary">
         Direct upload, Google Drive sync &amp; interactive 3D elevation profile
         analysis.
       </p>
     </article>
 
     <article class="landing-card">
-      <div class="landing-card__icon" aria-hidden="true">
+      <div class="landing-card__icon c-primary" aria-hidden="true">
         <span class="material-symbols-outlined ms-16">calendar_month</span>
       </div>
-      <h2 class="landing-card__title">Weekly Calendar</h2>
-      <p class="landing-card__text">
+      <h2 class="landing-card__title c-primary">Weekly Calendar</h2>
+      <p class="landing-card__text c-secondary">
         Allocate planned routes across days and monitor completed tracks.
       </p>
     </article>
 
     <article class="landing-card">
-      <div class="landing-card__icon" aria-hidden="true">
+      <div class="landing-card__icon c-primary" aria-hidden="true">
         <span class="material-symbols-outlined ms-16">group</span>
       </div>
-      <h2 class="landing-card__title">Friends &amp; Sharing</h2>
-      <p class="landing-card__text">
+      <h2 class="landing-card__title c-primary">Friends &amp; Sharing</h2>
+      <p class="landing-card__text c-secondary">
         Inspect friends’ training schedules, save their routes, and download
         GPX tracks.
       </p>
