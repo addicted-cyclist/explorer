@@ -6,7 +6,7 @@
   <div class="modal__card" role="dialog" aria-modal="true" aria-labelledby="upload-modal-title">
     <header class="modal__head">
       <div>
-        <h2 class="t-headline-sm" id="upload-modal-title">Upload your route</h2>
+        <h2 class="t-headline-sm c-primary" id="upload-modal-title">Upload your route</h2>
         <p class="t-body-sm c-secondary">Supported file formats: .gpx</p>
       </div>
       <button type="button" class="icon-btn" data-action="modal#close" aria-label="Close dialog">
@@ -23,10 +23,10 @@
       <% end %>
       <div class="dropzone" data-upload-dropzone-target="zone"
            data-action="click->upload-dropzone#browse dragover->upload-dropzone#dragOver dragleave->upload-dropzone#dragLeave drop->upload-dropzone#drop">
-        <div class="dropzone__icon">
+        <div class="dropzone__icon c-primary">
           <span class="material-symbols-outlined">upload_file</span>
         </div>
-        <span class="t-title-md">Drop GPX files here, or browse</span>
+        <span class="t-title-md c-primary">Drop GPX files here, or browse</span>
         <span class="t-body-sm c-secondary">Distance, elevation and duration are parsed on import</span>
         <%= f.file_field :gpx_files, multiple: true, accept: ".gpx,application/gpx+xml,text/xml",
                          class: "dropzone__input",
@@ -35,7 +35,7 @@
       <p class="dropzone__files t-body-sm c-secondary" data-upload-dropzone-target="files" hidden></p>
 
       <footer class="modal__actions">
-        <button type="button" class="btn btn--ghost" data-action="modal#close">Cancel</button>
+        <button type="button" class="btn btn--ghost c-secondary" data-action="modal#close">Cancel</button>
         <%= f.submit "Parse & Import", class: "btn btn--primary" %>
       </footer>
     <% end %>

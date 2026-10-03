@@ -1,32 +1,50 @@
-<% scheduled = @calendar_entry %>
+<% scheduled = calendar_entry %>
+<% route_card = local_assigns.fetch(:route_card, false) %>
 <%# calendar-picker sits on the wrapper so both the allocate form and the
-    remove form can report submit-end back to it: the allocate/remove Turbo
-    Streams only repaint wc-day-* day columns (which don't exist on this
-    page), so the chip label is refreshed client-side instead. %>
-<div class="route-detail__calendar" data-controller="calendar-picker"
-     data-calendar-picker-scheduled-value="<%= scheduled&.scheduled_on&.iso8601 %>">
+    remove form can report submit-end back to it. The wrapper also carries
+    the dom id the allocate/remove_entry Turbo Streams replace with a fresh
+    render of this partial (picker_mode tells them which button variant to
+    repaint), so a Done commit or Remove is immediately reflected without
+    a reload — on the calendar grid the same streams repaint wc-day-* columns
+    instead and this fragment simply no-ops. %>
+<div class="route-detail__calendar" id="<%= dom_id(route, :calendar_picker) %>"
+     data-controller="calendar-picker">
   <%= form_with url: allocate_calendar_path,
                 data: { calendar_picker_target: "form",
                         action: "turbo:submit-end->calendar-picker#onScheduleSubmitEnd" } do %>
-    <%= hidden_field_tag :route_id, @route.id %>
+    <%= hidden_field_tag :route_id, route.id %>
+    <%# Which variant the streams should repaint (card grid vs detail chip). %>
+    <%= hidden_field_tag :picker_mode, route_card ? "card" : "chip" %>
     <%= hidden_field_tag :scheduled_on, scheduled&.scheduled_on&.iso8601,
                          data: { calendar_picker_target: "hidden" } %>
+    <%# Done reschedules the tracked entry (the one this chip/card manages)
+        instead of stacking a duplicate; blank means a fresh booking. %>
+    <%= hidden_field_tag :entry_id, scheduled&.id %>
 
-    <button type="button" class="route-detail__chip t-label-md" data-action="calendar-picker#toggle"
-            aria-label="Add this route to my calendar">
-      <span class="material-symbols-outlined ms-16 route-detail__chip-icon">event_available</span>
-      <span data-calendar-picker-target="chipLabel"><%= scheduled ? "Added to #{scheduled.scheduled_on.strftime('%b %-d')}" : "Add to calendar" %></span>
-    </button>
+    <% if route_card %>
+      <button type="button" class="icon-btn" data-action="calendar-picker#toggle"
+              data-calendar-picker-target="trigger"
+              aria-label="Add this route to my calendar">
+        <span class="material-symbols-outlined">calendar_add_on</span>
+      </button>
+    <% else %>
+      <button type="button" class="route-detail__chip t-label-md" data-action="calendar-picker#toggle"
+              data-calendar-picker-target="trigger"
+              aria-label="Add this route to my calendar">
+        <span class="material-symbols-outlined ms-16 route-detail__chip-icon">event_available</span>
+        <span data-calendar-picker-target="chipLabel"><%= scheduled ? "Added to #{scheduled.scheduled_on.strftime('%b %-d')}" : "Add to calendar" %></span>
+      </button>
+    <% end %>
 
-    <div class="calendar-popover" data-calendar-picker-target="popover" hidden>
+    <div class="<%= route_card ? "calendar-popover--route-card" : "calendar-popover" %>" data-calendar-picker-target="popover" hidden>
       <div class="calendar-popover__head">
-        <span class="calendar-popover__month t-label-md" data-calendar-picker-target="label"></span>
+        <span class="calendar-popover__month c-primary t-label-md" data-calendar-picker-target="label"></span>
         <div class="calendar-popover__nav">
-          <button type="button" class="calendar-popover__nav-btn" data-action="calendar-picker#prev"
+          <button type="button" class="calendar-popover__nav-btn c-secondary" data-action="calendar-picker#prev"
                   aria-label="Previous month">
             <span class="material-symbols-outlined ms-18">chevron_left</span>
           </button>
-          <button type="button" class="calendar-popover__nav-btn" data-action="calendar-picker#next"
+          <button type="button" class="calendar-popover__nav-btn c-secondary" data-action="calendar-picker#next"
                   aria-label="Next month">
             <span class="material-symbols-outlined ms-18">chevron_right</span>
           </button>
@@ -52,10 +70,12 @@
       <div class="calendar-popover__foot">
         <button type="button" class="calendar-popover__link t-code-sm c-secondary"
                 data-action="calendar-picker#today">Today</button>
-        <%# Associated via the form attribute with the standalone remove form
-            below — nested forms are invalid HTML. %>
-        <button type="submit" form="calendar-remove-form" class="calendar-popover__link t-code-sm c-accent">Remove</button>
-        <button type="button" class="calendar-popover__done t-label-md" data-action="calendar-picker#close">Done</button>
+        <%# Associated via the form attribute with the route's standalone
+            remove form below — nested forms are invalid HTML, and the unique
+            id keeps every grid card wired to its own form. %>
+        <button type="submit" form="calendar-remove-form-<%= route.id %>" class="calendar-popover__link t-code-sm c-accent">Remove</button>
+        <%# Done commits the staged date together with the chosen start time. %>
+        <button type="button" class="calendar-popover__done t-label-md" data-action="calendar-picker#done">Done</button>
       </div>
     </div>
   <% end %>
@@ -64,11 +84,17 @@
       allocate form above and is wired here with the form attribute). It must
       stay INSIDE the calendar-picker wrapper: the submit-end handler is bound
       by the controller on the wrapper, so a form outside its scope would
-      submit fine but never refresh the chip label. The remove stream only
-      repaints wc-day-* columns, which don't exist on this page. %>
-  <%= form_with url: remove_entry_calendar_path, method: :delete, id: "calendar-remove-form",
+      submit fine but never refresh the picker. Its id is unique per route —
+      grid cards each own one, and the remove_entry stream repaints this
+      whole wrapper from fresh state (picker_mode selects the variant). %>
+  <%= form_with url: remove_entry_calendar_path, method: :delete,
+                id: "calendar-remove-form-#{route.id}",
                 class: "calendar-remove-form",
                 data: { action: "turbo:submit-end->calendar-picker#onRemoveSubmitEnd" } do %>
-    <%= hidden_field_tag :route_id, @route.id %>
+    <%= hidden_field_tag :entry_id, calendar_entry&.id %>
+    <%= hidden_field_tag :picker_mode, route_card ? "card" : "chip" %>
+    <%# route_id stays as the no-JS fallback target for the Remove click when
+        nothing is scheduled (the controller treats that as a no-op bounce). %>
+    <%= hidden_field_tag :route_id, route.id %>
   <% end %>
 </div>

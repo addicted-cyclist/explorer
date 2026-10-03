@@ -29,7 +29,7 @@
       <%= hidden_field_tag :from_calendar, "1", id: "mob-add-from-calendar" %>
       <%= hidden_field_tag :week, @week_start.iso8601, id: "mob-add-week" %>
 
-      <label class="mob-sheet__search">
+      <label class="mob-sheet__search c-tertiary">
         <span class="material-symbols-outlined ms-18" aria-hidden="true">search</span>
         <span class="sr-only">Search routes</span>
         <input type="search" class="input t-body-md" placeholder="Search routes..."
@@ -66,7 +66,7 @@
       </label>
 
       <footer class="mob-sheet__actions">
-        <button type="button" class="btn btn--ghost" data-action="mob-sheet#close">Cancel</button>
+        <button type="button" class="btn btn--ghost c-secondary" data-action="mob-sheet#close">Cancel</button>
         <button type="submit" class="btn btn--primary" data-mob-week-target="addSubmit" disabled>
           Add to <span data-mob-sheet-target="field" data-field="dayName">day</span>
         </button>

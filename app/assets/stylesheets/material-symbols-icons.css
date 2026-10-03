@@ -1,0 +1,17 @@
+/* Material Symbols (icon font loaded in the layout head) */
+.material-symbols-outlined {
+  font-size: 1.25rem;
+  line-height: 1;
+  vertical-align: middle;
+  user-select: none;
+}
+
+.ms-14 {
+  font-size: 0.875rem;
+}
+.ms-16 {
+  font-size: 1rem;
+}
+.ms-18 {
+  font-size: 1.125rem;
+}

@@ -19,7 +19,7 @@
             <h2 class="t-title-md"><%= friend.name %></h2>
             <p class="t-body-sm c-tertiary">@<%= friend.username %></p>
           </div>
-          <%= link_to friend_calendar_path(friend.username), class: "btn btn--sm btn--secondary" do %>
+          <%= link_to friend_calendar_path(friend.username), class: "btn btn--sm btn--secondary c-primary" do %>
             <span class="material-symbols-outlined ms-18">calendar_month</span>
             <span>View calendar</span>
           <% end %>
@@ -28,8 +28,8 @@
     </section>
   <% else %>
     <div class="library-empty">
-      <div class="library-empty__icon"><span class="material-symbols-outlined">group_add</span></div>
-      <h2 class="t-title-md">No friends yet</h2>
+      <div class="library-empty__icon c-tertiary"><span class="material-symbols-outlined">group_add</span></div>
+      <h2 class="t-title-md c-primary">No friends yet</h2>
       <p class="t-body-md c-secondary">When you add friends, their training calendars will show up here.</p>
     </div>
   <% end %>

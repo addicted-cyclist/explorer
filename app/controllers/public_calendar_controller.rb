@@ -18,9 +18,12 @@ class PublicCalendarController < ApplicationController
     prepare_shared_owner
     @is_public_view = true
     @week_start = resolve_week_start
+    # Same total order as CalendarsController#show (date, start time, id
+    # tiebreaker) so same-time entries render in a stable order here too.
     @week_entries = @owner.calendar_entries
                           .includes(:route)
-                          .between(@week_start..(@week_start + 6)).to_a
+                          .between(@week_start..(@week_start + 6))
+                          .order(:scheduled_on, :start_time, :id).to_a
     @telemetry = build_telemetry(@week_entries)
     # Visitors see only the routes scheduled in the visible week (the same
     # privacy contract as the friend view) — never the whole library.

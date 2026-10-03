@@ -1,0 +1,88 @@
+/* ------------------------------------------------------------------ */
+/* Buttons (DESIGN.md §Components — Buttons)                            */
+/* ------------------------------------------------------------------ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  height: 2.5rem;
+  padding-inline: var(--space-md);
+  border-radius: var(--radius-lg);
+  font-size: 0.8125rem;
+  line-height: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+/* Primary: solid carbon black, white label */
+.btn--primary {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.btn--primary:hover {
+  background: var(--color-primary-container);
+}
+
+/* Secondary: raised card surface, darkens on hover */
+.btn--secondary {
+  background: var(--color-surface-card);
+}
+
+.btn--secondary:hover {
+  background: var(--color-surface-canvas);
+}
+
+/* Ghost: transparent, quiet label */
+.btn--ghost {
+  background: transparent;
+  box-shadow: none;
+}
+
+.btn--ghost:hover {
+  background: var(--color-surface-canvas);
+  color: var(--color-text-primary);
+}
+
+/* Destructive: card surface with route-accent label, soft fill on hover */
+.btn--danger {
+  background: var(--color-surface-card);
+}
+
+.btn--danger:hover {
+  background: var(--color-accent-route-soft);
+}
+
+/* Small variant (h-8 toolbar chips) */
+.btn--sm {
+  height: 2rem;
+  padding-inline: var(--space-sm);
+  font-size: 0.6875rem;
+  line-height: 0.875rem;
+}
+
+/* Large hero CTA (ref: px-7 py-3.5 rounded-xl text-sm) */
+.btn--lg {
+  height: 3.25rem;
+  padding-inline: 1.75rem;
+  border-radius: var(--radius-xl);
+  font-size: 0.875rem;
+  line-height: 1.125rem;
+}
+
+/* Full-width variant (auth submit buttons) */
+.btn--block {
+  width: 100%;
+}

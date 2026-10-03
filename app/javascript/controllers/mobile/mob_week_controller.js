@@ -33,12 +33,15 @@ export default class extends Controller {
 
     // Day panels are swapped whole by the allocate/remove/join streams;
     // wrapping the original render re-applies the visible-day selection the
-    // moment the replacement lands.
+    // moment the replacement lands, and puts each panel's swipe slider back
+    // on the slide the user was reading (a fresh track always starts at 1).
     this.onBeforeStreamRender = (event) => {
       const original = event.detail.render;
       event.detail.render = (element) => {
+        const sliderPositions = this.captureSliderPositions();
         original(element);
         this.applySelection();
+        this.restoreSliderPositions(sliderPositions);
       };
     };
     document.addEventListener(
@@ -52,6 +55,38 @@ export default class extends Controller {
       "turbo:before-stream-render",
       this.onBeforeStreamRender,
     );
+  }
+
+  // ---- slider state across stream repaints --------------------------------
+
+  // Each day panel's slider position, keyed by panel id — captured while the
+  // old panels are still mounted (before the stream swaps them). Same math
+  // as mob-slider#sync.
+  captureSliderPositions() {
+    const positions = {};
+    this.dayPanelTargets.forEach((panel) => {
+      const track = panel.querySelector("[data-mob-slider-target='track']");
+      if (track && track.clientWidth > 0) {
+        positions[panel.id] =
+          Math.round(track.scrollLeft / track.clientWidth) || 0;
+      }
+    });
+    return positions;
+  }
+
+  // Puts every replaced panel's slider back on its captured slide — an
+  // instant jump (no smooth glide), so the repaint is imperceptible. The
+  // reconnected mob-slider syncs from the scroll position afterwards and
+  // lights the matching dot. Panels that were not replaced (or lost their
+  // slider) resolve to the same position or no track at all — both no-ops.
+  restoreSliderPositions(positions) {
+    Object.entries(positions).forEach(([panelId, index]) => {
+      const panel = document.getElementById(panelId);
+      const track =
+        panel && panel.querySelector("[data-mob-slider-target='track']");
+      const slide = track && track.children[index];
+      if (slide) track.scrollTo({ left: slide.offsetLeft });
+    });
   }
 
   // ---- day strip ----------------------------------------------------------
@@ -178,9 +213,9 @@ export default class extends Controller {
       day.setDate(cursor.getDate() + i);
       const iso = this.isoOf(day);
       if (day.getMonth() !== month) {
-        html += `<span class="calendar-day calendar-day--muted">${day.getDate()}</span>`;
+        html += `<span class="calendar-day c-primary calendar-day--muted c-tertiary">${day.getDate()}</span>`;
       } else {
-        const classes = ["calendar-day"];
+        const classes = ["calendar-day", "c-primary"];
         if (iso === today) classes.push("calendar-day--today");
         if (iso === selected) classes.push("calendar-day--selected");
         const dot = booked.has(iso)

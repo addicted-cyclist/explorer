@@ -30,7 +30,7 @@
     <%# Phase 9 — native-share icon on my own calendar while the share is on
         (the toggle lives in account settings); visitors never see it. %>
     <% if !calendar_read_only? && current_user.calendar_public? %>
-      <button type="button" class="mob-wc__share"
+      <button type="button" class="mob-wc__share c-primary"
               data-controller="share-button"
               data-share-button-url-value="<%= public_calendar_url(current_user.public_token) %>"
               data-share-button-title-value="<%= calendar_title %>"
@@ -39,7 +39,7 @@
         <span class="material-symbols-outlined ms-20" aria-hidden="true">share</span>
       </button>
     <% end %>
-    <span class="mob-wc__avatar t-label-lg" aria-hidden="true">
+    <span class="mob-wc__avatar t-label-lg c-primary" aria-hidden="true">
       <%= calendar_initials(calendar_view_user) %>
     </span>
   </header>
@@ -49,12 +49,12 @@
   </div>
 
   <div class="mob-wc__weeknav">
-    <%= link_to calendar_week_path_for(@week_start - 7), class: "mob-wc__weeknav-btn",
+    <%= link_to calendar_week_path_for(@week_start - 7), class: "mob-wc__weeknav-btn c-primary",
                 aria: { label: "Previous week" } do %>
       <span class="material-symbols-outlined ms-18" aria-hidden="true">chevron_left</span>
     <% end %>
     <span class="mob-wc__weeknav-label t-label-md"><%= calendar_week_label_short(@week_start) %></span>
-    <%= link_to calendar_week_path_for(@week_start + 7), class: "mob-wc__weeknav-btn",
+    <%= link_to calendar_week_path_for(@week_start + 7), class: "mob-wc__weeknav-btn c-primary",
                 aria: { label: "Next week" } do %>
       <span class="material-symbols-outlined ms-18" aria-hidden="true">chevron_right</span>
     <% end %>

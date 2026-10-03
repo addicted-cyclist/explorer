@@ -3,8 +3,8 @@
     <div class="auth-card__body">
       <%= image_tag "explorer_logo.svg", alt: "Explorer logo", size: "80x80",
                     class: "auth-card__logo" %>
-      <h1 class="auth-card__title">Choose a new password</h1>
-      <p class="auth-card__lede">Set a new password for your Explorer account.</p>
+      <h1 class="auth-card__title c-primary">Choose a new password</h1>
+      <p class="auth-card__lede c-secondary">Set a new password for your Explorer account.</p>
 
       <%= form_for resource, as: resource_name,
                    url: password_path(resource_name),
@@ -13,18 +13,18 @@
         <%= f.hidden_field :reset_password_token %>
 
         <div class="auth-field">
-          <%= f.label :password, "New password", class: "field-label" %>
+          <%= f.label :password, "New password", class: "field-label c-secondary" %>
           <%= f.password_field :password, autofocus: true, autocomplete: "new-password",
                                placeholder: "Enter your password", class: "input" %>
           <% if @minimum_password_length %>
-            <p class="auth-field__hint">
+            <p class="auth-field__hint c-tertiary">
               <%= @minimum_password_length %> characters minimum
             </p>
           <% end %>
         </div>
 
         <div class="auth-field">
-          <%= f.label :password_confirmation, "Confirm new password", class: "field-label" %>
+          <%= f.label :password_confirmation, "Confirm new password", class: "field-label c-secondary" %>
           <%= f.password_field :password_confirmation, autocomplete: "new-password",
                                placeholder: "Confirm your password", class: "input" %>
         </div>
@@ -34,10 +34,10 @@
     </div>
 
     <footer class="auth-card__footer">
-      <p class="auth-card__footer-text">
+      <p class="auth-card__footer-text c-secondary">
         Remember your password?
         <%= link_to "Sign in", new_session_path(resource_name),
-                    class: "auth-card__footer-link" %>
+                    class: "auth-card__footer-link c-primary" %>
       </p>
     </footer>
   </div>

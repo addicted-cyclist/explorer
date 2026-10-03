@@ -1,22 +1,22 @@
 <div class="wc-telemetry" id="wc-telemetry">
-  <span class="wc-telemetry__glyph" aria-hidden="true"><span class="material-symbols-outlined ms-20">monitoring</span></span>
+  <span class="wc-telemetry__glyph c-secondary" aria-hidden="true"><span class="material-symbols-outlined ms-20">monitoring</span></span>
   <div class="wc-telemetry__stat">
-    <span class="wc-telemetry__label t-label-sm t-uppercase">Weekly Planned</span>
-    <span class="wc-telemetry__value t-headline-sm">
+    <span class="t-label-sm t-uppercase c-tertiary">Weekly Planned</span>
+    <span class="t-headline-sm c-primary">
       <%= format_distance(@telemetry[:distance]) %> <span class="t-body-sm c-secondary">km</span>
     </span>
   </div>
   <span class="wc-telemetry__sep" aria-hidden="true"></span>
   <div class="wc-telemetry__stat">
-    <span class="wc-telemetry__label t-label-sm t-uppercase">Elevation</span>
-    <span class="wc-telemetry__value t-headline-sm">
+    <span class="t-label-sm t-uppercase c-tertiary">Elevation</span>
+    <span class="t-headline-sm c-primary">
       <%= format_elevation(@telemetry[:elevation]) %> <span class="t-body-sm c-secondary">m</span>
     </span>
   </div>
   <span class="wc-telemetry__sep" aria-hidden="true"></span>
   <div class="wc-telemetry__stat">
-    <span class="wc-telemetry__label t-label-sm t-uppercase">Workouts</span>
-    <span class="wc-telemetry__value t-headline-sm"><%= @telemetry[:workouts] %></span>
+    <span class="t-label-sm t-uppercase c-tertiary">Workouts</span>
+    <span class="t-headline-sm c-primary"><%= @telemetry[:workouts] %></span>
   </div>
 
   <%# Phase 9 — "Share calendar" on my own calendar while the share is on
