@@ -9,7 +9,10 @@ export default class extends Controller {
 
   connect() {
     this.onScroll = () => this.sync();
-    this.trackTarget.addEventListener("scroll", this.onScroll, { passive: true });
+    this.trackTarget.addEventListener("scroll", this.onScroll, {
+      passive: true,
+    });
+
     this.sync();
   }
 
@@ -19,12 +22,14 @@ export default class extends Controller {
 
   goTo({ params: { index } }) {
     const slide = this.trackTarget.children[index];
-    if (slide) this.trackTarget.scrollTo({ left: slide.offsetLeft, behavior: "smooth" });
+    if (slide)
+      this.trackTarget.scrollTo({ left: slide.offsetLeft, behavior: "smooth" });
   }
 
   sync() {
     const track = this.trackTarget;
-    const index = Math.round(track.scrollLeft / track.clientWidth);
+    const index = Math.round(track.scrollLeft / track.clientWidth) || 0;
+
     this.dotTargets.forEach((dot, i) => {
       dot.classList.toggle("is-active", i === index);
       dot.setAttribute("aria-current", i === index ? "true" : "false");

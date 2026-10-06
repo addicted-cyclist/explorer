@@ -4,7 +4,7 @@
     <div class="modal__card" role="dialog" aria-modal="true" aria-labelledby="edit-route-title">
       <header class="modal__head">
         <div>
-          <h2 class="t-headline-sm" id="edit-route-title">Edit route details</h2>
+          <h2 class="t-headline-sm c-primary" id="edit-route-title">Edit route details</h2>
           <p class="t-body-sm c-secondary">Name, description, difficulty and sport type</p>
         </div>
         <button type="button" class="icon-btn" data-action="modal#close" aria-label="Close dialog">
@@ -16,30 +16,30 @@
         <%= render "devise/shared/error_messages", resource: @route %>
 
         <div class="field">
-          <%= f.label :title, "Route name", class: "field-label" %>
+          <%= f.label :title, "Route name", class: "field-label c-secondary" %>
           <%= f.text_field :title, class: "input", placeholder: "e.g. Feldberg crest loop" %>
         </div>
 
         <div class="field">
-          <%= f.label :description, "Description", class: "field-label" %>
+          <%= f.label :description, "Description", class: "field-label c-secondary" %>
           <%= f.text_area :description, class: "input input--textarea", rows: 3,
                           placeholder: "Surface, highlights, planned stops…" %>
         </div>
 
         <div class="field-row">
           <div class="field">
-            <%= f.label :tier, "Difficulty", class: "field-label" %>
+            <%= f.label :tier, "Difficulty", class: "field-label c-secondary" %>
             <%= f.select :tier, Route::TIERS.map { |tier| [tier, tier] },
                          { include_blank: "Unrated" }, class: "input" %>
           </div>
           <div class="field">
-            <%= f.label :sport_type, "Sport type", class: "field-label" %>
+            <%= f.label :sport_type, "Sport type", class: "field-label c-secondary" %>
             <%= f.text_field :sport_type, class: "input", placeholder: "Ride, gravel, hike…" %>
           </div>
         </div>
 
         <footer class="modal__actions">
-          <button type="button" class="btn btn--ghost" data-action="modal#close">Cancel</button>
+          <button type="button" class="btn btn--ghost c-secondary" data-action="modal#close">Cancel</button>
           <%= f.submit "Save changes", class: "btn btn--primary" %>
         </footer>
       <% end %>

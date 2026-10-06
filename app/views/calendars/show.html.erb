@@ -10,18 +10,18 @@
 <div class="wc">
   <% if @is_friend_view %>
     <nav class="wc__breadcrumb" aria-label="Breadcrumb">
-      <%= link_to friends_path, class: "wc__breadcrumb-link t-label-md" do %>
+      <%= link_to friends_path, class: "wc__breadcrumb-link t-label-md c-secondary" do %>
         <span class="material-symbols-outlined ms-16" aria-hidden="true">arrow_back</span>
         <span>Back to Friends</span>
       <% end %>
-      <span class="wc__badge t-label-md">
+      <span class="wc__badge t-label-md c-secondary">
         <span class="material-symbols-outlined ms-14" aria-hidden="true">verified</span>
         <span>Friend view · read only</span>
       </span>
     </nav>
   <% elsif @is_public_view %>
     <nav class="wc__breadcrumb" aria-label="Share status">
-      <span class="wc__badge t-label-md">
+      <span class="wc__badge t-label-md c-secondary">
         <span class="material-symbols-outlined ms-14" aria-hidden="true">link</span>
         <span>Shared calendar · read only</span>
       </span>
@@ -74,7 +74,7 @@
       <% end %>
       <%= form_with url: remove_entry_calendar_path, method: :delete, class: "wc-dnd-form",
             data: { calendar_dnd_target: "removeForm" } do %>
-        <%= hidden_field_tag :route_id, nil, id: "wc-dnd-remove-route-id" %>
+        <%= hidden_field_tag :entry_id, nil, id: "wc-dnd-remove-entry-id" %>
         <%= hidden_field_tag :from_calendar, "1", id: "wc-dnd-remove-from-calendar" %>
         <%= hidden_field_tag :week, @week_start.iso8601, id: "wc-dnd-remove-week" %>
       <% end %>

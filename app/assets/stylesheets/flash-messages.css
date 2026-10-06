@@ -1,0 +1,32 @@
+/* ------------------------------------------------------------------ */
+/* Flash messages (status pills)                                        */
+/* ------------------------------------------------------------------ */
+
+.flash {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-lg);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.flash--notice {
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-subtle);
+}
+
+.flash--notice::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--radius-full);
+  background: var(--color-track-split);
+  flex-shrink: 0;
+}
+
+.flash--alert {
+  background: var(--color-accent-route-soft);
+  color: var(--color-on-error-container);
+}

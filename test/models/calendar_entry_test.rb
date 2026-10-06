@@ -31,6 +31,14 @@ class CalendarEntryTest < ActiveSupport::TestCase
     assert_includes @entry.errors[:end_time], "must be after start time"
   end
 
+  test "allows an end time before the start time as a midnight-crossing ride" do
+    # end_time is a bare time-of-day; the controller derives it as
+    # start + moving duration, so 23:30 + 1h wraps to 00:30 on the next day.
+    @entry.start_time = "23:30"
+    @entry.end_time = "00:30"
+    assert_predicate @entry, :valid?
+  end
+
   test "between matches only entries inside the date range" do
     @entry.save!
     other = @user.calendar_entries.create!(route: @route, scheduled_on: Date.new(2026, 11, 3),
@@ -71,6 +79,18 @@ class CalendarEntryTest < ActiveSupport::TestCase
 
     # End rebuilt from the copy's moving duration (Route default = 1 hour).
     assert_equal "10:00", joined.end_time.strftime("%H:%M")
+  end
+
+  test "join_ride! books a fresh, not-completed entry even when the origin ride is done" do
+    owner = User.create!(valid_user_attributes(email: "doneorigin@example.com"))
+    origin_route = owner.routes.create!(source: "upload", title: "Done climb", duration: 3_600, completed: true)
+    origin = owner.calendar_entries.create!(route: origin_route, scheduled_on: Date.new(2026, 10, 28),
+                                            start_time: "09:00", end_time: "10:00", completed: true)
+
+    joined = CalendarEntry.join_ride!(origin, owner: @user)
+
+    assert_not_predicate joined, :completed?
+    assert_not_predicate joined.route, :completed?
   end
 
   test "join_ride! is idempotent — no second copy for a repeated join" do

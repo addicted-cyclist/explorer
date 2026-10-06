@@ -14,3 +14,13 @@
 <%= turbo_stream.update "mob-week-kpi-container", partial: "calendars/mobile/kpis" %>
 
 <%= turbo_stream.update "mob-wc-strip", partial: "calendars/mobile/days-strip" %>
+
+<%# The routes pages' add-to-calendar picker (library card icon / detail
+    chip) repaints from fresh state after the destroy. A no-op on pages
+    without the picker, e.g. the calendar grid. %>
+<% if @picker_route %>
+  <%= turbo_stream.replace dom_id(@picker_route, :calendar_picker),
+        partial: "routes/detail_calendar",
+        locals: { route: @picker_route, calendar_entry: @picker_entry,
+                  route_card: params[:picker_mode] == "card" } %>
+<% end %>

@@ -87,8 +87,8 @@ export default class extends Controller {
 
   removeEntry(event) {
     if (!this.hasRemoveFormTarget) return;
-    this.removeFormTarget.elements["route_id"].value =
-      event.currentTarget.dataset.routeId;
+    this.removeFormTarget.elements["entry_id"].value =
+      event.currentTarget.dataset.entryId;
     this.removeFormTarget.requestSubmit();
   }
 

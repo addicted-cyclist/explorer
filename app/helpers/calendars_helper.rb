@@ -113,7 +113,7 @@ module CalendarsHelper
   def calendar_mobile_initial_date
     planned = (@week_start..(@week_start + 6)).detect { |date| calendar_day_entries(date).any? }
     today = Date.current if Date.current.between?(@week_start, @week_start + 6)
-    planned || today || @week_start
+    today || planned || @week_start
   end
 
   # ISO dates with scheduled entries in the rendered week — booked-day dots

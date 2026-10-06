@@ -15,7 +15,7 @@
   <% entries = calendar_day_entries(date) %>
   <% if entries.empty? %>
     <div class="mob-wc__empty">
-      <span class="material-symbols-outlined mob-wc__empty-icon" aria-hidden="true">wb_sunny</span>
+      <span class="material-symbols-outlined mob-wc__empty-icon c-tertiary" aria-hidden="true">wb_sunny</span>
       <p class="t-title-md">Rest day</p>
       <p class="mob-wc__empty-text t-body-md c-secondary">Nothing scheduled yet.</p>
     </div>
@@ -41,7 +41,7 @@
   <% end %>
 
   <% unless calendar_read_only? %>
-    <button type="button" class="mob-wc__addtile t-label-md"
+    <button type="button" class="mob-wc__addtile t-label-md c-secondary"
             data-action="mob-sheet#open"
             data-mob-sheet-id-param="add-route"
             data-mob-sheet-date-param="<%= date.iso8601 %>">

@@ -15,14 +15,16 @@ module RoutesHelper
     "+#{number_with_delimiter(meters.round)}"
   end
 
-  # 11220 -> "3.1 h", 2700 -> "45 min", nil/0 -> an em dash
+  # 11220 -> "3h 7m", 2700 -> "45 min", nil/0 -> an em dash
   def format_duration(seconds)
     return "&mdash;".html_safe if seconds.blank? || seconds.zero?
 
+    hours = (seconds / 3600).round
+    minutes = ((seconds % 3600) / 60).round
     if seconds >= 3600
-      "#{number_with_precision(seconds / 3600.0, precision: 1)} h"
+      "#{hours}h #{minutes}m"
     else
-      "#{(seconds / 60.0).round} min"
+      "#{minutes} min"
     end
   end
 

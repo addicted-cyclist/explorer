@@ -15,18 +15,80 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to route_path(@route)
     entry = @user.calendar_entries.sole
     assert_equal Date.new(2026, 10, 28), entry.scheduled_on
+    assert_not entry.completed? # fresh entries are never born completed
     assert_equal 9, entry.start_time.hour
     assert_equal 30, entry.start_time.min
     assert_equal 10, entry.end_time.hour # 09:30 + the route's 1800s duration
   end
 
-  test "allocate moves the existing entry instead of duplicating it" do
+  test "allocate books another entry for an already scheduled route" do
     post allocate_calendar_path, params: { route_id: @route.id, scheduled_on: "2026-10-28", start_time: "09:30" }
     post allocate_calendar_path, params: { route_id: @route.id, scheduled_on: "2026-11-02", start_time: "07:00" }
+
+    assert_equal 2, @user.calendar_entries.count
+    assert_equal [ Date.new(2026, 10, 28), Date.new(2026, 11, 2) ],
+                 @user.calendar_entries.order(:scheduled_on).pluck(:scheduled_on)
+    assert_equal 7, @user.calendar_entries.find_by(scheduled_on: Date.new(2026, 11, 2)).start_time.hour
+  end
+
+  test "allocate with the picker's tracked entry reschedules it instead of duplicating" do
+    entry = @user.calendar_entries.create!(route: @route, scheduled_on: Date.current + 3,
+                                           start_time: "08:00", end_time: "09:00")
+
+    post allocate_calendar_path, params: { route_id: @route.id, scheduled_on: (Date.current + 5).iso8601,
+                                           start_time: "09:30", entry_id: entry.id, picker_mode: "chip" },
+          headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
+
+    assert_response :ok
+    assert_equal 1, @user.calendar_entries.count # moved, not stacked
+    entry.reload
+    assert_equal Date.current + 5, entry.scheduled_on
+    assert_equal "09:30", entry.start_time.strftime("%H:%M")
+    # The day it left repaints alongside the new day, and the chip keeps
+    # managing the same (moved) entry.
+    assert_match(/action="replace" target="wc-day-#{(Date.current + 3).strftime('%Y%m%d')}"/, response.body)
+    assert_match(/action="replace" target="wc-day-#{(Date.current + 5).strftime('%Y%m%d')}"/, response.body)
+    assert_match "Added to #{(Date.current + 5).strftime('%b %-d')}", response.body
+  end
+
+  test "allocate with a tracked entry can change just its start time" do
+    entry = @user.calendar_entries.create!(route: @route, scheduled_on: Date.new(2026, 10, 28),
+                                           start_time: "08:00", end_time: "08:30")
+
+    post allocate_calendar_path, params: { route_id: @route.id, scheduled_on: "2026-10-28",
+                                           start_time: "09:30", entry_id: entry.id }
+
+    assert_redirected_to route_path(@route)
     assert_equal 1, @user.calendar_entries.count
+    assert_equal "09:30", entry.reload.start_time.strftime("%H:%M")
+    assert_equal "10:00", entry.end_time.strftime("%H:%M") # end recomputed from the duration
+  end
+
+  test "allocate with someone else's entry falls back to booking a fresh one" do
+    stranger = User.create!(valid_user_attributes(email: "stranger@example.com"))
+    foreign = stranger.calendar_entries.create!(
+      route: stranger.routes.create!(source: "upload", title: "Not mine"),
+      scheduled_on: Date.new(2026, 10, 28), start_time: "08:00", end_time: "08:30"
+    )
+
+    post allocate_calendar_path, params: { route_id: @route.id, scheduled_on: "2026-11-02",
+                                           start_time: "08:00", entry_id: foreign.id }
+
+    assert_redirected_to route_path(@route)
+    mine = @user.calendar_entries.sole
+    assert_equal Date.new(2026, 11, 2), mine.scheduled_on
+    assert_not_equal foreign.id, mine.id
+    assert_equal Date.new(2026, 10, 28), foreign.reload.scheduled_on # untouched
+  end
+
+  test "allocating a completed route books a fresh, not-completed entry" do
+    @route.update!(completed: true)
+
+    post allocate_calendar_path, params: { route_id: @route.id, scheduled_on: "2026-10-28", start_time: "08:00" }
+
     entry = @user.calendar_entries.sole
-    assert_equal Date.new(2026, 11, 2), entry.scheduled_on
-    assert_equal 7, entry.start_time.hour
+    assert_not entry.completed?
+    assert_predicate @route.reload, :completed? # the library badge is untouched
   end
 
   test "allocate falls back to the default start time and a one hour duration" do
@@ -47,6 +109,21 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     entry = @user.calendar_entries.sole
     assert_equal 8, entry.start_time.hour
     assert_equal 9, entry.end_time.hour
+  end
+
+  test "allocate books an overnight ride whose end wraps past midnight" do
+    @route.update_columns(duration: nil) # the one-hour default, as in the reported case
+
+    post allocate_calendar_path, params: { route_id: @route.id, scheduled_on: "2026-10-28",
+                                           start_time: "23:30" }
+
+    assert_redirected_to route_path(@route)
+    entry = @user.calendar_entries.sole
+    assert_equal "23:30", entry.start_time.strftime("%H:%M")
+    # 23:30 + the one-hour moving duration lands on the next day's 00:30 —
+    # an end before the start is a midnight-crossing ride, not garbage.
+    assert_equal "00:30", entry.end_time.strftime("%H:%M")
+    assert_nil flash[:alert]
   end
 
   test "allocate with a blank date asks for a valid date instead of a validation dump" do
@@ -74,15 +151,18 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
-  test "remove_entry deletes the route's calendar entry" do
-    @user.calendar_entries.create!(route: @route, scheduled_on: Date.new(2026, 10, 28),
-                                   start_time: "08:00", end_time: "08:30")
+  test "remove_entry deletes only the requested entry and keeps its siblings" do
+    kept = @user.calendar_entries.create!(route: @route, scheduled_on: Date.new(2026, 10, 27),
+                                          start_time: "08:00", end_time: "08:30")
+    removed = @user.calendar_entries.create!(route: @route, scheduled_on: Date.new(2026, 10, 28),
+                                             start_time: "08:00", end_time: "08:30")
 
-    delete remove_entry_calendar_path, params: { route_id: @route.id }
+    delete remove_entry_calendar_path, params: { entry_id: removed.id }
 
     assert_redirected_to route_path(@route)
     assert_equal "Removed \"Ridge loop\" from your calendar.", flash[:notice]
-    assert_empty @user.calendar_entries.reload
+    assert_empty @user.calendar_entries.where(id: removed.id)
+    assert_not_empty @user.calendar_entries.where(id: kept.id)
   end
 
   # ---- Phase 7: the weekly grid --------------------------------------------
@@ -126,9 +206,9 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "section[id=?]", "wc-day-#{monday.strftime('%Y%m%d')}" do
       assert_select "article.wc-entry", count: 2
-      # Card contract: hover X unschedules, time row opens the editor,
-      # checkbox toggles completed back onto the visited week
-      assert_select %(button[data-action~="calendar-dnd#removeEntry"][data-route-id])
+      # Card contract: hover X unschedules this entry, time row opens the
+      # editor, checkbox toggles this entry's completed flag
+      assert_select %(button[data-action~="calendar-dnd#removeEntry"][data-entry-id])
       assert_select %(button[data-action~="entry-time-editor#open"])
       assert_select "button.wc-entry__check"
       # The X lives in the floating bottom dock, revealed on card hover
@@ -271,18 +351,17 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to calendar_path(week: "2026-10-26")
   end
 
-  test "allocate moving a scheduled route streams the vacated day too" do
-    @user.calendar_entries.create!(route: @route, scheduled_on: Date.new(2026, 10, 27),
+  test "allocate from the grid books a second entry on an already scheduled day" do
+    @user.calendar_entries.create!(route: @route, scheduled_on: Date.new(2026, 10, 28),
                                    start_time: "08:00", end_time: "08:30")
 
-    post allocate_calendar_path, params: { route_id: @route.id, scheduled_on: "2026-10-29", start_time: "09:30",
+    post allocate_calendar_path, params: { route_id: @route.id, scheduled_on: "2026-10-28", start_time: "09:30",
                                            from_calendar: "1", week: "2026-10-26" },
           headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
 
-    assert_match(/target="wc-day-20261027"/, response.body)
-    assert_match(/target="wc-day-20261029"/, response.body)
-    assert_equal 1, @user.calendar_entries.count
-    assert_equal Date.new(2026, 10, 29), @user.calendar_entries.sole.scheduled_on
+    assert_response :ok
+    assert_match(/action="replace" target="wc-day-20261028"/, response.body)
+    assert_equal 2, @user.calendar_entries.count
   end
 
   test "allocate failure from the grid bounces back to the week with an alert" do
@@ -345,11 +424,75 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
-  test "remove_entry from the grid streams the emptied day and keeps the route" do
-    @user.calendar_entries.create!(route: @route, scheduled_on: Date.new(2026, 10, 28),
-                                   start_time: "08:00", end_time: "08:30")
+  # ---- Per-entry completion (one-way sync into routes.completed) --------------
 
-    delete remove_entry_calendar_path, params: { route_id: @route.id, from_calendar: "1", week: "2026-10-26" },
+  test "toggle_completed flips the entry and promotes a not-yet-done route" do
+    entry = @user.calendar_entries.create!(route: @route, scheduled_on: Date.new(2026, 10, 28),
+                                           start_time: "08:00", end_time: "08:30")
+    assert_not @route.completed?
+
+    patch toggle_completed_calendar_path, params: { entry_id: entry.id, from_calendar: "1", week: "2026-10-26" }
+
+    assert_redirected_to calendar_path(week: "2026-10-26")
+    assert entry.reload.completed?
+    assert_predicate @route.reload, :completed?
+  end
+
+  test "toggle_completed from the grid streams the day column repaint" do
+    entry = @user.calendar_entries.create!(route: @route, scheduled_on: Date.new(2026, 10, 28),
+                                           start_time: "08:00", end_time: "08:30")
+
+    patch toggle_completed_calendar_path, params: { entry_id: entry.id, from_calendar: "1", week: "2026-10-26" },
+          headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
+
+    assert_response :ok
+    assert_equal Mime[:turbo_stream], response.media_type
+    assert_match(/action="replace" target="wc-day-20261028"/, response.body)
+    assert_match(/action="replace" target="mob-week-day-20261028"/, response.body)
+    assert entry.reload.completed?
+  end
+
+  test "unchecking an entry never clears the route's completed state" do
+    entry = @user.calendar_entries.create!(route: @route, scheduled_on: Date.new(2026, 10, 28),
+                                           start_time: "08:00", end_time: "08:30", completed: true)
+    @route.update!(completed: true)
+
+    patch toggle_completed_calendar_path, params: { entry_id: entry.id, from_calendar: "1", week: "2026-10-26" }
+
+    assert_not entry.reload.completed?
+    assert_predicate @route.reload, :completed?
+  end
+
+  test "completing another entry of an already done route only flips that entry" do
+    @route.update!(completed: true)
+    first = @user.calendar_entries.create!(route: @route, scheduled_on: Date.new(2026, 10, 27),
+                                           start_time: "08:00", end_time: "08:30", completed: true)
+    second = @user.calendar_entries.create!(route: @route, scheduled_on: Date.new(2026, 10, 28),
+                                            start_time: "08:00", end_time: "08:30")
+
+    patch toggle_completed_calendar_path, params: { entry_id: second.id, from_calendar: "1", week: "2026-10-26" }
+
+    assert second.reload.completed?
+    assert_predicate first.reload, :completed?
+    assert_predicate @route.reload, :completed? # untouched — already done
+  end
+
+  test "toggle_completed 404s for another user's entry" do
+    owner = User.create!(valid_user_attributes(email: "toggleowner@example.com"))
+    other_route = owner.routes.create!(source: "upload", title: "Not mine")
+    entry = owner.calendar_entries.create!(route: other_route, scheduled_on: Date.new(2026, 10, 28),
+                                           start_time: "08:00", end_time: "09:00")
+
+    patch toggle_completed_calendar_path, params: { entry_id: entry.id }
+
+    assert_response :not_found
+  end
+
+  test "remove_entry from the grid streams the emptied day and keeps the route" do
+    entry = @user.calendar_entries.create!(route: @route, scheduled_on: Date.new(2026, 10, 28),
+                                           start_time: "08:00", end_time: "08:30")
+
+    delete remove_entry_calendar_path, params: { entry_id: entry.id, from_calendar: "1", week: "2026-10-26" },
           headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
 
     assert_response :ok
@@ -357,6 +500,49 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     assert_match(/action="replace" target="wc-telemetry"/, response.body)
     assert_empty @user.calendar_entries.reload
     assert_predicate @user.routes.exists?(@route.id), :present? # unscheduled, not deleted
+  end
+
+  # ---- Routes pages: the add-to-calendar picker repaints -----------------------
+
+  test "allocate from a library card repaints that card's picker" do
+    post allocate_calendar_path, params: { route_id: @route.id, scheduled_on: Date.current.iso8601,
+                                           start_time: "08:00", picker_mode: "card" },
+          headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
+
+    assert_response :ok
+    assert_match(/action="replace" target="calendar_picker_route_#{@route.id}"/, response.body)
+    # Card variant: the committed date prefills the (icon-only) picker.
+    # [^>]* — Rails renders name, id, then value on hidden inputs.
+    assert_match(/name="scheduled_on"[^>]*value="#{Date.current.iso8601}"/, response.body)
+    assert_no_match /Added to/, response.body
+  end
+
+  test "allocate from the detail page chip repaints its label" do
+    post allocate_calendar_path, params: { route_id: @route.id, scheduled_on: Date.current.iso8601,
+                                           start_time: "08:00", picker_mode: "chip" },
+          headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
+
+    assert_response :ok
+    assert_match(/action="replace" target="calendar_picker_route_#{@route.id}"/, response.body)
+    assert_match "Added to #{Date.current.strftime('%b %-d')}", response.body
+    # The repainted picker commits (Done) against the fresh entry, so a
+    # second commit reschedules it instead of stacking a duplicate.
+    assert_match(/name="entry_id"[^>]*value="\d+"/, response.body)
+  end
+
+  test "remove_entry from a library card repaints the picker without the removed entry" do
+    entry = @user.calendar_entries.create!(route: @route, scheduled_on: Date.current + 3,
+                                           start_time: "08:00", end_time: "09:00")
+
+    delete remove_entry_calendar_path, params: { entry_id: entry.id, picker_mode: "card" },
+          headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
+
+    assert_response :ok
+    assert_match(/action="replace" target="calendar_picker_route_#{@route.id}"/, response.body)
+    # Nothing tracked anymore: the picker is back to its empty default
+    # (nil hidden values render without a value attribute at all).
+    assert_no_match(/name="scheduled_on"[^>]*value=/, response.body)
+    assert_no_match(/name="entry_id"[^>]*value=/, response.body)
   end
 
   # ---- Phase 7: joining a friend's ride ---------------------------------------
@@ -516,6 +702,33 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "same-day same-time entries keep their slide order across a completed toggle" do
+    other = @user.routes.create!(source: "upload", title: "Valley loop", duration: 3_600)
+    monday = Date.current.beginning_of_week
+    older = @user.calendar_entries.create!(route: @route, scheduled_on: monday,
+                                           start_time: "08:00", end_time: "08:30")
+    newer = @user.calendar_entries.create!(route: other, scheduled_on: monday,
+                                           start_time: "08:00", end_time: "08:30")
+    # dom_id(entry, :mob_entry) as the _entry_card partial renders it.
+    expected = %W[mob_entry_calendar_entry_#{older.id} mob_entry_calendar_entry_#{newer.id}]
+
+    get calendar_url
+
+    # Same day AND start time: creation order decides — and must survive the
+    # UPDATE a completed toggle performs (heap order used to reshuffle it).
+    assert_equal expected,
+                 css_select("div.mob-wc__slider-slide > article.mob-wc__entry").map { |el| el["id"] }
+
+    patch toggle_completed_calendar_path, params: { entry_id: older.id, from_calendar: "1" },
+          headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
+    assert_response :ok
+
+    get calendar_url
+
+    assert_equal expected,
+                 css_select("div.mob-wc__slider-slide > article.mob-wc__entry").map { |el| el["id"] }
+  end
+
   test "mobile friend view swaps my actions for read-only ones" do
     friend = User.create!(valid_user_attributes(email: "mobilefriend@example.com"))
     Friendship.connect!(friend, @user)
@@ -551,10 +764,10 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "remove_entry from the grid also streams the mobile day panel and KPI tiles" do
-    @user.calendar_entries.create!(route: @route, scheduled_on: Date.new(2026, 10, 28),
-                                   start_time: "08:00", end_time: "09:00")
+    entry = @user.calendar_entries.create!(route: @route, scheduled_on: Date.new(2026, 10, 28),
+                                           start_time: "08:00", end_time: "09:00")
 
-    delete remove_entry_calendar_path, params: { route_id: @route.id, from_calendar: "1", week: "2026-10-26" },
+    delete remove_entry_calendar_path, params: { entry_id: entry.id, from_calendar: "1", week: "2026-10-26" },
           headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
 
     assert_response :ok

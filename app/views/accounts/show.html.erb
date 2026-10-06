@@ -50,12 +50,12 @@
               checked: current_user.calendar_public?,
               aria: { label: "Make my calendar public" } %>
         <span class="account__switch-track" aria-hidden="true"><span class="account__switch-thumb"></span></span>
-        <span class="t-body-md account__switch-text">
+        <span class="t-body-md account__switch-text c-primary">
           <%= current_user.calendar_public? ? "Public — visible via share link" : "Private — only friends can view" %>
         </span>
       </label>
       <%# No-JS fallback: auto-submit needs JS, so offer an explicit Save. %>
-      <noscript><button type="submit" class="btn btn--sm btn--secondary">Save</button></noscript>
+      <noscript><button type="submit" class="btn btn--sm btn--secondary c-primary">Save</button></noscript>
     <% end %>
 
     <% if current_user.calendar_public? %>
