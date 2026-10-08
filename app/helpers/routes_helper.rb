@@ -94,7 +94,7 @@ module RoutesHelper
   # The "Uploaded X ago" overlay stays outside the fragment:
   # time_ago_in_words is time-dependent and a cached label would freeze.
   def route_card_thumb_cache_key(route)
-    [route, "route-card-thumb"]
+    [ route, "route-card-thumb" ]
   end
 
   # Fragment key for the card's badges, title, description and metrics —
@@ -103,6 +103,6 @@ module RoutesHelper
   # and the kebab menu's forms embed session-scoped CSRF tokens that would
   # 422 every other user's submits when served from a shared cache.
   def route_card_body_cache_key(route)
-    [route, "route-card-body"]
+    [ route, "route-card-body" ]
   end
 end

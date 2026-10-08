@@ -154,11 +154,11 @@ module CalendarsHelper
   # fragment: it branches per view mode and its button_to forms embed
   # session-scoped CSRF tokens that would 422 every other user's submits.
   def wc_sidebar_body_cache_key(route)
-    [route, "wc-sidebar-body"]
+    [ route, "wc-sidebar-body" ]
   end
 
   # Same contract for the mobile route card's metrics + track thumb.
   def mob_card_metrics_thumb_cache_key(route)
-    [route, "mob-card-metrics-thumb"]
+    [ route, "mob-card-metrics-thumb" ]
   end
 end
