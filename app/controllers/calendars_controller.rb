@@ -51,6 +51,18 @@ class CalendarsController < ApplicationController
     alert: "Can not get access to stranger's calendar!"
   end
 
+  # GET /calendar/routes_list — body of the mobile routes list, lazily
+  # fetched by the "mob-routes-list" Turbo Frame in the mobile week view
+  # (my view only; friend/public lists render inline). Renders exactly the
+  # markup the full page would have, so the frame swap is seamless.
+  def mob_routes_list
+    @is_friend_view = false
+    @is_public_view = false
+    @week_start = resolve_week_start
+    @sidebar_routes = current_user.routes.order(created_at: :desc, id: :desc)
+    render :mob_routes_list
+  end
+
   # Drops on the calendar grid book a fresh entry — a route may live on the
   # calendar several times (even twice on one day) — while the routes pages'
   # picker commits against its tracked entry (hidden entry_id): Done moves

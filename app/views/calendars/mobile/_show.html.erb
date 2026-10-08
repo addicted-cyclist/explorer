@@ -82,17 +82,23 @@
         <%= pluralize(@sidebar_routes.size, "route") %>
       </span>
     </header>
-    <div class="mob-wc__routes-list">
-      <% if @sidebar_routes.empty? %>
-        <p class="mob-wc__routes-empty t-body-md c-secondary">
-          <%= calendar_read_only? ? "No routes scheduled this week." : "No routes yet — upload a GPX to start planning." %>
+    <%# Phase 0 capacity — the my-view mobile list mirrors the desktop
+        sidebar's whole library, the priciest duplicate payload on the page.
+        Signed-in users now fetch it lazily through this Turbo Frame: the
+        section sits below the fold on mobile and is display:none on desktop,
+        so desktop never requests it and mobile fetches it once, on scroll.
+        Friend/public lists carry only this week's routes — they render
+        inline through the shared partial. %>
+    <% if calendar_read_only? %>
+      <%= render "calendars/mobile/routes_list" %>
+    <% else %>
+      <%= turbo_frame_tag "mob-routes-list", src: routes_list_calendar_path,
+            loading: "lazy" do %>
+        <p class="mob-wc__routes-empty t-body-md c-secondary" role="status">
+          Loading your routes…
         </p>
-      <% else %>
-        <% @sidebar_routes.each do |route| %>
-          <%= render "calendars/mobile/route_card", route: route %>
-        <% end %>
       <% end %>
-    </div>
+    <% end %>
   </section>
 
   <% unless calendar_read_only? %>

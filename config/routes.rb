@@ -37,6 +37,10 @@ Rails.application.routes.draw do
       patch "toggle_completed"
       delete "remove_entry"
       post "join"
+      # Phase 0 capacity — lazy Turbo Frame body of the mobile routes list
+      # (my view). A collection GET by design: /calendar/:username is routed
+      # after this resource and must not be able to shadow it.
+      get "routes_list", to: "calendars#mob_routes_list"
     end
   end
 

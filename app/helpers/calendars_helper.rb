@@ -142,4 +142,23 @@ module CalendarsHelper
   def calendar_initials(user)
     "#{user.first_name[0].to_s.upcase}#{user.last_name[0].to_s.upcase}"
   end
+
+  # ---- Phase 0 capacity — fragment caching ----------------------------------
+
+  # Fragment key for a sidebar card's body (tier badge, track SVG, metrics
+  # footer). That markup is a pure function of the route and identical across
+  # my / friend / public views, so it caches once per route and is shared by
+  # every viewer and every week render. `route` expands to its cache_key, so
+  # any edit bumps updated_at and invalidates the fragment automatically.
+  # The card head (title, GPX button, kebab menu) must stay out of the
+  # fragment: it branches per view mode and its button_to forms embed
+  # session-scoped CSRF tokens that would 422 every other user's submits.
+  def wc_sidebar_body_cache_key(route)
+    [route, "wc-sidebar-body"]
+  end
+
+  # Same contract for the mobile route card's metrics + track thumb.
+  def mob_card_metrics_thumb_cache_key(route)
+    [route, "mob-card-metrics-thumb"]
+  end
 end

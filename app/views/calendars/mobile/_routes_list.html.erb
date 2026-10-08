@@ -1,0 +1,14 @@
+<%# The mobile routes list body — empty state or one card per route. Shared
+    by the friend/public inline renders and the my-view lazy Turbo Frame
+    (calendars/mob_routes_list), so both paths produce identical markup. %>
+<div class="mob-wc__routes-list">
+  <% if @sidebar_routes.empty? %>
+    <p class="mob-wc__routes-empty t-body-md c-secondary">
+      <%= calendar_read_only? ? "No routes scheduled this week." : "No routes yet — upload a GPX to start planning." %>
+    </p>
+  <% else %>
+    <% @sidebar_routes.each do |route| %>
+      <%= render "calendars/mobile/route_card", route: route %>
+    <% end %>
+  <% end %>
+</div>
