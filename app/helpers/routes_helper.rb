@@ -85,4 +85,24 @@ module RoutesHelper
     }
     "https://gpx.studio/embed?options=#{URI.encode_www_form_component(options.to_json)}"
   end
+
+  # ---- Phase 0 capacity — fragment caching ----------------------------------
+
+  # Fragment key for the library card's track thumbnail (SVG + source
+  # overlay) — a pure function of the route. `route` expands to its
+  # cache_key, so any edit bumps updated_at and invalidates the fragment.
+  # The "Uploaded X ago" overlay stays outside the fragment:
+  # time_ago_in_words is time-dependent and a cached label would freeze.
+  def route_card_thumb_cache_key(route)
+    [ route, "route-card-thumb" ]
+  end
+
+  # Fragment key for the card's badges, title, description and metrics —
+  # also route attrs only. The footer must stay out of cached fragments:
+  # the picker's per-route entry state changes with calendar allocations,
+  # and the kebab menu's forms embed session-scoped CSRF tokens that would
+  # 422 every other user's submits when served from a shared cache.
+  def route_card_body_cache_key(route)
+    [ route, "route-card-body" ]
+  end
 end

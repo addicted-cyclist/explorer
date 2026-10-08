@@ -244,6 +244,28 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     assert_select %(input[type=hidden][name=week][value="#{Date.current.beginning_of_week.iso8601}"])
   end
 
+  # ---- Phase 0 capacity: lazy mobile routes list ----------------------------
+
+  test "mobile routes list frame serves the whole library for my view" do
+    @user.routes.create!(source: "upload", title: "Pool route", duration: 1_800)
+
+    get routes_list_calendar_path
+
+    assert_response :success
+    assert_select "turbo-frame#mob-routes-list"
+    assert_match "Pool route", response.body
+    # My-view card contract: a Schedule button per route opens the sheet
+    assert_select %(button[data-action~="mob-sheet#open"]), count: 2
+  end
+
+  test "mobile routes list endpoint requires sign in" do
+    sign_out @user
+
+    get routes_list_calendar_path
+
+    assert_redirected_to new_user_session_path
+  end
+
   # ---- Phase 7: friend view --------------------------------------------------
 
   test "show renders an accepted friend's calendar read-only" do

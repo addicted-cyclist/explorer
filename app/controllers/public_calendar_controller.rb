@@ -20,8 +20,11 @@ class PublicCalendarController < ApplicationController
     @week_start = resolve_week_start
     # Same total order as CalendarsController#show (date, start time, id
     # tiebreaker) so same-time entries render in a stable order here too.
+    # Phase 0 capacity: eager-load each route's GPX attachment and blob —
+    # the public sidebar/mobile cards check gpx_file.attached? per route,
+    # and without the preload that is one query per rendered card (N+1).
     @week_entries = @owner.calendar_entries
-                          .includes(:route)
+                          .includes(route: { gpx_file_attachment: :blob })
                           .between(@week_start..(@week_start + 6))
                           .order(:scheduled_on, :start_time, :id).to_a
     @telemetry = build_telemetry(@week_entries)

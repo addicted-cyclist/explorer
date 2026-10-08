@@ -4,18 +4,23 @@ class RoutesController < ApplicationController
   before_action :set_route, only: %i[edit update destroy toggle_completed]
   before_action :set_viewable_route, only: %i[show download save]
 
+  # Phase 0 capacity — the library picker's tracked-entry query used to load
+  # the user's entire scheduling history on every index render. Bounded now:
+  # rides within the planner horizon count as "upcoming", and a recent-past
+  # window covers the "most recent" fallback. Anything older simply renders
+  # the default "Add to calendar" chip — those entries stay fully manageable
+  # on the calendar itself.
+  PICKER_UPCOMING_HORIZON = 1.year
+  PICKER_RECENT_PAST_WINDOW = 90.days
+
   def index
     @routes = current_user.routes.order(created_at: :desc)
     @stats = library_stats(@routes)
     @new_route = Route.new
-    # One query for the whole grid: each card's calendar button tracks the
-    # route's next upcoming entry (else its most recent), so it can commit a
-    # reschedule or a Remove without a reload.
-    @calendar_entries_by_route = current_user.calendar_entries
-                                             .where(route: @routes)
-                                             .order(:scheduled_on, :start_time)
-                                             .group_by(&:route_id)
-                                             .transform_values { |entries| CalendarEntry.tracked_entry_from(entries) }
+    # Two bounded queries for the whole grid: each card's calendar button
+    # tracks the route's next upcoming entry (else its most recent), so it can
+    # commit a reschedule or a Remove without a reload.
+    @calendar_entries_by_route = tracked_entries_by_route(@routes)
   end
 
   # Phase 6 detail page: the owner gets the editable MY view, an accepted
@@ -185,16 +190,58 @@ class RoutesController < ApplicationController
     end
   end
 
+  # Phase 0 capacity: resolve every card's picker state from two bounded
+  # queries instead of the full entry history — the earliest ride inside
+  # PICKER_UPCOMING_HORIZON wins; routes without one fall back to their most
+  # recent ride within PICKER_RECENT_PAST_WINDOW. Same tracked-entry policy
+  # as CalendarEntry.tracked_entry_from (upcoming-else-most-recent), minus
+  # the unbounded load of every ride ever scheduled.
+  def tracked_entries_by_route(routes)
+    upcoming = current_user.calendar_entries
+                           .where(route: routes,
+                                  scheduled_on: Date.current..PICKER_UPCOMING_HORIZON.from_now.to_date)
+                           .order(:scheduled_on, :start_time)
+                           .group_by(&:route_id)
+                           .transform_values { |entries| entries.min_by(&:calendar_sort_key) }
+
+    recent = current_user.calendar_entries
+                         .where(route: routes,
+                                scheduled_on: PICKER_RECENT_PAST_WINDOW.ago.to_date...Date.current)
+                         .order(scheduled_on: :desc, start_time: :desc)
+                         .group_by(&:route_id)
+                         .transform_values(&:first)
+
+    recent.merge(upcoming)
+  end
+
+  # Phase 0 capacity: the stats bar aggregates in SQL (one query) instead of
+  # iterating the whole loaded library in Ruby — it stays correct when the
+  # grid later becomes paginated and scales past in-memory sums. CASE WHEN
+  # keeps the conditional sums portable across SQLite / Postgres / MySQL.
   def library_stats(routes)
-    completed = routes.select(&:completed)
+    total_count, completed_count, total_distance, completed_distance,
+      total_elevation, completed_elevation, synced_count =
+      # unscope(:order): an aggregate must not inherit the grid's ORDER BY —
+      # Postgres rejects ORDER BY columns that aren't grouped/aggregated
+      # (PG::GroupingError); SQLite would silently tolerate it.
+      routes.unscope(:order).pick(
+        Arel.sql("COUNT(*)"),
+        Arel.sql("SUM(CASE WHEN completed THEN 1 ELSE 0 END)"),
+        Arel.sql("COALESCE(SUM(distance), 0)"),
+        Arel.sql("COALESCE(SUM(CASE WHEN completed THEN distance ELSE 0 END), 0)"),
+        Arel.sql("COALESCE(SUM(elevation_gain), 0)"),
+        Arel.sql("COALESCE(SUM(CASE WHEN completed THEN elevation_gain ELSE 0 END), 0)"),
+        Arel.sql("SUM(CASE WHEN source = 'google_drive' THEN 1 ELSE 0 END)")
+      )
+
     {
-      total_count: routes.size,
-      completed_count: completed.size,
-      total_distance: routes.sum { |r| r.distance.to_f },
-      completed_distance: completed.sum { |r| r.distance.to_f },
-      total_elevation: routes.sum { |r| r.elevation_gain.to_f },
-      completed_elevation: completed.sum { |r| r.elevation_gain.to_f },
-      synced_count: routes.count(&:google_drive?)
+      total_count: total_count.to_i,
+      completed_count: completed_count.to_i,
+      total_distance: total_distance.to_f,
+      completed_distance: completed_distance.to_f,
+      total_elevation: total_elevation.to_f,
+      completed_elevation: completed_elevation.to_f,
+      synced_count: synced_count.to_i
     }
   end
 end

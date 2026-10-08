@@ -48,6 +48,36 @@ class PublicCalendarControllerTest < ActionDispatch::IntegrationTest
     assert_select %(a.wc-gpx-btn[href="#{gpx_file_path(@route.gpx_file.blob.signed_id, "ridge_loop.gpx")}"])
   end
 
+  # Phase 0 capacity: the public cards check gpx_file.attached? per route —
+  # the week's entries must preload their attachments (and blobs, for the
+  # signed-id links) or every rendered card adds an attachment query.
+  test "show preloads GPX attachments instead of querying per route (N+1)" do
+    3.times do |i|
+      route = @owner.routes.create!(source: "upload", title: "Shared climb #{i}", duration: 1_800)
+      route.gpx_file.attach(gpx_fixture_upload("climb_#{i}.gpx"))
+      @owner.calendar_entries.create!(route: route, scheduled_on: @week_start + 3,
+                                      start_time: "08:00", end_time: "09:00")
+    end
+
+    attachment_selects = 0
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+      attachment_selects += 1 if payload[:sql].to_s.match?(/\A\s*SELECT.*FROM "?active_storage_attachments"?/i)
+    end
+
+    begin
+      get public_calendar_path(@owner.public_token)
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+    end
+
+    assert_response :success
+    # The eager load issues one attachment SELECT for the whole week —
+    # never one per rendered card.
+    assert attachment_selects <= 2,
+           "expected the attachment preload (≤2 SELECTs), got #{attachment_selects}"
+    assert_select "a.wc-gpx-btn", minimum: 3 # one GPX button per attached route
+  end
+
   test "signed-in visitor sees Join docks, not owner controls" do
     visitor = User.create!(valid_user_attributes(email: "visitor@example.com"))
     sign_in visitor

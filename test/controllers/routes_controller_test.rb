@@ -405,6 +405,77 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
     assert_match "Added to #{upcoming.scheduled_on.strftime('%b %-d')}", response.body
   end
 
+  # ---- Phase 0 capacity: bounded library picker state -----------------------
+
+  test "index picker state prefers the upcoming entry over past rides" do
+    route = create_route_with_gpx(@user)
+    @user.calendar_entries.create!(route: route, scheduled_on: Date.current - 30,
+                                   start_time: "07:00", end_time: "08:00")
+    upcoming = @user.calendar_entries.create!(route: route, scheduled_on: Date.current + 10,
+                                              start_time: "08:00", end_time: "09:00")
+
+    get routes_path
+
+    assert_response :success
+    # Both picker forms on the route's card (allocate + remove) manage the
+    # upcoming entry, never the past one.
+    assert_select "input[type=hidden][name=entry_id][value=?]", upcoming.id.to_s, count: 2
+  end
+
+  test "index picker state falls back to the most recent past ride" do
+    route = create_route_with_gpx(@user)
+    older = @user.calendar_entries.create!(route: route, scheduled_on: Date.current - 20,
+                                           start_time: "07:00", end_time: "08:00")
+    recent = @user.calendar_entries.create!(route: route, scheduled_on: Date.current - 5,
+                                            start_time: "09:00", end_time: "10:00")
+
+    get routes_path
+
+    assert_response :success
+    assert_select "input[type=hidden][name=entry_id][value=?]", recent.id.to_s, count: 2
+    assert_select "input[type=hidden][name=entry_id][value=?]", older.id.to_s, count: 0
+  end
+
+  test "rides outside the picker windows render the default chip" do
+    route = create_route_with_gpx(@user)
+    @user.calendar_entries.create!(route: route, scheduled_on: Date.current - 200,
+                                   start_time: "07:00", end_time: "08:00")
+
+    get routes_path
+
+    assert_response :success
+    # nil tracked entry -> blank entry_id on both forms = fresh booking.
+    assert_select "input[type=hidden][name=entry_id]:not([value])", count: 2
+  end
+
+  test "library stats come from one SQL aggregate with the same values" do
+    @user.routes.create!(source: "upload", title: "A", distance: 42.0, elevation_gain: 500)
+    @user.routes.create!(source: "google_drive", title: "B", distance: 58.0, elevation_gain: 300,
+                         google_drive_file_id: "abc")
+    done = @user.routes.create!(source: "upload", title: "C", distance: 100.0, elevation_gain: 200)
+    done.update!(completed: true)
+
+    queries = 0
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+      queries += 1 if payload[:sql].to_s.start_with?("SELECT")
+    end
+
+    begin
+      stats = RoutesController.new.send(:library_stats, @user.routes)
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+    end
+
+    assert_equal 1, queries, "stats must be a single aggregate query"
+    assert_equal 3, stats[:total_count]
+    assert_equal 1, stats[:completed_count]
+    assert_equal 200.0, stats[:total_distance]
+    assert_equal 100.0, stats[:completed_distance]
+    assert_equal 1000.0, stats[:total_elevation]
+    assert_equal 200.0, stats[:completed_elevation]
+    assert_equal 1, stats[:synced_count]
+  end
+
   test "index cards carry per-route picker state with unique remove forms" do
     route = create_route_with_gpx(@user)
     create_route_with_gpx(@user, attrs: { title: "Other loop" })

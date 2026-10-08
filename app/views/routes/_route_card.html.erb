@@ -7,63 +7,75 @@
   data-created="<%= route.created_at.to_i * 1000 %>">
   <%= link_to route_path(route) do %>
     <div class="route-card__thumb">
-      <% if route.track_svg.present? %>
-        <svg class="route-card__track" viewBox="<%= Route::TRACK_SVG_VIEWBOX %>"
-            preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
-          <path d="<%= route.track_svg %>"></path>
-        </svg>
-      <% else %>
-        <div class="route-card__thumb-fallback c-tertiary">
-          <span class="material-symbols-outlined">route</span>
-          <span class="t-code-sm">No track preview</span>
+      <%# Phase 0 capacity: track SVG + source overlay are a pure function of
+          the route — cached per route and shared across every viewer. The
+          "Uploaded X ago" overlay stays outside the fragment: the label is
+          time-dependent and must not freeze. %>
+      <% cache(route_card_thumb_cache_key(route)) do %>
+        <% if route.track_svg.present? %>
+          <svg class="route-card__track" viewBox="<%= Route::TRACK_SVG_VIEWBOX %>"
+              preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
+            <path d="<%= route.track_svg %>"></path>
+          </svg>
+        <% else %>
+          <div class="route-card__thumb-fallback c-tertiary">
+            <span class="material-symbols-outlined">route</span>
+            <span class="t-code-sm">No track preview</span>
+          </div>
+        <% end %>
+        <div class="route-card__thumb-overlay route-card__thumb-overlay--source">
+          <span class="status-dot <%= "status-dot--accent" if route.google_drive? %>"></span>
+          <span class="t-body-sm"><%= route.google_drive? ? "Google Drive" : "Local GPX" %></span>
         </div>
       <% end %>
-      <div class="route-card__thumb-overlay route-card__thumb-overlay--source">
-        <span class="status-dot <%= "status-dot--accent" if route.google_drive? %>"></span>
-        <span class="t-body-sm"><%= route.google_drive? ? "Google Drive" : "Local GPX" %></span>
-      </div>
       <div class="route-card__thumb-overlay route-card__thumb-overlay--ago">
         <span class="t-body-sm c-secondary">Uploaded <%= uploaded_ago(route) %> ago</span>
       </div>
     </div>
   <% end %>
 
-  <div class="route-card__badges">
-    <span class="badge c-primary t-label-md"><%= route.tier.presence || "Unrated" %></span>
-    <span class="badge c-secondary t-label-md"><%= sport_type_label(route) %></span>
-    <span class="badge c-success t-label-md" <%= "hidden" unless route.completed? %>>
-      <span class="material-symbols-outlined ms-16">check_circle</span>
-      Done
-    </span>
-  </div>
-
-  <h3 class="route-card__title t-headline-sm c-primary"><%= link_to route.title, route_path(route) %></h3>
-
-  <% if route.description.present? %>
-    <p class="route-card__desc t-body-sm clamp-2 c-secondary"><%= route.description %></p>
-  <% else %>
-    <p class="route-card__desc route-card__desc--empty t-body-sm c-tertiary">No description yet — add one via the card menu.</p>
-  <% end %>
-
-  <%= link_to route_path(route) do %>
-    <div class="route-card__metrics well">
-      <div class="route-card__metric">
-        <span class="t-code-sm t-uppercase c-tertiary">Dist</span>
-        <span class="route-card__metric-value t-title-md c-primary">
-          <%= format_distance(route.distance) %> <span class="t-body-sm c-secondary">km</span>
-        </span>
-      </div>
-      <div class="route-card__metric">
-        <span class="t-code-sm t-uppercase c-tertiary">Elev</span>
-        <span class="route-card__metric-value t-title-md c-primary">
-          <%= format_elevation(route.elevation_gain) %> <span class="t-body-sm c-secondary">m</span>
-        </span>
-      </div>
-      <div class="route-card__metric">
-        <span class="t-code-sm t-uppercase c-tertiary">Time</span>
-        <span class="route-card__metric-value route-card__metric-value--sm t-title-md c-primary"><%= format_duration(route.duration) %></span>
-      </div>
+  <%# Phase 0 capacity: badges/title/description/metrics are route attrs
+      only — cached per route. The footer below stays uncached: the picker's
+      per-route entry state changes with calendar allocations, and the kebab
+      menu embeds session-scoped CSRF tokens that must never be cached. %>
+  <% cache(route_card_body_cache_key(route)) do %>
+    <div class="route-card__badges">
+      <span class="badge c-primary t-label-md"><%= route.tier.presence || "Unrated" %></span>
+      <span class="badge c-secondary t-label-md"><%= sport_type_label(route) %></span>
+      <span class="badge c-success t-label-md" <%= "hidden" unless route.completed? %>>
+        <span class="material-symbols-outlined ms-16">check_circle</span>
+        Done
+      </span>
     </div>
+
+    <h3 class="route-card__title t-headline-sm c-primary"><%= link_to route.title, route_path(route) %></h3>
+
+    <% if route.description.present? %>
+      <p class="route-card__desc t-body-sm clamp-2 c-secondary"><%= route.description %></p>
+    <% else %>
+      <p class="route-card__desc route-card__desc--empty t-body-sm c-tertiary">No description yet — add one via the card menu.</p>
+    <% end %>
+
+    <%= link_to route_path(route) do %>
+      <div class="route-card__metrics well">
+        <div class="route-card__metric">
+          <span class="t-code-sm t-uppercase c-tertiary">Dist</span>
+          <span class="route-card__metric-value t-title-md c-primary">
+            <%= format_distance(route.distance) %> <span class="t-body-sm c-secondary">km</span>
+          </span>
+        </div>
+        <div class="route-card__metric">
+          <span class="t-code-sm t-uppercase c-tertiary">Elev</span>
+          <span class="route-card__metric-value t-title-md c-primary">
+            <%= format_elevation(route.elevation_gain) %> <span class="t-body-sm c-secondary">m</span>
+          </span>
+        </div>
+        <div class="route-card__metric">
+          <span class="t-code-sm t-uppercase c-tertiary">Time</span>
+          <span class="route-card__metric-value route-card__metric-value--sm t-title-md c-primary"><%= format_duration(route.duration) %></span>
+        </div>
+      </div>
+    <% end %>
   <% end %>
 
   <footer class="route-card__footer">

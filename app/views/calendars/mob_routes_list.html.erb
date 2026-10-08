@@ -1,0 +1,6 @@
+<%# Turbo Frame response for the lazily-fetched mobile routes list
+    (CalendarsController#mob_routes_list). Turbo swaps the matching
+    "mob-routes-list" frame on the mobile week view with this content. %>
+<%= turbo_frame_tag "mob-routes-list" do %>
+  <%= render "calendars/mobile/routes_list" %>
+<% end %>

@@ -37,24 +37,31 @@
     <% end %>
   </header>
 
-  <span class="wc-route-card__tier t-label-sm t-uppercase <%= calendar_tier_class(route.tier) %>"><%= route.tier.presence || "Unrated" %></span>
+  <%# Phase 0 capacity: the card body (tier, track SVG, metrics) is a pure
+      function of the route and identical across my / friend / public views —
+      cached per route and shared by every viewer. The head above stays
+      uncached: it branches per view mode and carries the kebab menu whose
+      button_to forms embed session-scoped CSRF tokens. %>
+  <% cache(wc_sidebar_body_cache_key(route)) do %>
+    <span class="wc-route-card__tier t-label-sm t-uppercase <%= calendar_tier_class(route.tier) %>"><%= route.tier.presence || "Unrated" %></span>
 
-  <div class="wc-route-card__thumb">
-    <% if route.track_svg.present? %>
-      <svg class="wc-route-card__track" viewBox="<%= Route::TRACK_SVG_VIEWBOX %>"
-           preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
-        <path d="<%= route.track_svg %>"></path>
-      </svg>
-    <% else %>
-      <div class="wc-route-card__thumb-fallback c-tertiary">
-        <span class="material-symbols-outlined" aria-hidden="true">route</span>
-      </div>
-    <% end %>
-  </div>
+    <div class="wc-route-card__thumb">
+      <% if route.track_svg.present? %>
+        <svg class="wc-route-card__track" viewBox="<%= Route::TRACK_SVG_VIEWBOX %>"
+             preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
+          <path d="<%= route.track_svg %>"></path>
+        </svg>
+      <% else %>
+        <div class="wc-route-card__thumb-fallback c-tertiary">
+          <span class="material-symbols-outlined" aria-hidden="true">route</span>
+        </div>
+      <% end %>
+    </div>
 
-  <footer class="wc-route-card__metrics t-label-sm c-secondary">
-    <span class="wc-route-card__metric"><span class="material-symbols-outlined ms-14" aria-hidden="true">straighten</span><span><%= format_distance(route.distance) %> km</span></span>
-    <span class="wc-route-card__metric"><span class="material-symbols-outlined ms-14" aria-hidden="true">north_east</span><span><%= format_elevation(route.elevation_gain) %> m</span></span>
-    <span class="wc-route-card__metric"><span class="material-symbols-outlined ms-14" aria-hidden="true">timer</span><span><%= format_duration(route.duration) %></span></span>
-  </footer>
+    <footer class="wc-route-card__metrics t-label-sm c-secondary">
+      <span class="wc-route-card__metric"><span class="material-symbols-outlined ms-14" aria-hidden="true">straighten</span><span><%= format_distance(route.distance) %> km</span></span>
+      <span class="wc-route-card__metric"><span class="material-symbols-outlined ms-14" aria-hidden="true">north_east</span><span><%= format_elevation(route.elevation_gain) %> m</span></span>
+      <span class="wc-route-card__metric"><span class="material-symbols-outlined ms-14" aria-hidden="true">timer</span><span><%= format_duration(route.duration) %></span></span>
+    </footer>
+  <% end %>
 </article>
