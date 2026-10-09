@@ -1,0 +1,32 @@
+<%# One candidate row in the Find friends popup. The action dock reflects the
+    current relationship: Add (strangers), Requested (outgoing pending),
+    Accept (incoming pending — same accept flow as the page section) and an
+    inert Friends state. Turbo Streams repaint the row after each action. %>
+<div class="friends-find__row" id="<%= dom_id(candidate, :candidate) %>"
+  data-candidate="<%= [candidate.name, candidate.username].join(" ").downcase %>">
+  <span class="friends__avatar friends__avatar--sm t-headline-sm" aria-hidden="true">
+    <%= calendar_initials(candidate) %>
+  </span>
+  <div class="friends-find__who">
+    <h3 class="t-title-md c-primary"><%= candidate.name %></h3>
+    <p class="t-body-sm c-tertiary">@<%= candidate.username %></p>
+  </div>
+  <% case friend_edge_state(edge) %>
+  <% when :friends %>
+    <span class="friends-find__state t-label-md c-tertiary" aria-label="Already friends">
+      <span class="material-symbols-outlined ms-16" aria-hidden="true">check</span>
+      Friends
+    </span>
+  <% when :outgoing_pending %>
+    <span class="friends-find__state t-label-md c-tertiary" aria-label="Request already sent">
+      <span class="material-symbols-outlined ms-16" aria-hidden="true">check</span>
+      Requested
+    </span>
+  <% when :incoming_pending %>
+    <%= button_to "Accept", friend_request_path(edge), method: :patch,
+                  class: "btn btn--sm btn--primary" %>
+  <% else %>
+    <%= button_to "Add", friend_requests_path(friend_id: candidate.id),
+                  class: "btn btn--sm btn--primary" %>
+  <% end %>
+</div>

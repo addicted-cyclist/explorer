@@ -1,0 +1,35 @@
+<%# Phase 11 — Find friends popup. Lists every other account with the
+    viewer's relationship state baked into each row's action; the
+    friends-filter controller narrows rows as you type. The modal markup
+    mirrors shared/_upload_modal (data-modal-open="find-friends" opens it). %>
+<div class="modal" id="find-friends-modal" data-controller="modal" data-modal-id="find-friends" aria-hidden="true">
+  <div class="modal__backdrop" data-action="click->modal#close" aria-hidden="true"></div>
+  <div class="modal__card modal__card--find-friends" role="dialog" aria-modal="true" aria-labelledby="find-friends-title">
+    <header class="modal__head">
+      <div>
+        <h2 class="t-headline-sm c-primary" id="find-friends-title">Find friends</h2>
+        <p class="t-body-sm c-secondary">Search athletes by name or @handle</p>
+      </div>
+      <button type="button" class="icon-btn" data-action="modal#close" aria-label="Close dialog">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </header>
+
+    <div class="friends__search friends-find__search">
+      <span class="material-symbols-outlined friends__search-icon" aria-hidden="true">search</span>
+      <input type="search" class="friends__search-input" placeholder="Search cyclists..."
+             aria-label="Search athletes" autocomplete="off"
+             data-friends-filter-target="candidateSearch" data-action="input->friends-filter#apply">
+    </div>
+
+    <div class="friends-find__results" data-friends-filter-target="candidates">
+      <% @candidates.each do |candidate| %>
+        <%= render "friends/candidate_row", candidate: candidate, edge: @candidate_edges[candidate.id] %>
+      <% end %>
+    </div>
+
+    <p class="friends-find__empty t-body-md c-secondary" data-friends-filter-target="noCandidates" hidden>
+      No athletes match your search.
+    </p>
+  </div>
+</div>

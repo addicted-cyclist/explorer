@@ -1,0 +1,19 @@
+<%# One incoming friend request card: Accept books the mutual friendship,
+    Decline drops the pending row. Both act on the request itself and let
+    the Turbo Streams repaint the section (and grid, on accept). %>
+<article class="friends__request" id="<%= dom_id(request) %>">
+  <span class="friends__avatar friends__avatar--sm t-headline-sm" aria-hidden="true">
+    <%= calendar_initials(request.user) %>
+  </span>
+  <div class="friends__request-who">
+    <h3 class="t-title-md c-primary"><%= request.user.name %></h3>
+    <p class="t-body-sm c-tertiary">@<%= request.user.username %></p>
+    <p class="t-body-sm c-secondary"><%= friend_request_meta(request, sports) %></p>
+  </div>
+  <div class="friends__request-actions">
+    <%= button_to "Accept", friend_request_path(request), method: :patch,
+                  class: "btn btn--sm btn--primary" %>
+    <%= button_to "Decline", friend_request_path(request), method: :delete,
+                  class: "btn btn--sm btn--secondary c-secondary" %>
+  </div>
+</article>
