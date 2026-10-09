@@ -1,6 +1,9 @@
 <% content_for :title, "Friends" %>
 
-<div class="friends">
+<%# Phase 11 — friends page: pending requests, rich week cards (last
+    completed ride + week count) and the Find friends popup. The
+    friends-filter controller keeps search/filtering client-side. %>
+<div class="friends" data-controller="friends-filter">
   <section class="library-hero">
     <div>
       <h1 class="t-headline-lg">Friends</h1>
@@ -8,24 +11,52 @@
         Peek into your friends' training weeks and join their rides.
       </p>
     </div>
+    <div class="library-hero__actions friends__hero-actions">
+      <span class="badge--pill friends__riding-pill t-label-md c-secondary">
+        <span class="status-dot"></span>
+        <%= @riding_count %> active explorer this week
+      </span>
+      <button type="button" class="btn btn--primary" data-modal-open="find-friends">
+        <span class="material-symbols-outlined ms-18">person_add</span>
+        <span>Find friends</span>
+      </button>
+    </div>
   </section>
 
-  <% if @friends.any? %>
-    <section class="friends__grid" aria-label="Your friends">
-      <% @friends.each do |friend| %>
-        <article class="friends__card">
-          <span class="friends__avatar t-headline-sm" aria-hidden="true"><%= calendar_initials(friend) %></span>
-          <div class="friends__id">
-            <h2 class="t-title-md"><%= friend.name %></h2>
-            <p class="t-body-sm c-tertiary">@<%= friend.username %></p>
-          </div>
-          <%= link_to friend_calendar_path(friend.username), class: "btn btn--sm btn--secondary c-primary" do %>
-            <span class="material-symbols-outlined ms-18">calendar_month</span>
-            <span>View calendar</span>
-          <% end %>
-        </article>
+  <section class="friends__toolbar" aria-label="Filter friends">
+    <div class="friends__search">
+      <span class="material-symbols-outlined friends__search-icon c-tertiary" aria-hidden="true">search</span>
+      <input type="search" class="friends__search-input c-tertiary" placeholder="Search friends by name or @username..."
+             aria-label="Search friends" autocomplete="off"
+             data-friends-filter-target="search" data-action="input->friends-filter#apply">
+    </div>
+    <div class="friends__filter">
+      <select class="friends__filter-select" aria-label="Filter friends"
+              data-friends-filter-target="filter" data-action="change->friends-filter#apply">
+        <option value="all">All friends (<%= @friend_cards.size %>)</option>
+        <option value="riding">Exploring this week (<%= @riding_count %>)</option>
+      </select>
+    </div>
+  </section>
+
+  <%# Pending incoming requests — renders nothing once the list is empty,
+      which is also how the accept/decline streams remove the section. %>
+  <%= render "friends/requests_section",
+             requests: @incoming_requests, sports_by_user: @requester_sports %>
+
+  <% if @friend_cards.any? %>
+    <section class="friends__grid" id="friends-grid" aria-label="Your friends"
+             data-friends-filter-target="grid">
+      <% @friend_cards.each_value do |card| %>
+        <%= render "friends/friend_card", card: card %>
       <% end %>
     </section>
+
+    <div class="library-empty" data-friends-filter-target="noResults" hidden>
+      <div class="library-empty__icon c-tertiary"><span class="material-symbols-outlined">search_off</span></div>
+      <h2 class="t-title-lg c-primary">No friends match your filters</h2>
+      <p class="t-body-md c-secondary">Try a different search term or filter.</p>
+    </div>
   <% else %>
     <div class="library-empty">
       <div class="library-empty__icon c-tertiary"><span class="material-symbols-outlined">group_add</span></div>
@@ -33,4 +64,8 @@
       <p class="t-body-md c-secondary">When you add friends, their training calendars will show up here.</p>
     </div>
   <% end %>
+
+  <%# Find friends popup — every other account with the viewer's
+      relationship state baked into each row's action. %>
+  <%= render "friends/find_friends_modal" %>
 </div>
