@@ -39,4 +39,64 @@ class FriendshipTest < ActiveSupport::TestCase
     friendship = @user.friendships.build(friend: @friend, status: "maybe")
     assert_not friendship.valid?
   end
+
+  # ---- Phase 11 — pending requests ------------------------------------------
+
+  test "send_request! creates exactly one directed pending row" do
+    request = Friendship.send_request!(@user, @friend)
+
+    assert_equal 1, Friendship.count
+    assert_predicate request, :pending?
+    assert_equal @user.id, request.user_id
+    assert_equal @friend.id, request.friend_id
+    assert_not @user.friends_with?(@friend)
+  end
+
+  test "send_request! is idempotent for repeated requests" do
+    first = Friendship.send_request!(@user, @friend)
+    again = Friendship.send_request!(@user, @friend)
+
+    assert_equal first.id, again.id
+    assert_equal 1, Friendship.count
+  end
+
+  test "send_request! no-ops when the pair is already friends" do
+    Friendship.connect!(@user, @friend)
+
+    edge = Friendship.send_request!(@user, @friend)
+
+    assert_predicate edge, :accepted?
+    assert_equal 2, Friendship.count
+  end
+
+  test "send_request! auto-accepts when the recipient already asked first" do
+    Friendship.send_request!(@friend, @user)
+
+    edge = Friendship.send_request!(@user, @friend)
+
+    assert_predicate edge.reload, :accepted?
+    assert @user.friends_with?(@friend)
+    assert @friend.friends_with?(@user)
+    assert_equal 2, Friendship.count
+  end
+
+  test "accept! flips the row and restores the two-row invariant" do
+    request = Friendship.send_request!(@user, @friend)
+
+    request.accept!
+
+    assert_predicate request.reload, :accepted?
+    assert_equal 2, Friendship.count
+    assert Friendship.accepted.exists?(user_id: @user.id, friend_id: @friend.id)
+    assert Friendship.accepted.exists?(user_id: @friend.id, friend_id: @user.id)
+    assert @user.friends_with?(@friend)
+  end
+
+  test "accept! is a no-op on an already accepted edge" do
+    Friendship.connect!(@user, @friend)
+    edge = @user.friendships.first
+
+    assert_same edge, edge.accept!
+    assert_equal 2, Friendship.count
+  end
 end
