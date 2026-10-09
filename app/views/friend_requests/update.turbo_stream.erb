@@ -1,0 +1,9 @@
+<%# The accepted request leaves the pending section; the section itself
+    disappears when this was the last one (the partial renders nothing). %>
+<%= turbo_stream.replace "pending-requests",
+      partial: "friends/requests_section",
+      locals: { requests: @remaining_requests, sports_by_user: @sports_by_user } %>
+
+<%# The new friend joins the top of the grid with their full card data. %>
+<%= turbo_stream.prepend "friends-grid",
+      partial: "friends/friend_card", locals: { card: @card } %>

@@ -1,0 +1,5 @@
+<%# The declined request leaves the pending section; the section itself
+    disappears when this was the last one (the partial renders nothing). %>
+<%= turbo_stream.replace "pending-requests",
+      partial: "friends/requests_section",
+      locals: { requests: @remaining_requests, sports_by_user: @sports_by_user } %>

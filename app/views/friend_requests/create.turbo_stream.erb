@@ -1,0 +1,6 @@
+<%# Repaint the popup row with its new relationship state: "Add" swaps to
+    "Requested" — or to the inert "Friends" state when the two requests
+    crossed mid-flight and send_request! auto-accepted. %>
+<%= turbo_stream.replace dom_id(@candidate, :candidate),
+      partial: "friends/candidate_row",
+      locals: { candidate: @candidate, edge: @edge } %>
