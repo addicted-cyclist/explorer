@@ -324,6 +324,10 @@
     min-width: 0;
   }
 
+  .mob-wc__metric-value {
+    font-weight: 600;
+  }
+
   .mob-wc__unit {
     font-weight: 500;
   }
