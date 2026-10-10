@@ -72,6 +72,8 @@ class User < ApplicationRecord
   # Returns { candidate.id => Friendship edge or nil } covering both
   # directions of my edges; the view derives the button state from the edge.
   def friend_edges_for(users)
+    return {} if users.empty?
+
     edges = Friendship.where(user_id: id).or(Friendship.where(friend_id: id))
     states = users.index_by(&:id).transform_values { nil }
     edges.find_each do |edge|
@@ -94,6 +96,23 @@ class User < ApplicationRecord
     return :friends if edge.accepted?
 
     edge.user_id == id ? :outgoing_pending : :incoming_pending
+  end
+
+  # Phase 11 — server-side search behind the Find friends popup: the popup
+  # no longer preloads every account, it queries as you type (the caller
+  # enforces the minimum length and the result cap). Matches the term
+  # case-insensitively against first name, last name, the joined full name
+  # and the @username. Excludes only +owner+ — friends and pending rows stay
+  # searchable so their rows can render the Friends/Requested/Accept states.
+  # Pass limit + 1 to detect truncation cheaply.
+  def self.search_candidates(owner, term, limit:)
+    pattern = "%#{sanitize_sql_like(term)}%"
+    where.not(id: owner.id)
+         .where("first_name ILIKE :pattern OR last_name ILIKE :pattern " \
+                "OR username ILIKE :pattern " \
+                "OR (first_name || ' ' || last_name) ILIKE :pattern", pattern: pattern)
+         .order(:username)
+         .limit(limit)
   end
 
   # ---- Phase 11 — friends page card data -----------------------------------

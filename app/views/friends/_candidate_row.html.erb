@@ -2,8 +2,7 @@
     current relationship: Add (strangers), Requested (outgoing pending),
     Accept (incoming pending — same accept flow as the page section) and an
     inert Friends state. Turbo Streams repaint the row after each action. %>
-<div class="friends-find__row" id="<%= dom_id(candidate, :candidate) %>"
-  data-candidate="<%= [candidate.name, candidate.username].join(" ").downcase %>">
+<div class="friends-find__row" id="<%= dom_id(candidate, :candidate) %>">
   <span class="friends__avatar friends__avatar--sm t-headline-sm" aria-hidden="true">
     <%= calendar_initials(candidate) %>
   </span>

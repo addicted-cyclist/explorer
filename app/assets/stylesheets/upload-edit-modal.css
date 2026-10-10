@@ -60,7 +60,7 @@ body.has-open-modal {
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-md);
-  margin-bottom: var(--space-lg);
+  margin-bottom: var(--space-sm);
 }
 
 .modal__form .field {

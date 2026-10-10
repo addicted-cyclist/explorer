@@ -9,15 +9,16 @@ module ActiveSupport
     parallelize(workers: 1)
 
     # Attributes for a User that passes Devise's validatable module plus the
-    # app's own first_name/last_name/username validations.
-    def valid_user_attributes(email: "rider@example.com")
+    # app's own first_name/last_name/username validations. Extra keyword
+    # arguments override the defaults (e.g. first_name: "Alice").
+    def valid_user_attributes(email: "rider@example.com", **overrides)
       {
         email: email,
         password: "password123",
         first_name: "Riley",
         last_name: "Rider",
         username: email.delete("@.").tr(".", "_")
-      }
+      }.merge(overrides)
     end
 
     # An ActiveStorage-attachable handle on a GPX fixture. The on-disk copy is

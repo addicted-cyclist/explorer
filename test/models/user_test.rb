@@ -82,6 +82,46 @@ class UserTest < ActiveSupport::TestCase
     assert_equal :none, @user.friendship_state_with(stranger)
   end
 
+  test "search_candidates matches first, last, username and full name but never me" do
+    alice = User.create!(valid_user_attributes(email: "alice@example.com",
+                                               first_name: "Alice", last_name: "Wonder",
+                                               username: "alice_wanders"))
+    User.create!(valid_user_attributes(email: "bob@example.com",
+                                       first_name: "Bob", last_name: "Builder",
+                                       username: "builderbob"))
+
+    assert_equal [ alice.id ], User.search_candidates(@user, "alice", limit: 10).map(&:id)
+    assert_equal [ alice.id ], User.search_candidates(@user, "WON", limit: 10).map(&:id)
+    assert_equal [ alice.id ], User.search_candidates(@user, "ders", limit: 10).map(&:id)
+    assert_equal [ alice.id ], User.search_candidates(@user, "alice wonder", limit: 10).map(&:id)
+    # The searching account itself never surfaces, whatever the term hits.
+    assert_empty User.search_candidates(@user, "riley", limit: 10)
+  end
+
+  test "search_candidates respects the limit" do
+    3.times do |i|
+      User.create!(valid_user_attributes(email: "crowd#{i}@example.com",
+                                         first_name: "Crowd", last_name: "Member",
+                                         username: "crowdmember#{i}"))
+    end
+
+    assert_equal 2, User.search_candidates(@user, "crowd", limit: 2).size
+  end
+
+  test "search_candidates treats LIKE wildcards as literal text" do
+    User.create!(valid_user_attributes(email: "zoe@example.com",
+                                       first_name: "Zoe", last_name: "Zoom",
+                                       username: "zo_zoom"))
+
+    # % and _ are escaped before they reach ILIKE, so they can only match
+    # themselves — "%%%" must never widen into "every account".
+    assert_empty User.search_candidates(@user, "%%%", limit: 10)
+    assert_empty User.search_candidates(@user, "z%m", limit: 10)
+    assert_empty User.search_candidates(@user, "z_m", limit: 10)
+    # A literal underscore in the term still finds usernames that contain one.
+    assert_equal [ "zo_zoom" ], User.search_candidates(@user, "zo_zo", limit: 10).map(&:username)
+  end
+
   # ---- Phase 11 — friends page card data ------------------------------------
 
   test "friend_cards_for prefers completed entries and falls back to completed routes" do

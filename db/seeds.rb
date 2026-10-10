@@ -28,6 +28,15 @@ if Rails.env.development?
   planner = demo_user.call("casey", "Casey", "Brook")
   newcomer = demo_user.call("avery", "Avery", "Stone")
 
+  # A wider pond for the Find friends search demo — athletes riley is not
+  # connected to yet (type "ala", "jor", "nin"… in the popup).
+  demo_user.call("alana", "Alana", "Vega")
+  demo_user.call("jordan", "Jordan", "Reyes")
+  demo_user.call("tara", "Tara", "Quinn")
+  demo_user.call("milo", "Milo", "Banks")
+  demo_user.call("nina", "Nina", "Cho")
+  demo_user.call("oscar", "Oscar", "Wilde")
+
   Friendship.connect!(me, rider) unless me.friends_with?(rider)
   Friendship.connect!(me, planner) unless me.friends_with?(planner)
   # Idempotent by design: a repeated seed run returns the existing request.

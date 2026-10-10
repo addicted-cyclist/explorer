@@ -1,0 +1,24 @@
+<%# Phase 11 — Turbo Frame body for the Find friends popup's live search.
+    The popup renders this frame's contents as the user types (min 3
+    characters, capped results); rows are server-rendered so their action
+    states stay identical to what the request streams repaint. %>
+<turbo-frame id="find-friends-results">
+  <% if @query.length < FriendsController::MIN_QUERY_LENGTH %>
+    <p class="friends-find__empty t-body-md c-secondary">
+      Type at least <%= FriendsController::MIN_QUERY_LENGTH %> characters to search.
+    </p>
+  <% elsif @candidates.none? %>
+    <p class="friends-find__empty t-body-md c-secondary">
+      No explorers match &ldquo;<%= @query %>&rdquo;.
+    </p>
+  <% else %>
+    <% @candidates.each do |candidate| %>
+      <%= render "friends/candidate_row", candidate: candidate, edge: @candidate_edges[candidate.id] %>
+    <% end %>
+    <% if @has_more %>
+      <p class="friends-find__more t-label-md c-tertiary">
+        Showing the first <%= FriendsController::CANDIDATES_LIMIT %> &mdash; keep typing to narrow it down.
+      </p>
+    <% end %>
+  <% end %>
+</turbo-frame>

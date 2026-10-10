@@ -1,9 +1,11 @@
 <% content_for :title, "Friends" %>
 
 <%# Phase 11 — friends page: pending requests, rich week cards (last
-    completed ride + week count) and the Find friends popup. The
-    friends-filter controller keeps search/filtering client-side. %>
-<div class="friends" data-controller="friends-filter">
+    completed ride + week count) and the Find friends popup. The toolbar
+    filters the friend cards client-side; the popup live-searches the whole
+    user base through friends/candidates, so nothing is preloaded. %>
+<div class="friends" data-controller="friends-filter"
+     data-friends-filter-candidates-url-value="<%= candidates_friends_path %>">
   <section class="library-hero">
     <div>
       <h1 class="t-headline-lg">Friends</h1>
@@ -65,7 +67,7 @@
     </div>
   <% end %>
 
-  <%# Find friends popup — every other account with the viewer's
-      relationship state baked into each row's action. %>
+  <%# Find friends popup — nothing preloaded; it searches friends/candidates
+      as you type and renders each row's relationship state as its action. %>
   <%= render "friends/find_friends_modal" %>
 </div>

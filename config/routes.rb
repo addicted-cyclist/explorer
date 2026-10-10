@@ -50,7 +50,13 @@ Rails.application.routes.draw do
 
   # Friends directory (Phase 7 ships the read-only list; Phase 11 adds the
   # rich week cards, the Find friends popup and pending-request management).
-  resources :friends, only: :index
+  # Candidates is the popup's live search endpoint: it queries the whole user
+  # base as you type, so the page itself never preloads every account.
+  resources :friends, only: :index do
+    collection do
+      get :candidates
+    end
+  end
 
   # Pending friend requests (Phase 11): create sends a request from the Find
   # friends popup, update accepts an incoming one, destroy declines it.
