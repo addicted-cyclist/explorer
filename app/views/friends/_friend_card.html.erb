@@ -43,7 +43,11 @@
         <span class="material-symbols-outlined ms-16" aria-hidden="true">route</span>
         <%= card.week_count %> routes this week
       </span>
-      <%= link_to route_path(card.last_ride), class: "friends__more t-label-sm c-primary" do %>
+      <%= link_to route_path(
+          card.last_ride,
+          username: card.friend.username
+        ),
+          class: "friends__more t-label-sm c-primary" do %>
         View route details
         <span class="material-symbols-outlined ms-14" aria-hidden="true">arrow_forward</span>
       <% end %>
