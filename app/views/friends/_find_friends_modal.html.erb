@@ -1,0 +1,45 @@
+<%# Phase 11 — Find friends popup. Results are NOT preloaded: the friends-
+    filter controller queries friends/candidates as you type (min 3 chars,
+    debounced) into the #find-friends-results Turbo Frame, so the payload
+    stays flat no matter how big the app grows. Row actions mirror the
+    pending-request flows; the modal markup mirrors shared/_upload_modal
+    (data-modal-open="find-friends" opens it). %>
+<div class="modal" id="find-friends-modal" data-controller="modal" data-modal-id="find-friends" aria-hidden="true">
+  <div class="modal__backdrop" data-action="click->modal#close" aria-hidden="true"></div>
+  <div class="modal__card modal__card--find-friends" role="dialog" aria-modal="true" aria-labelledby="find-friends-title">
+    <header class="modal__head">
+      <div>
+        <h2 class="t-headline-sm c-primary" id="find-friends-title">Find friends</h2>
+        <p class="t-body-sm c-secondary">Search explorers by name or @username</p>
+      </div>
+      <button type="button" class="icon-btn" data-action="modal#close" aria-label="Close dialog">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </header>
+
+    <div class="friends__search friends-find__search">
+      <span class="material-symbols-outlined friends__search-icon" aria-hidden="true">search</span>
+      <input type="search" class="friends__search-input" placeholder="Search cyclists..."
+             aria-label="Search athletes" autocomplete="off"
+             data-friends-filter-target="candidateSearch"
+             data-action="input->friends-filter#searchCandidates">
+    </div>
+
+    <%# Resting state until the query reaches the minimum length; the
+        results frame takes over from the first search on. %>
+    <div class="friends-find__prompt" data-friends-filter-target="prompt">
+      <span class="material-symbols-outlined friends-find__prompt-icon c-tertiary" aria-hidden="true">person_search</span>
+      <h3 class="t-title-md c-primary">Find explorers</h3>
+      <p class="t-body-md c-secondary">Type at least 3 characters of a name.</p>
+    </div>
+
+    <p class="friends-find__loading t-label-md c-tertiary" data-friends-filter-target="loading" hidden>
+      <span class="material-symbols-outlined ms-18" aria-hidden="true">progress_activity</span>
+      Searching&hellip;
+    </p>
+
+    <turbo-frame id="find-friends-results" class="friends-find__results"
+                 data-friends-filter-target="frame"
+                 data-action="turbo:frame-load->friends-filter#candidatesLoaded"></turbo-frame>
+  </div>
+</div>

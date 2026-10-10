@@ -28,6 +28,9 @@ application.register("pace-duration", PaceDurationController);
 import autoGrowController from "./auto_grow_controller";
 application.register("auto-grow", autoGrowController);
 
+import FriendsFilterController from "./friends_filter_controller";
+application.register("friends-filter", FriendsFilterController);
+
 import CalendarDndController from "./calendar_dnd_controller";
 application.register("calendar-dnd", CalendarDndController);
 

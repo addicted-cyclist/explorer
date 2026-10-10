@@ -1,0 +1,88 @@
+<%# Phase 11 — one friend card for the grid. Two variants per the v0.8
+    design: a filled card (friend with a completed ride) showing the last
+    completed route with its telemetry + track preview, and the empty card
+    for athletes without any completed ride. Card data comes preloaded from
+    User.friend_cards_for (no per-card queries). data-search / data-riding
+    feed the client-side friends-filter controller. %>
+<article class="friends__card" id="<%= dom_id(card.friend, :friend_card) %>"
+  data-search="<%= [card.friend.name, card.friend.username].join(" ").downcase %>"
+  data-riding="<%= card.week_count.positive? %>">
+  <header class="friends__card-head">
+    <span class="friends__avatar t-headline-sm" aria-hidden="true"><%= calendar_initials(card.friend) %></span>
+    <div class="friends__id">
+      <h2 class="t-title-md c-primary"><%= card.friend.name %></h2>
+      <p class="t-body-sm c-tertiary">@<%= card.friend.username %></p>
+    </div>
+    <%= link_to friend_calendar_path(card.friend.username), class: "btn btn--sm btn--secondary c-primary" do %>
+      <span class="material-symbols-outlined ms-18">calendar_month</span>
+      <span>View calendar</span>
+    <% end %>
+  </header>
+
+  <% if card.last_ride %>
+    <div class="friends__ride">
+      <div class="friends__ride-label">
+        <span class="t-label-sm c-tertiary">
+          <span class="status-dot"></span>
+          Last completed route
+        </span>
+        <span class="t-code-sm c-secondary"><%= ride_date_label(card.ride_date) %></span>
+      </div>
+      <h3 class="friends__ride-title t-headline-sm c-primary"><%= link_to card.last_ride.title, route_path(card.last_ride) %></h3>
+      <div class="friends__badges">
+        <span class="badge c-primary t-label-md"><%= card.last_ride.tier.presence || "Unrated" %></span>
+        <span class="badge c-secondary t-label-md"><%= sport_type_label(card.last_ride) %></span>
+      </div>
+
+      <%= render "calendars/mobile/card_metrics_n_thumb", route: card.last_ride, class_prefix: "friends" %>
+
+    </div>
+
+    <footer class="friends__card-foot">
+      <span class="t-body-sm c-tertiary">
+        <span class="material-symbols-outlined ms-16" aria-hidden="true">route</span>
+        <%= card.week_count %> routes this week
+      </span>
+      <%= link_to route_path(
+          card.last_ride,
+          username: card.friend.username
+        ),
+          class: "friends__more t-label-sm c-primary" do %>
+        View route details
+        <span class="material-symbols-outlined ms-14" aria-hidden="true">arrow_forward</span>
+      <% end %>
+    </footer>
+  <% else %>
+    <%# Empty variant — new athlete without any completed ride. %>
+    <div class="friends__ride friends__ride--empty">
+      <div class="friends__ride-label">
+        <span class="t-label-sm c-tertiary">
+          <span class="status-dot status-dot--muted"></span>
+          No routes yet
+        </span>
+        <span class="t-code-sm c-tertiary">&mdash;</span>
+      </div>
+      <h3 class="friends__ride-title t-headline-sm c-tertiary">No activities</h3>
+      <div class="friends__badges">
+        <span class="badge c-tertiary t-label-md">New athlete</span>
+      </div>
+      <div class="friends__empty-panel">
+        <span class="friends__empty-icon c-tertiary" aria-hidden="true">
+          <span class="material-symbols-outlined">directions_bike</span>
+        </span>
+        <p class="t-title-md c-primary">No completed rides yet</p>
+        <p class="t-body-sm c-secondary">
+          When <%= card.friend.first_name %> completes a ride, its route
+          telemetry and track preview will appear here.
+        </p>
+      </div>
+    </div>
+
+    <footer class="friends__card-foot">
+      <span class="t-body-sm c-tertiary">
+        <span class="material-symbols-outlined ms-16" aria-hidden="true">route</span>
+        <%= card.week_count %> routes this week
+      </span>
+    </footer>
+  <% end %>
+</article>

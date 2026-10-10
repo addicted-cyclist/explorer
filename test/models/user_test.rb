@@ -43,4 +43,128 @@ class UserTest < ActiveSupport::TestCase
 
     assert_not_equal stale_token, @user.public_token
   end
+
+  # ---- Phase 11 — find-friends relationship states --------------------------
+
+  test "friend_edges_for maps every candidate to their relationship edge" do
+    friend = User.create!(valid_user_attributes(email: "friend@example.com"))
+    outgoing = User.create!(valid_user_attributes(email: "outgoing@example.com"))
+    requester = User.create!(valid_user_attributes(email: "requester@example.com"))
+    stranger = User.create!(valid_user_attributes(email: "stranger@example.com"))
+
+    Friendship.connect!(@user, friend)
+    Friendship.send_request!(@user, outgoing)
+    Friendship.send_request!(requester, @user)
+
+    edges = @user.friend_edges_for([ friend, outgoing, requester, stranger ])
+
+    assert_predicate edges[friend.id], :accepted?
+    assert_equal @user.id, edges[outgoing.id].user_id
+    assert_predicate edges[outgoing.id], :pending?
+    assert_equal requester.id, edges[requester.id].user_id
+    assert_predicate edges[requester.id], :pending?
+    assert_nil edges[stranger.id]
+  end
+
+  test "friendship_state_with reports the four relationship states" do
+    friend = User.create!(valid_user_attributes(email: "friend@example.com"))
+    outgoing = User.create!(valid_user_attributes(email: "outgoing@example.com"))
+    requester = User.create!(valid_user_attributes(email: "requester@example.com"))
+    stranger = User.create!(valid_user_attributes(email: "stranger@example.com"))
+
+    Friendship.connect!(@user, friend)
+    Friendship.send_request!(@user, outgoing)
+    Friendship.send_request!(requester, @user)
+
+    assert_equal :friends, @user.friendship_state_with(friend)
+    assert_equal :outgoing_pending, @user.friendship_state_with(outgoing)
+    assert_equal :incoming_pending, @user.friendship_state_with(requester)
+    assert_equal :none, @user.friendship_state_with(stranger)
+  end
+
+  test "search_candidates matches first, last, username and full name but never me" do
+    alice = User.create!(valid_user_attributes(email: "alice@example.com",
+                                               first_name: "Alice", last_name: "Wonder",
+                                               username: "alice_wanders"))
+    User.create!(valid_user_attributes(email: "bob@example.com",
+                                       first_name: "Bob", last_name: "Builder",
+                                       username: "builderbob"))
+
+    assert_equal [ alice.id ], User.search_candidates(@user, "alice", limit: 10).map(&:id)
+    assert_equal [ alice.id ], User.search_candidates(@user, "WON", limit: 10).map(&:id)
+    assert_equal [ alice.id ], User.search_candidates(@user, "ders", limit: 10).map(&:id)
+    assert_equal [ alice.id ], User.search_candidates(@user, "alice wonder", limit: 10).map(&:id)
+    # The searching account itself never surfaces, whatever the term hits.
+    assert_empty User.search_candidates(@user, "riley", limit: 10)
+  end
+
+  test "search_candidates respects the limit" do
+    3.times do |i|
+      User.create!(valid_user_attributes(email: "crowd#{i}@example.com",
+                                         first_name: "Crowd", last_name: "Member",
+                                         username: "crowdmember#{i}"))
+    end
+
+    assert_equal 2, User.search_candidates(@user, "crowd", limit: 2).size
+  end
+
+  test "search_candidates treats LIKE wildcards as literal text" do
+    User.create!(valid_user_attributes(email: "zoe@example.com",
+                                       first_name: "Zoe", last_name: "Zoom",
+                                       username: "zo_zoom"))
+
+    # % and _ are escaped before they reach ILIKE, so they can only match
+    # themselves — "%%%" must never widen into "every account".
+    assert_empty User.search_candidates(@user, "%%%", limit: 10)
+    assert_empty User.search_candidates(@user, "z%m", limit: 10)
+    assert_empty User.search_candidates(@user, "z_m", limit: 10)
+    # A literal underscore in the term still finds usernames that contain one.
+    assert_equal [ "zo_zoom" ], User.search_candidates(@user, "zo_zo", limit: 10).map(&:username)
+  end
+
+  # ---- Phase 11 — friends page card data ------------------------------------
+
+  test "friend_cards_for prefers completed entries and falls back to completed routes" do
+    friend = User.create!(valid_user_attributes(email: "friend@example.com"))
+    inactive = User.create!(valid_user_attributes(email: "inactive@example.com"))
+
+    old_route = friend.routes.create!(title: "Old Loop", distance: 21.4,
+                                      elevation_gain: 412.0, duration: 3600,
+                                      completed: true)
+    friend.calendar_entries.create!(route: old_route, scheduled_on: 8.days.ago,
+                                    start_time: Time.current.change(hour: 8),
+                                    end_time: Time.current.change(hour: 9),
+                                    completed: true)
+    friend.calendar_entries.create!(route: friend.routes.create!(title: "Recent Loop"),
+                                    scheduled_on: Date.current,
+                                    start_time: Time.current.change(hour: 7),
+                                    end_time: Time.current.change(hour: 9),
+                                    completed: true)
+    inactive.routes.create!(title: "Library Ride", completed: true)
+    library_ride = inactive.routes.last
+
+    cards = User.friend_cards_for([ friend, inactive ], Date.current.all_week)
+
+    card = cards.fetch(friend.id)
+    assert_equal "Recent Loop", card.last_ride.title
+    assert_equal Date.current, card.ride_date
+    assert_equal 1, card.week_count
+
+    empty_card = cards.fetch(inactive.id)
+    assert_equal "Library Ride", empty_card.last_ride.title
+    # No scheduled date: the label falls back to the completion touch.
+    assert_equal library_ride.updated_at.to_date, empty_card.ride_date
+    assert_equal 0, empty_card.week_count
+  end
+
+  test "sport_types_by_id collects distinct sports per user" do
+    friend = User.create!(valid_user_attributes(email: "friend@example.com"))
+    friend.routes.create!(title: "Road A", sport_type: "Road", completed: true)
+    friend.routes.create!(title: "Road B", sport_type: "Road")
+    friend.routes.create!(title: "Gravel A", sport_type: "Gravel")
+
+    map = User.sport_types_by_id([ friend.id ])
+
+    assert_equal [ "Gravel", "Road" ], map.fetch(friend.id).sort
+  end
 end

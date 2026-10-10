@@ -23,7 +23,12 @@
       <% end %>
     <% elsif @is_friend_view %>
       <h3 class="wc-route-card__title t-title-md">
-        <%= link_to route.title, route_path(route), class: "c-primary" %>
+        <%= link_to route.title, route_path(
+          route,
+          username: params[:username],
+          week: params[:week]
+        ),
+          class: "c-primary" %>
       </h3>
       <%= link_to download_route_path(route), class: "wc-gpx-btn c-secondary", title: "Download GPX", data: { turbo: false } do %>
         <span class="material-symbols-outlined ms-16" aria-hidden="true">download</span>

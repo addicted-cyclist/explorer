@@ -2,35 +2,35 @@
     and view-independent — cached per route, shared across my / friend /
     public viewers and every week render. %>
 <% cache(mob_card_metrics_thumb_cache_key(route)) do %>
-  <%= link_to route_path(route), class: "mob-wc__entry-metrics-n-thumb" do %>
-    <dl class="mob-wc__entry-metrics t-label-sm">
-      <div class="mob-wc__metric">
+  <%= link_to route_path(route), class: "#{class_prefix}__entry-metrics-n-thumb" do %>
+    <dl class="<%= class_prefix %>__entry-metrics t-label-sm">
+      <div class="<%= class_prefix %>__metric">
         <dt class="t-uppercase c-secondary">Dist</dt>
-        <dd class="mob-wc__metric-value t-body-lg">
-          <%= format_distance(route.distance) %> <span class="mob-wc__unit c-secondary">km</span>
+        <dd class="<%= class_prefix %>__metric-value t-body-lg">
+          <%= format_distance(route.distance) %> <span class="<%= class_prefix %>__unit c-secondary">km</span>
         </dd>
       </div>
-      <div class="mob-wc__metric">
+      <div class="<%= class_prefix %>__metric">
         <dt class="t-uppercase c-secondary">Elev</dt>
-        <dd class="mob-wc__metric-value t-body-lg">
-          <%= format_elevation(route.elevation_gain) %> <span class="mob-wc__unit c-secondary">m</span>
+        <dd class="<%= class_prefix %>__metric-value t-body-lg">
+          <%= format_elevation(route.elevation_gain) %> <span class="<%= class_prefix %>__unit c-secondary">m</span>
         </dd>
       </div>
-      <div class="mob-wc__metric">
+      <div class="<%= class_prefix %>__metric">
         <dt class="t-uppercase c-secondary">Time</dt>
-        <dd class="mob-wc__metric-value t-body-lg"><%= format_duration(route.duration) %></dd>
+        <dd class="<%= class_prefix %>__metric-value t-body-lg"><%= format_duration(route.duration) %></dd>
       </div>
     </dl>
 
     <% if route.track_svg.present? %>
-      <div class="mob-wc__route-thumb" aria-hidden="true">
-        <svg class="mob-wc__route-track" viewBox="<%= Route::TRACK_SVG_VIEWBOX %>"
+      <div class="<%= class_prefix %>__route-thumb" aria-hidden="true">
+        <svg class="<%= class_prefix %>__route-track" viewBox="<%= Route::TRACK_SVG_VIEWBOX %>"
               preserveAspectRatio="xMidYMid meet" focusable="false">
           <path d="<%= route.track_svg %>"></path>
         </svg>
       </div>
     <% else %>
-      <div class="mob-wc__route-thumb mob-wc__route-thumb--empty c-tertiary" aria-hidden="true">
+      <div class="<%= class_prefix %>__route-thumb <%= class_prefix %>__route-thumb--empty c-tertiary" aria-hidden="true">
         <span class="material-symbols-outlined" aria-hidden="true">route</span>
       </div>
     <% end %>

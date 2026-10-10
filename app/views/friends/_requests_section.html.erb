@@ -1,0 +1,16 @@
+<%# Phase 11 — pending incoming friend requests. Rendered from the friends
+    page and from the accept/decline Turbo Streams; renders nothing once the
+    last request is resolved, which removes the section from the page. %>
+<% if requests.any? %>
+  <section class="friends__requests" id="pending-requests" aria-label="Pending friend requests">
+    <header class="friends__requests-head">
+      <h2 class="t-headline-sm c-primary">Pending Requests</h2>
+      <span class="friends__requests-count t-label-md"><%= requests.size %></span>
+    </header>
+    <div class="friends__requests-grid">
+      <% requests.each do |request| %>
+        <%= render "friends/request_row", request: request, sports: sports_by_user[request.user_id] %>
+      <% end %>
+    </div>
+  </section>
+<% end %>
