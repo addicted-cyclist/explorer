@@ -252,6 +252,10 @@
   white-space: nowrap;
 }
 
+.friends__ride-title a:hover {
+  color: var(--color-accent-route);
+}
+
 .friends__badges {
   display: flex;
   flex-wrap: wrap;

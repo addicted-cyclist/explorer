@@ -28,7 +28,7 @@
         </span>
         <span class="t-code-sm c-secondary"><%= ride_date_label(card.ride_date) %></span>
       </div>
-      <h3 class="friends__ride-title t-headline-sm c-primary"><%= card.last_ride.title %></h3>
+      <h3 class="friends__ride-title t-headline-sm c-primary"><%= link_to card.last_ride.title, route_path(card.last_ride) %></h3>
       <div class="friends__badges">
         <span class="badge c-primary t-label-md"><%= card.last_ride.tier.presence || "Unrated" %></span>
         <span class="badge c-secondary t-label-md"><%= sport_type_label(card.last_ride) %></span>
