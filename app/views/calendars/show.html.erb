@@ -42,7 +42,8 @@
       </p>
     </div>
     <div class="wc__profile">
-      <span class="wc__avatar t-label-lg" aria-hidden="true"><%= calendar_initials(calendar_view_user) %></span>
+      <%# Avatar pip: the owner's photo when they have one, else initials %>
+    <span class="wc__avatar t-label-lg" aria-hidden="true"><%= user_avatar(calendar_view_user) %></span>
       <div class="wc__profile-id">
         <p class="t-title-md"><%= calendar_view_user.name %></p>
         <p class="t-body-sm c-tertiary">@<%= calendar_view_user.username %></p>

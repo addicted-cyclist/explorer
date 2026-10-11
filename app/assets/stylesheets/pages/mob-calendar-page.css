@@ -48,8 +48,15 @@
     height: 3rem;
     flex-shrink: 0;
     border-radius: var(--radius-full);
-    background: var(--color-surface-container-high);
     font-weight: 600;
+    /* Transparent fill — the initials variant paints its own pip (see
+       .account-avatar__initials); a photo never sits on a background */
+    overflow: hidden;
+  }
+
+  .mob-wc__avatar .account-avatar__initials {
+    background: var(--color-surface-container-high);
+    color: var(--color-primary);
   }
 
   /* Phase 9 — native-share icon on my public calendar's mobile header */

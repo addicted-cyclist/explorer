@@ -13,6 +13,15 @@ class User < ApplicationRecord
   # outgoing ones as :user_id (the Friendship default foreign key).
   has_many :incoming_requests, -> { pending }, class_name: "Friendship", foreign_key: :friend_id
   has_many :outgoing_requests, -> { pending }, class_name: "Friendship", dependent: :destroy
+  # Phase 12 — friendship rows where I am the :friend_id target (accepted
+  # edges opened by the other side + pending requests sent to me). Without
+  # cascading these too, the friend_id FK constraint blocks account deletion.
+  has_many :incoming_friendships, class_name: "Friendship", foreign_key: :friend_id,
+           dependent: :destroy
+
+  # Phase 12 — profile avatar (Active Storage). No variants: image_processing
+  # is not in the Gemfile, so views crop with object-fit: cover instead.
+  has_one_attached :avatar
 
   validates :first_name, :last_name, presence: true, length: { maximum: 50 }
   validates :username, presence: true,
@@ -22,6 +31,12 @@ class User < ApplicationRecord
                          with: /\A[a-zA-Z0-9_]+\z/,
                          message: "can only contain letters, numbers and underscores"
                        }
+
+  # Phase 12 — avatar rules shown on the account page: JPG/PNG/WebP, ≤ 5 MB.
+  AVATAR_CONTENT_TYPES = %w[image/jpeg image/png image/webp].freeze
+  AVATAR_MAX_BYTES = 5.megabytes
+
+  validate :validate_avatar_format, if: -> { avatar.attached? }
 
   # Generate or clear public_token based on calendar_public toggle
   before_save :ensure_public_token
@@ -191,5 +206,18 @@ class User < ApplicationRecord
     elsif !calendar_public?
       self.public_token = nil
     end
+  end
+
+  # Account-page avatar guard: content type and size, checked on attach
+  # (and on every save while an avatar is attached).
+  def validate_avatar_format
+    return unless avatar.attached?
+
+    unless avatar.blob.content_type.in?(AVATAR_CONTENT_TYPES)
+      errors.add(:avatar, "must be a JPG, PNG or WebP image")
+    end
+    return if avatar.blob.byte_size <= AVATAR_MAX_BYTES
+
+    errors.add(:avatar, "is too large (maximum is 5 MB)")
   end
 end

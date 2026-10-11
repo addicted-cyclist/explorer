@@ -62,9 +62,7 @@
               <button type="button" class="account-chip" data-dropdown-target="trigger"
                       data-action="dropdown#toggle" aria-haspopup="menu"
                       aria-expanded="false" aria-label="Account menu">
-                <span class="account-chip__avatar">
-                  <span class="material-symbols-outlined ms-18">person</span>
-                </span>
+                <span class="account-chip__avatar"><%= user_avatar(current_user) %></span>
                 <span class="material-symbols-outlined ms-18 account-chip__chevron c-secondary">expand_more</span>
               </button>
 

@@ -72,8 +72,9 @@
   width: 2.5rem;
   height: 2.5rem;
   border-radius: var(--radius-full);
-  background: var(--color-primary);
-  color: var(--color-on-primary);
+  /* Transparent fill — the initials variant paints its own pip (see
+     .account-avatar__initials); a photo never sits on a dark background */
+  overflow: hidden;
 }
 
 .wc__profile-id p {

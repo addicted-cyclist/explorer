@@ -1,82 +1,338 @@
 <% content_for :title, "Account settings" %>
 
 <div class="account">
-  <section class="library-hero">
-    <div>
-      <h1 class="t-headline-lg">My account</h1>
-      <p class="t-body-lg c-secondary library-hero__lede">
-        Profile, privacy and sharing preferences. Full profile and password
-        editing arrive with the next account update.
-      </p>
+  <%# Desktop-only sidebar (design-refs/stitch_explorer_v0.9 my_account):
+      a mini profile card plus anchor nav over the sections. Below 1024px the
+      whole aside is hidden — a single scroll with section headers reads
+      better on mobile. %>
+  <aside class="account__sidebar">
+    <div class="account__user-card">
+      <span class="account-avatar account-avatar--md"><%= user_avatar(current_user) %></span>
+      <div class="account__user-meta">
+        <p class="t-title-md c-primary"><%= current_user.name %></p>
+        <p class="t-body-sm c-secondary">@<%= current_user.username %></p>
+      </div>
     </div>
-  </section>
 
-  <%# Read-only profile summary (Phase 9 ships the page; the editors are
-      Phase 11 scope per the technical notes). %>
-  <section class="account__card" aria-labelledby="account-profile">
-    <h2 class="t-title-md" id="account-profile">Profile</h2>
-    <dl class="account__profile">
-      <div class="account__profile-row">
-        <dt class="t-label-sm t-uppercase c-tertiary">Name</dt>
-        <dd class="t-body-md"><%= current_user.name.presence || "—" %></dd>
+    <nav class="account__nav" aria-label="Account settings sections">
+      <%= link_to "#account-profile", class: "account__nav-link" do %>
+        <span class="material-symbols-outlined ms-16 c-tertiary" aria-hidden="true">person</span>
+        <span>Profile</span>
+      <% end %>
+      <%= link_to "#account-sharing", class: "account__nav-link" do %>
+        <span class="material-symbols-outlined ms-16 c-tertiary" aria-hidden="true">calendar_month</span>
+        <span>Sharing &amp; Privacy</span>
+      <% end %>
+      <%= link_to "#account-security", class: "account__nav-link" do %>
+        <span class="material-symbols-outlined ms-16 c-tertiary" aria-hidden="true">lock</span>
+        <span>Security</span>
+      <% end %>
+      <%= link_to "#account-connected", class: "account__nav-link" do %>
+        <span class="material-symbols-outlined ms-16 c-tertiary" aria-hidden="true">sync_alt</span>
+        <span>Connected Accounts</span>
+      <% end %>
+      <%= link_to "#account-danger", class: "account__nav-link" do %>
+        <span class="material-symbols-outlined ms-16 c-accent" aria-hidden="true">warning</span>
+        <span>Danger Zone</span>
+      <% end %>
+    </nav>
+  </aside>
+
+  <div class="account__content">
+    <header class="account__head">
+      <h1 class="t-headline-lg c-primary">My account</h1>
+      <p class="t-body-lg c-secondary">Profile, privacy and sharing preferences</p>
+    </header>
+
+    <%# Section 1 — profile identity + avatar %>
+    <section class="account__card" id="account-profile" aria-labelledby="account-profile-title">
+      <div class="account__section-head">
+        <h2 class="t-headline-sm c-primary" id="account-profile-title">Profile &amp; Personal Info</h2>
       </div>
-      <div class="account__profile-row">
-        <dt class="t-label-sm t-uppercase c-tertiary">Username</dt>
-        <dd class="t-body-md">@<%= current_user.username %></dd>
-      </div>
-      <div class="account__profile-row">
-        <dt class="t-label-sm t-uppercase c-tertiary">Email</dt>
-        <dd class="t-body-md"><%= current_user.email %></dd>
-      </div>
-    </dl>
-  </section>
 
-  <%# The public-calendar share card — the only on/off toggle for the share
-      (Phase 9). The checkbox form auto-submits on change; enabling generates
-      the public_token, disabling clears it so old links die immediately. %>
-  <section class="account__card" aria-labelledby="account-sharing">
-    <h2 class="t-title-md" id="account-sharing">Public calendar</h2>
-    <p class="t-body-md c-secondary">
-      When on, anyone with the link can view a read-only copy of the week you
-      are sharing — no account needed. Route details and your route library
-      stay private.
-    </p>
-
-    <%= form_with model: current_user, url: account_path, method: :patch,
-          class: "account__toggle-form", data: { controller: "auto-submit" } do |form| %>
-      <label class="account__switch">
-        <%= form.check_box :calendar_public,
-              class: "account__switch-input",
-              checked: current_user.calendar_public?,
-              aria: { label: "Make my calendar public" } %>
-        <span class="account__switch-track" aria-hidden="true"><span class="account__switch-thumb"></span></span>
-        <span class="t-body-md account__switch-text c-primary">
-          <%= current_user.calendar_public? ? "Public — visible via share link" : "Private — only friends can view" %>
-        </span>
-      </label>
-      <%# No-JS fallback: auto-submit needs JS, so offer an explicit Save. %>
-      <noscript><button type="submit" class="btn btn--sm btn--secondary c-primary">Save</button></noscript>
-    <% end %>
-
-    <% if current_user.calendar_public? %>
-      <div class="account__share">
-        <p class="t-label-sm t-uppercase c-tertiary">Share link</p>
-        <div class="account__share-row">
-          <input class="input t-body-md" type="text" readonly autocomplete="off"
-                 value="<%= public_calendar_url(current_user.public_token) %>"
-                 aria-label="Public calendar share link">
-          <button type="button" class="btn btn--primary"
-                  data-controller="share-button"
-                  data-share-button-url-value="<%= public_calendar_url(current_user.public_token) %>"
-                  data-action="share-button#copy">
-            <span class="material-symbols-outlined ms-16" aria-hidden="true">content_copy</span>
-            <span data-share-button-target="label">Copy</span>
-          </button>
+      <%# Avatar well: uploads post as their own mini-form (auto-submit on
+          choose); removal is a plain destructive button. %>
+      <div class="account__avatar-block">
+        <span class="account-avatar account-avatar--lg"><%= user_avatar(current_user) %></span>
+        <div class="account__avatar-body">
+          <div class="account__avatar-buttons">
+            <%= form_with model: current_user, url: account_path, method: :patch,
+                  class: "account__avatar-form", data: { controller: "auto-submit" } do |form| %>
+              <%= form.label :avatar, class: "btn btn--primary btn--sm" do %>
+                <span class="material-symbols-outlined ms-16" aria-hidden="true">upload</span>
+                Change avatar
+                <%= form.file_field :avatar, class: "account__file-input",
+                      accept: "image/jpeg,image/png,image/webp",
+                      "aria-label": "Upload avatar image (JPG, PNG or WebP, max 5 MB)" %>
+              <% end %>
+            <% end %>
+            <% if user_avatar_attached?(current_user) %>
+              <%= button_to avatar_account_path, method: :delete,
+                    class: "btn btn--sm btn--secondary", form: { class: "account__avatar-form" } do %>
+                <span class="material-symbols-outlined ms-16" aria-hidden="true">delete</span>
+                Remove
+              <% end %>
+            <% end %>
+          </div>
+          <p class="t-body-sm c-tertiary account__avatar-hint">
+            JPG, PNG or WebP — square recommended, maximum 5&nbsp;MB.
+          </p>
         </div>
-        <p class="t-body-sm c-tertiary">
-          Turning the calendar back to private invalidates this link.
+      </div>
+
+      <%= form_with model: current_user, url: account_path, method: :patch, class: "account__form" do |form| %>
+        <%= render "devise/shared/error_messages", resource: current_user if @failed_section == :profile %>
+        <div class="account__grid">
+          <div class="account__field">
+            <%= form.label :first_name, "First name", class: "field-label c-secondary" %>
+            <%= form.text_field :first_name, autocomplete: "given-name", class: "input" %>
+          </div>
+          <div class="account__field">
+            <%= form.label :last_name, "Last name", class: "field-label c-secondary" %>
+            <%= form.text_field :last_name, autocomplete: "family-name", class: "input" %>
+          </div>
+          <div class="account__field">
+            <%= form.label :username, class: "field-label c-secondary" %>
+            <div class="account__input-wrap">
+              <span class="account__input-stamp" aria-hidden="true">@</span>
+              <%= form.text_field :username, autocomplete: "username",
+                    class: "input account__input--stamped" %>
+            </div>
+            <p class="t-body-sm c-tertiary account__field-hint">Letters, numbers and underscores.</p>
+          </div>
+          <div class="account__field">
+            <%= form.label :email, "Email", class: "field-label c-secondary" %>
+            <div class="account__input-wrap">
+              <%= form.email_field :email, autocomplete: "email",
+                    class: "input account__input--badged" %>
+            </div>
+          </div>
+        </div>
+        <div class="account__form-foot">
+          <%= form.submit "Save Profile", class: "btn btn--primary" %>
+        </div>
+      <% end %>
+    </section>
+
+    <%# Section 2 — the public-calendar share card (Phase 9, unchanged):
+        the checkbox form auto-submits on change; enabling generates the
+        public_token, disabling clears it so old links die immediately. %>
+    <section class="account__card" id="account-sharing" aria-labelledby="account-sharing-title">
+      <div class="account__section-head">
+        <h2 class="t-headline-sm c-primary" id="account-sharing-title">Sharing &amp; Privacy</h2>
+        <p class="t-body-md c-secondary">
+          When on, anyone with the link can view a read-only copy of the week you
+          are sharing — no account needed. Route details and your route library
+          stay private.
         </p>
       </div>
+
+      <%= form_with model: current_user, url: account_path, method: :patch,
+            class: "account__toggle-form", data: { controller: "auto-submit" } do |form| %>
+        <label class="account__switch">
+          <%= form.check_box :calendar_public,
+                class: "account__switch-input",
+                checked: current_user.calendar_public?,
+                aria: { label: "Make my calendar public" } %>
+          <span class="account__switch-track" aria-hidden="true"><span class="account__switch-thumb"></span></span>
+          <span class="t-body-md account__switch-text c-primary">
+            <%= current_user.calendar_public? ? "Public — visible via share link" : "Private — only friends can view" %>
+          </span>
+        </label>
+        <%# No-JS fallback: auto-submit needs JS, so offer an explicit Save. %>
+        <noscript><button type="submit" class="btn btn--sm btn--secondary c-primary">Save</button></noscript>
+      <% end %>
+
+      <% if current_user.calendar_public? %>
+        <div class="account__share">
+          <p class="t-label-sm t-uppercase c-tertiary">Share link</p>
+          <div class="account__share-row">
+            <input class="input t-body-md" type="text" readonly autocomplete="off"
+                   value="<%= public_calendar_url(current_user.public_token) %>"
+                   aria-label="Public calendar share link">
+            <button type="button" class="btn btn--primary"
+                    data-controller="share-button"
+                    data-share-button-url-value="<%= public_calendar_url(current_user.public_token) %>"
+                    data-action="share-button#copy">
+              <span class="material-symbols-outlined ms-16" aria-hidden="true">content_copy</span>
+              <span data-share-button-target="label">Copy</span>
+            </button>
+          </div>
+          <p class="t-body-sm c-tertiary">
+            Turning the calendar back to private invalidates this link.
+          </p>
+        </div>
+      <% end %>
+    </section>
+
+    <%# Section 3 — password change (Devise validatable rules) %>
+    <section class="account__card" id="account-security" aria-labelledby="account-security-title">
+      <div class="account__section-head">
+        <h2 class="t-headline-sm c-primary" id="account-security-title">Security &amp; Password</h2>
+      </div>
+
+      <%= form_with model: current_user, url: password_account_path, method: :patch, class: "account__form" do |form| %>
+        <%= render "devise/shared/error_messages", resource: current_user if @failed_section == :password %>
+        <div class="account__grid account__grid--password">
+          <div class="account__field">
+            <%= form.label :current_password, "Old password", class: "field-label c-secondary" %>
+            <%= form.password_field :current_password, autocomplete: "current-password",
+                  class: "input", required: true %>
+            <p class="t-body-sm c-tertiary account__field-hint">Required to authorise changes.</p>
+          </div>
+          <div class="account__field">
+            <%= form.label :password, "New password", class: "field-label c-secondary" %>
+            <%= form.password_field :password, autocomplete: "new-password",
+                  class: "input", required: true %>
+            <p class="t-body-sm c-tertiary account__field-hint">
+              <%= @minimum_password_length %> characters minimum.
+            </p>
+          </div>
+          <div class="account__field">
+            <%= form.label :password_confirmation, "Confirm new password", class: "field-label c-secondary" %>
+            <%= form.password_field :password_confirmation, autocomplete: "new-password",
+                  class: "input", required: true %>
+          </div>
+        </div>
+        <div class="account__form-foot">
+          <%= form.submit "Save Password", class: "btn btn--primary" %>
+        </div>
+      <% end %>
+    </section>
+
+    <%# Section 4 — integrations. Google Drive state is real (google_uid is
+        set by the OAuth connect flow); Garmin/Strava are upcoming phases and
+        render as honest "coming soon" placeholders, not fake connections. %>
+    <section class="account__card" id="account-connected" aria-labelledby="account-connected-title">
+      <div class="account__section-head">
+        <h2 class="t-headline-sm c-primary" id="account-connected-title">Connected Accounts</h2>
+      </div>
+
+      <div class="account__connected">
+        <div class="account__connected-item">
+          <div class="account__connected-main">
+            <span class="account__connected-icon"><span class="material-symbols-outlined ms-18" aria-hidden="true">cloud</span></span>
+            <div class="account__connected-meta">
+              <div class="account__connected-title">
+                <h3 class="t-title-md c-primary">Google Drive</h3>
+                <% if current_user.google_uid.present? %>
+                  <span class="account__pill account__pill--live">Connected</span>
+                <% else %>
+                  <span class="account__pill account__pill--muted">Not connected</span>
+                <% end %>
+              </div>
+              <p class="t-body-sm c-secondary">Import GPX files straight from your Drive.</p>
+            </div>
+          </div>
+          <div class="account__connected-actions">
+            <% if current_user.google_uid.present? %>
+              <%= link_to google_drive_files_path, class: "btn btn--sm btn--secondary" do %>
+                <span class="material-symbols-outlined ms-16" aria-hidden="true">folder_open</span>
+                View files
+              <% end %>
+              <button type="button" class="btn btn--sm btn--secondary" disabled
+                      title="Disconnect arrives in a later phase">Disconnect</button>
+            <% else %>
+              <%= link_to google_drive_connect_path, class: "btn btn--sm btn--primary" do %>
+                <span class="material-symbols-outlined ms-16" aria-hidden="true">link</span>
+                Connect account
+              <% end %>
+            <% end %>
+          </div>
+        </div>
+
+        <div class="account__connected-item">
+          <div class="account__connected-main">
+            <span class="account__connected-icon"><span class="material-symbols-outlined ms-18" aria-hidden="true">watch</span></span>
+            <div class="account__connected-meta">
+              <div class="account__connected-title">
+                <h3 class="t-title-md c-primary">Garmin Connect</h3>
+                <span class="account__pill account__pill--muted">Coming soon</span>
+              </div>
+              <p class="t-body-sm c-secondary">Sync activities from your Garmin device.</p>
+            </div>
+          </div>
+          <div class="account__connected-actions">
+            <button type="button" class="btn btn--sm btn--secondary" disabled
+                    title="Coming in a later phase">Connect account</button>
+          </div>
+        </div>
+
+        <div class="account__connected-item">
+          <div class="account__connected-main">
+            <span class="account__connected-icon"><span class="material-symbols-outlined ms-18" aria-hidden="true">directions_bike</span></span>
+            <div class="account__connected-meta">
+              <div class="account__connected-title">
+                <h3 class="t-title-md c-primary">Strava</h3>
+                <span class="account__pill account__pill--muted">Coming soon</span>
+              </div>
+              <p class="t-body-sm c-secondary">Pull rides from your Strava history.</p>
+            </div>
+          </div>
+          <div class="account__connected-actions">
+            <button type="button" class="btn btn--sm btn--secondary" disabled
+                    title="Coming in a later phase">Connect account</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <%# Section 5 — danger zone %>
+    <section class="account__card account__card--danger" id="account-danger" aria-labelledby="account-danger-title">
+      <div class="account__section-head">
+        <div class="account__danger-title">
+          <span class="material-symbols-outlined ms-18 c-accent" aria-hidden="true">error</span>
+          <h2 class="t-headline-sm c-primary" id="account-danger-title">Danger Zone</h2>
+        </div>
+      </div>
+
+      <div class="account__danger-row">
+        <div>
+          <h3 class="t-title-md c-primary">Delete Explorer Account</h3>
+          <p class="t-body-sm c-secondary">
+            Permanent deletion of your profile, your <%= pluralize(current_user.routes.count, "GPX route") %>,
+            calendar entries and all friendships. This action cannot be rolled
+            back or recovered.
+          </p>
+        </div>
+        <button type="button" class="btn btn--danger" data-modal-open="account-delete">
+          <span class="material-symbols-outlined ms-16" aria-hidden="true">delete_forever</span>
+          Delete account
+        </button>
+      </div>
+    </section>
+  </div>
+</div>
+
+<%# Delete confirmation dialog — reuses the shared modal machinery
+    (data-modal-open trigger, backdrop/Esc close) plus the delete-confirm
+    controller that arms the submit button only once DELETE is typed. %>
+<div class="modal" data-controller="modal delete-confirm" data-modal-id="account-delete" aria-hidden="true">
+  <div class="modal__backdrop" data-action="click->modal#close" aria-hidden="true"></div>
+  <div class="modal__card account__modal" role="dialog" aria-modal="true" aria-labelledby="account-delete-title">
+    <div class="account__modal-head">
+      <span class="account__modal-icon"><span class="material-symbols-outlined" aria-hidden="true">warning</span></span>
+      <div>
+        <h3 class="t-headline-sm c-primary" id="account-delete-title">Confirm Account Deletion</h3>
+        <p class="t-body-sm c-secondary">
+          Please type <span class="account__modal-code">DELETE</span> to confirm the
+          permanent removal of all route logs, calendar entries and account data
+          for <strong>@<%= current_user.username %></strong>.
+        </p>
+      </div>
+    </div>
+
+    <%= form_with url: account_path, method: :delete, class: "account__modal-form" do |form| %>
+      <%= form.text_field :confirmation, class: "input",
+            placeholder: "Type DELETE to continue", autocomplete: "off",
+            aria: { label: "Type DELETE to confirm account deletion" },
+            data: { delete_confirm_target: "input", action: "delete-confirm#check" } %>
+      <div class="account__modal-actions">
+        <button type="button" class="btn btn--secondary" data-action="modal#close">Cancel</button>
+        <button type="submit" class="btn btn--danger" data-delete-confirm-target="submit" disabled>
+          Permanently Delete
+        </button>
+      </div>
     <% end %>
-  </section>
+  </div>
 </div>

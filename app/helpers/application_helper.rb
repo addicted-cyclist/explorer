@@ -1,2 +1,22 @@
 module ApplicationHelper
+  # Phase 12 — profile avatar. Renders the uploaded image when the user has
+  # one (cropped by CSS `object-fit: cover`; no image_processing variants),
+  # otherwise the initials block used everywhere else in the app. The caller
+  # supplies the sized round wrapper (e.g. .account-avatar--lg or the header
+  # chip); this helper only fills it.
+  def user_avatar(user)
+    if user_avatar_attached?(user)
+      image_tag user.avatar, class: "account-avatar__img", alt: ""
+    else
+      tag.span calendar_initials(user), class: "account-avatar__initials", "aria-hidden": true
+    end
+  end
+
+  # True only for a persisted avatar attachment: a failed save leaves an
+  # unsaved in-memory attachment behind, whose blob has no signed_id yet —
+  # it must render (and behave) exactly like "no avatar".
+  def user_avatar_attached?(user)
+    attachment = user.avatar.attachment
+    attachment.present? && attachment.persisted?
+  end
 end

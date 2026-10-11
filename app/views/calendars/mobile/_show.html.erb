@@ -39,8 +39,9 @@
         <span class="material-symbols-outlined ms-20" aria-hidden="true">share</span>
       </button>
     <% end %>
+    <%# Avatar pip: the owner's photo when they have one, else initials %>
     <span class="mob-wc__avatar t-label-lg c-primary" aria-hidden="true">
-      <%= calendar_initials(calendar_view_user) %>
+      <%= user_avatar(calendar_view_user) %>
     </span>
   </header>
 
