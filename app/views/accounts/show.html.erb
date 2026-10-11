@@ -233,10 +233,11 @@
               <button type="button" class="btn btn--sm btn--secondary" disabled
                       title="Disconnect arrives in a later phase">Disconnect</button>
             <% else %>
-              <%= link_to google_drive_connect_path, class: "btn btn--sm btn--primary" do %>
+              <button type="button" class="btn btn--sm btn--secondary" disabled
+                    title="Coming in a later phase">
                 <span class="material-symbols-outlined ms-16" aria-hidden="true">link</span>
                 Connect account
-              <% end %>
+              </button>
             <% end %>
           </div>
         </div>
