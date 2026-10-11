@@ -204,8 +204,8 @@
   width: 3rem;
   height: 3rem;
   border-radius: var(--radius-full);
-  background: var(--color-primary);
   color: var(--color-on-primary);
+  overflow: hidden;
 }
 
 .friends__avatar--sm {

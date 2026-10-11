@@ -8,7 +8,7 @@
   data-search="<%= [card.friend.name, card.friend.username].join(" ").downcase %>"
   data-riding="<%= card.week_count.positive? %>">
   <header class="friends__card-head">
-    <span class="friends__avatar t-headline-sm" aria-hidden="true"><%= calendar_initials(card.friend) %></span>
+    <span class="friends__avatar t-headline-sm" aria-hidden="true"><%= user_avatar(card.friend) %></span>
     <div class="friends__id">
       <h2 class="t-title-md c-primary"><%= card.friend.name %></h2>
       <p class="t-body-sm c-tertiary">@<%= card.friend.username %></p>
