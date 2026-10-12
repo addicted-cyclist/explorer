@@ -77,8 +77,9 @@ jobs:
   deploy:
     # Dokploy deploy — only after every CI check passed, and only on main.
     # Triggers the dokploy panel (rush.expl.pro) to rebuild and redeploy the
-    # compose service. Secrets: DOKPLOY_HOST (e.g. https://rush.expl.pro),
-    # DOKPLOY_API_KEY (Settings → Profile → API/CLI), DOKPLOY_APP_ID.
+    # COMPOSE service. Secrets: DOKPLOY_HOST (e.g. https://rush.expl.pro),
+    # DOKPLOY_API_KEY (Settings → Profile → API Tokens), DOKPLOY_COMPOSE_ID
+    # (Id shown on the compose service page).
     needs: [ lint, test, scan_ruby ]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -87,8 +88,8 @@ jobs:
       - name: Trigger Dokploy deployment
         run: |
           curl --fail-with-body --silent --show-error \
-            -X POST "${{ secrets.DOKPLOY_HOST }}/api/application.deploy" \
+            -X POST "${{ secrets.DOKPLOY_HOST }}/api/compose.deploy" \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
-            -d "{\"applicationId\": \"${{ secrets.DOKPLOY_APP_ID }}\"}"
+            -d "{\"composeId\": \"${{ secrets.DOKPLOY_COMPOSE_ID }}\"}"
 
