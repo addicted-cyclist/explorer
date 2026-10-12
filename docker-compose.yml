@@ -1,9 +1,10 @@
 # Dokploy "Docker Compose" service definition for the first production deploy.
 #
-# App + Postgres + Redis share one internal docker network. Nothing publishes
-# ports: the databases are reachable only inside the network, and the app is
-# reached by Traefik (dokploy binds the expl.pro / www.expl.pro domains to the
-# `app` service on port 3000). Environment variables are injected by dokploy
+# App + Postgres + Redis: postgres/redis share only the private `explorer`
+# network (unreachable from outside). The `app` service is ALSO attached to
+# dokploy's shared `dokploy-network` overlay (must exist as external network —
+# the dokploy installer creates it) so Traefik can route expl.pro /
+# www.expl.pro to `app:3000`. Environment variables are injected by dokploy
 # from the service's Environment tab (see .env.example for the full list).
 services:
   app:
@@ -27,6 +28,7 @@ services:
       - app_storage:/rails/storage
     networks:
       - explorer
+      - dokploy-network
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:3000/up" ]
       interval: 30s
