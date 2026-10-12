@@ -167,4 +167,31 @@ class UserTest < ActiveSupport::TestCase
 
     assert_equal [ "Gravel", "Road" ], map.fetch(friend.id).sort
   end
+
+  # ---- Phase 12 — profile avatar ---------------------------------------------
+
+  test "avatar accepts a JPG, PNG or WebP image up to 5 MB" do
+    @user.avatar.attach(io: StringIO.new("png"), filename: "avatar.png", content_type: "image/png")
+
+    assert_predicate @user, :valid?
+    assert_predicate @user.avatar, :attached?
+  end
+
+  test "avatar rejects unsupported content types" do
+    # identify: false keeps the claimed content type (a real upload would be
+    # re-sniffed from the bytes by ActiveStorage before validation runs).
+    @user.avatar.attach(io: StringIO.new("txt"), filename: "notes.txt",
+                        content_type: "text/plain", identify: false)
+
+    assert_not_predicate @user, :valid?
+    assert_includes @user.errors[:avatar], "must be a JPG, PNG or WebP image"
+  end
+
+  test "avatar rejects files larger than 5 MB" do
+    @user.avatar.attach(io: StringIO.new("x" * (5.megabytes + 1)),
+                        filename: "big.png", content_type: "image/png", identify: false)
+
+    assert_not_predicate @user, :valid?
+    assert_includes @user.errors[:avatar], "is too large (maximum is 5 MB)"
+  end
 end

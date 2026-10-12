@@ -1,0 +1,618 @@
+/* ------------------------------------------------------------------ */
+/* Account settings page (Phase 12; Phase 9 shipped the share card)     */
+/* Ref: design-refs/stitch_explorer_v0.9/stitch_explorer/my_account     */
+/* ------------------------------------------------------------------ */
+
+.account {
+  display: flex;
+  flex-direction: column;
+}
+
+.account__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  min-width: 0;
+}
+
+/* Section cards (moved from layout.css with the Phase 9 page) */
+.account__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-lg);
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  /* Anchor targets for the sidebar nav; keep clears of the fixed header */
+  scroll-margin-top: calc(var(--nav-height) + var(--space-md));
+}
+
+.account__section-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  padding-bottom: var(--space-sm);
+  margin-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.account__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+}
+
+.account__head h1 {
+  margin: 0;
+}
+
+.account__head p {
+  margin: 0;
+}
+
+/* Desktop split: sticky mini profile + section nav. Below 1024px the
+   sidebar is hidden entirely — a single scroll with section headers reads
+   better on mobile (user's chosen adaptation). */
+.account__sidebar {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .account {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: var(--space-xl);
+  }
+
+  .account__sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    flex: 0 0 16rem;
+    position: sticky;
+    top: calc(var(--nav-height) + var(--space-lg));
+  }
+
+  .account__content {
+    flex: 1 1 auto;
+    gap: var(--space-xl);
+  }
+}
+
+/* Sidebar mini profile card */
+.account__user-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+}
+
+.account__user-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.account__user-meta p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Sidebar section nav */
+.account__nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  padding: var(--space-xs);
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+}
+
+.account__nav-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 0.625rem var(--space-sm);
+  border-radius: var(--radius-lg);
+  font-size: 0.8125rem;
+  line-height: 1rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.account__nav-link:hover {
+  color: var(--color-text-primary);
+  background: var(--color-surface-canvas);
+}
+
+/* Avatar (Phase 12) — round wrapper + helper-provided content. Shared by the
+   header chip, the calendar pips and the account page. The wrapper stays
+   TRANSPARENT: a photo must never sit on the dark pip colour (sub-pixel
+   seams or transparent image corners would read as a black ring). Only the
+   initials variant paints the fill. */
+.account-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.account-avatar--md {
+  width: 3rem;
+  height: 3rem;
+}
+
+.account-avatar--lg {
+  width: 6rem;
+  height: 6rem;
+}
+
+.account-avatar__initials {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-weight: 600;
+}
+
+.account-avatar--md .account-avatar__initials {
+  font-size: 0.8125rem;
+  line-height: 1rem;
+}
+
+.account-avatar--lg .account-avatar__initials {
+  font-size: 1.5rem;
+  line-height: 2rem;
+  letter-spacing: -0.01em;
+}
+
+/* No variants (image_processing is out of the Gemfile): the wrapper crops
+   instead. The image itself gets NO border-radius — it must fill the square
+   so the wrapper's dark background can never bleed through as a ring; the
+   wrapper's radius + overflow: hidden does the rounding. */
+.account-avatar__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.account-chip__avatar .account-avatar__initials {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+/* Avatar well inside the profile card */
+.account__avatar-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  background: var(--color-surface-canvas);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xl);
+}
+
+@media (min-width: 640px) {
+  .account__avatar-block {
+    flex-direction: row;
+    align-items: center;
+    justify-content: start;
+    gap: var(--space-xl);
+  }
+}
+
+.account__avatar-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.account__avatar-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+/* The mini-forms (avatar change / remove) sit inline in the button row */
+.account__avatar-form {
+  display: inline-flex;
+  margin: 0;
+}
+
+/* Visually hidden file input: the styled label is the button */
+.account__file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.account__avatar-hint {
+  margin: 0;
+}
+
+/* Profile / password forms */
+.account__form {
+  display: flex;
+  flex-direction: column;
+}
+
+.account__form .form-errors {
+  margin-bottom: var(--space-md);
+}
+
+.account__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-md);
+}
+
+@media (min-width: 640px) {
+  .account__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Password row spans three columns on wide screens (ref: md:grid-cols-3) */
+@media (min-width: 768px) {
+  .account__grid--password {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.account__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+/* field-label ships a bottom margin; the flex gap above replaces it */
+.account__field .field-label {
+  margin-bottom: 0;
+}
+
+.account__field-hint {
+  margin: 0;
+}
+
+.account__form-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-md);
+}
+
+/* Inline prefix (@username) and suffix (Verified) decorations */
+.account__input-wrap {
+  position: relative;
+  display: flex;
+}
+
+.account__input-stamp {
+  position: absolute;
+  top: 50%;
+  left: var(--space-sm);
+  transform: translateY(-50%);
+  font-size: 0.875rem;
+  color: var(--color-text-tertiary);
+  pointer-events: none;
+}
+
+.account__input--stamped {
+  padding-left: 2rem;
+}
+
+.account__input--badged {
+  padding-right: 5.5rem;
+}
+
+.account__verified {
+  position: absolute;
+  top: 50%;
+  right: 0.5rem;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  font-size: 0.6875rem;
+  line-height: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-track-split);
+  white-space: nowrap;
+}
+
+/* Share toggle — iOS-style switch around the (visually hidden) checkbox
+   (moved from layout.css with the Phase 9 page) */
+.account__toggle-form {
+  margin: 0;
+}
+
+.account__switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  cursor: pointer;
+}
+
+.account__switch-input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.account__switch-track {
+  position: relative;
+  flex-shrink: 0;
+  width: 2.75rem;
+  height: 1.5rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-container-high);
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.account__switch-thumb {
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-card);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-50%);
+  transition: left 0.15s ease;
+}
+
+.account__switch-input:checked + .account__switch-track {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.account__switch-input:checked + .account__switch-track .account__switch-thumb {
+  left: calc(100% - 1.1875rem);
+  background: #fff;
+}
+
+.account__switch-input:focus-visible + .account__switch-track {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.account__share {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.account__share-row {
+  display: flex;
+  gap: var(--space-2xs);
+}
+
+.account__share-row .input {
+  flex: 1;
+  min-width: 0;
+  color: var(--color-text-secondary);
+}
+
+/* Connected accounts (Phase 12): real Drive state, honest placeholders */
+.account__connected {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.account__connected-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--color-surface-canvas);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xl);
+}
+
+@media (min-width: 768px) {
+  .account__connected-item {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.account__connected-main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  min-width: 0;
+}
+
+.account__connected-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 3rem;
+  height: 3rem;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-sm);
+}
+
+.account__connected-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.account__connected-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2xs);
+}
+
+.account__connected-title h3 {
+  margin: 0;
+}
+
+.account__connected-meta p {
+  margin: 0;
+}
+
+.account__connected-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+@media (max-width: 767px) {
+  .account__connected-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+/* Status pills: live (green) vs muted placeholder states */
+.account__pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1875rem 0.5rem;
+  border-radius: var(--radius-full);
+  font-size: 0.6875rem;
+  line-height: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.account__pill--live {
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--color-track-split);
+}
+
+.account__pill--muted {
+  background: var(--color-surface-container);
+  color: var(--color-text-secondary);
+}
+
+/* Danger zone (ref: card--danger primitive — left route-accent border) */
+.account__card--danger {
+  border-left: 4px solid var(--color-accent-route);
+}
+
+.account__danger-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+}
+
+.account__danger-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  background: var(--color-surface-canvas);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xl);
+}
+
+@media (min-width: 768px) {
+  .account__danger-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.account__danger-row h3 {
+  margin: 0 0 0.25rem;
+}
+
+.account__danger-row p {
+  margin: 0;
+}
+
+/* Delete confirmation dialog */
+.account__modal {
+  max-width: 28rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.account__modal-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+}
+
+.account__modal-head p {
+  margin: 0.25rem 0 0;
+}
+
+.account__modal-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 3rem;
+  height: 3rem;
+  border-radius: var(--radius-full);
+  background: var(--color-accent-route-soft);
+  color: var(--color-accent-route);
+}
+
+.account__modal-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  padding: 0.125rem 0.375rem;
+  background: var(--color-surface-canvas);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--color-accent-route);
+}
+
+.account__modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin: 0;
+}
+
+.account__modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+}

@@ -60,3 +60,8 @@ application.register("mob-slider", MobSliderController);
 // a clipboard fallback (mobile header icon).
 import ShareButtonController from "./share_button_controller";
 application.register("share-button", ShareButtonController);
+
+// Phase 12 — account-deletion dialog: arms the confirm button only once the
+// user types DELETE into the confirmation input.
+import DeleteConfirmController from "./delete_confirm_controller";
+application.register("delete-confirm", DeleteConfirmController);

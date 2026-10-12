@@ -69,7 +69,15 @@ Rails.application.routes.draw do
     post "import"
   end
 
-  resource :account, only: %i[show update], controller: :accounts
+  # Phase 12 — full account settings: profile/password editors, avatar
+  # management and account deletion. The public-calendar share toggle
+  # (Phase 9) keeps posting to #update.
+  resource :account, only: %i[show update destroy], controller: :accounts do
+    member do
+      patch :password, to: "accounts#update_password"
+      delete :avatar, to: "accounts#remove_avatar"
+    end
+  end
 
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
   # Can be used by load balancers and uptime monitors to verify that the app is live.

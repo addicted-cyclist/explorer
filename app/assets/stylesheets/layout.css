@@ -157,8 +157,9 @@
   width: 2rem;
   height: 2rem;
   border-radius: var(--radius-full);
-  background: var(--color-primary);
-  color: var(--color-on-primary);
+  /* Transparent fill — the initials variant paints its own pip (see
+     .account-avatar__initials); a photo never sits on a dark background */
+  overflow: hidden;
 }
 
 .account-chip__chevron {
@@ -231,120 +232,6 @@
 
 .account-menu__item--danger .account-menu__icon {
   color: var(--color-accent-route);
-}
-
-/* Account settings page (Phase 9: profile summary + public calendar share) */
-.account {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-lg);
-}
-
-.account__card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  padding: var(--space-lg);
-  background: var(--color-surface-card);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-sm);
-}
-
-.account__profile {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  margin: 0;
-}
-
-.account__profile-row {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-md);
-}
-
-.account__profile-row dt {
-  flex: 0 0 6rem;
-}
-
-.account__profile-row dd {
-  margin: 0;
-}
-
-/* Share toggle — iOS-style switch around the (visually hidden) checkbox */
-.account__switch {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-sm);
-  cursor: pointer;
-}
-
-.account__switch-input {
-  position: absolute;
-  opacity: 0;
-  width: 1px;
-  height: 1px;
-}
-
-.account__switch-track {
-  position: relative;
-  flex-shrink: 0;
-  width: 2.75rem;
-  height: 1.5rem;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-full);
-  background: var(--color-surface-container-high);
-  transition:
-    background-color 0.15s ease,
-    border-color 0.15s ease;
-}
-
-.account__switch-thumb {
-  position: absolute;
-  top: 50%;
-  left: 2px;
-  width: 1.125rem;
-  height: 1.125rem;
-  border-radius: var(--radius-full);
-  background: var(--color-surface-card);
-  box-shadow: var(--shadow-sm);
-  transform: translateY(-50%);
-  transition: left 0.15s ease;
-}
-
-.account__switch-input:checked + .account__switch-track {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-}
-
-.account__switch-input:checked + .account__switch-track .account__switch-thumb {
-  left: calc(100% - 1.1875rem);
-  background: #fff;
-}
-
-.account__switch-input:focus-visible + .account__switch-track {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
-
-.account__share {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2xs);
-  padding-top: var(--space-sm);
-  border-top: 1px solid var(--color-border-subtle);
-}
-
-.account__share-row {
-  display: flex;
-  gap: var(--space-2xs);
-}
-
-.account__share-row .input {
-  flex: 1;
-  min-width: 0;
-  color: var(--color-text-secondary);
 }
 
 /* Round tonal icon buttons (theme toggle, sign out, card actions) */
