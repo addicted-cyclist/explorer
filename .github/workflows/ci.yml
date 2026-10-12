@@ -37,3 +37,58 @@ jobs:
       - name: Lint code for consistent style
         run: bin/rubocop -f github
 
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      RAILS_ENV: test
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/explorer_test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+
+      - name: Prepare test database
+        run: bin/rails db:test:prepare
+
+      - name: Run tests
+        run: bin/rails test
+
+  deploy:
+    # Dokploy deploy — only after every CI check passed, and only on main.
+    # Triggers the dokploy panel (rush.expl.pro) to rebuild and redeploy the
+    # compose service. Secrets: DOKPLOY_HOST (e.g. https://rush.expl.pro),
+    # DOKPLOY_API_KEY (Settings → Profile → API/CLI), DOKPLOY_APP_ID.
+    needs: [ lint, test, scan_ruby ]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Dokploy deployment
+        run: |
+          curl --fail-with-body --silent --show-error \
+            -X POST "${{ secrets.DOKPLOY_HOST }}/api/application.deploy" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            -d "{\"applicationId\": \"${{ secrets.DOKPLOY_APP_ID }}\"}"
+

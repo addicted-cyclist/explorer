@@ -1,0 +1,74 @@
+# Dokploy "Docker Compose" service definition for the first production deploy.
+#
+# App + Postgres + Redis share one internal docker network. Nothing publishes
+# ports: the databases are reachable only inside the network, and the app is
+# reached by Traefik (dokploy binds the expl.pro / www.expl.pro domains to the
+# `app` service on port 3000). Environment variables are injected by dokploy
+# from the service's Environment tab (see .env.example for the full list).
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      RAILS_MASTER_KEY: ${RAILS_MASTER_KEY}
+      APP_HOST: ${APP_HOST}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      MAILER_FROM: ${MAILER_FROM}
+    volumes:
+      - app_storage:/rails/storage
+    networks:
+      - explorer
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:3000/up" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - explorer
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - explorer
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  app_storage:
+  postgres_data:
+  redis_data:
+
+networks:
+  explorer:
