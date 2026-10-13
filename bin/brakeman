@@ -2,6 +2,8 @@
 require "rubygems"
 require "bundler/setup"
 
-ARGV.unshift("--ensure-latest")
+# NOTE: The Rails-generated stub used to prepend "--ensure-latest", but
+# brakeman 8.x requires Ruby >= 3.2 while this app runs Ruby 3.1, so the
+# installed brakeman is capped at 7.1.1 and that flag would always exit 5.
 
 load Gem.bin_path("brakeman", "brakeman")

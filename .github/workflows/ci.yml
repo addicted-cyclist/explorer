@@ -68,6 +68,11 @@ jobs:
           ruby-version: .ruby-version
           bundler-cache: true
 
+      # db:test:prepare triggers jsbundling's javascript:build => install,
+      # which shells out to pnpm (skip-envs only cover yarn/bun).
+      - name: Install pnpm
+        run: npm install --global pnpm
+
       - name: Prepare test database
         run: bin/rails db:test:prepare
 
