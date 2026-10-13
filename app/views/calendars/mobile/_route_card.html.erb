@@ -17,7 +17,11 @@
   <% else %>
     <h3 class="t-title-md">
       <%= link_to route.title, route_path(route, **route_path_opts),
-            class: "mob-wc__route-link", title: route.title %>
+        data: { turbo_frame: "_top" },
+        class: "mob-wc__route-link",
+        title: route.title,
+        username: params[:username],
+        week: params[:week] %>
     </h3>
   <% end %>
 

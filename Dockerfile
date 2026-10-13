@@ -30,13 +30,13 @@ RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y build-essential git libpq-dev node-gyp pkg-config python-is-python3 && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
-# Install JavaScript dependencies
+# Install JavaScript dependencies (pnpm is this project's package manager)
 ARG NODE_VERSION=22.13.0
-ARG YARN_VERSION=latest
+ARG PNPM_VERSION=10.8.0
 ENV PATH=/usr/local/node/bin:$PATH
 RUN curl -sL https://github.com/nodenv/node-build/archive/master.tar.gz | tar xz -C /tmp/ && \
     /tmp/node-build-master/bin/node-build "${NODE_VERSION}" /usr/local/node && \
-    npm install -g yarn@$YARN_VERSION && \
+    npm install -g pnpm@$PNPM_VERSION && \
     rm -rf /tmp/node-build-master
 
 # Install application gems
@@ -46,8 +46,8 @@ RUN bundle install && \
     bundle exec bootsnap precompile --gemfile
 
 # Install node modules
-COPY package.json yarn.lock ./
-RUN yarn install --frozen-lockfile
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
 # Copy application code
 COPY . .

@@ -1,8 +1,13 @@
 <%# Phase 0 capacity: metrics + track thumb are a pure function of the route
     and view-independent — cached per route, shared across my / friend /
     public viewers and every week render. %>
+<% route_path_opts = @is_friend_view ? { username: params[:username], week: params[:week] } : {} %>
 <% cache(mob_card_metrics_thumb_cache_key(route)) do %>
-  <%= link_to route_path(route), class: "#{class_prefix}__entry-metrics-n-thumb" do %>
+  <%= link_to route_path(route, **route_path_opts),
+    class: "#{class_prefix}__entry-metrics-n-thumb",
+    data: { turbo_frame: "_top" },
+    username: params[:username],
+    week: params[:week] do %>
     <dl class="<%= class_prefix %>__entry-metrics t-label-sm">
       <div class="<%= class_prefix %>__metric">
         <dt class="t-uppercase c-secondary">Dist</dt>

@@ -51,8 +51,10 @@ Rails.application.configure do
   # Force all access to the app over SSL, use Strict-Transport-Security, and use secure cookies.
   config.force_ssl = true
 
-  # Skip http-to-https redirect for the default health check endpoint.
-  # config.ssl_options = { redirect: { exclude: ->(request) { request.path == "/up" } } }
+  # Skip the http-to-https redirect for the health check endpoint: uptime and
+  # container probes hit the app directly over HTTP inside the docker network
+  # and would otherwise receive a 301 instead of a plain 200.
+  config.ssl_options = { redirect: { exclude: ->(request) { request.path == "/up" } } }
 
   # Log to STDOUT by default
   config.logger = ActiveSupport::Logger.new(STDOUT)
@@ -67,8 +69,8 @@ Rails.application.configure do
   # want to log everything, set the level to "debug".
   config.log_level = ENV.fetch("RAILS_LOG_LEVEL", "info")
 
-  # Use a different cache store in production.
-  # config.cache_store = :mem_cache_store
+  # Shared Redis cache store (the redis container on the compose network).
+  config.cache_store = :redis_cache_store, { url: ENV.fetch("REDIS_URL", "redis://localhost:6379/1") }
 
   # Use a real queuing backend for Active Job (and separate queues per environment).
   # config.active_job.queue_adapter = :resque
@@ -80,7 +82,24 @@ Rails.application.configure do
 
   # Ignore bad email addresses and do not raise email delivery errors.
   # Set this to true and configure the email server for immediate delivery to raise delivery errors.
-  # config.action_mailer.raise_delivery_errors = false
+
+  # Transactional email via Resend's SMTP interface (smtp.resend.com).
+  # The Resend API key doubles as the SMTP password and is injected by the
+  # deployment environment — never committed to the repository.
+  config.action_mailer.delivery_method = :smtp
+  config.action_mailer.smtp_settings = {
+    address: "smtp.resend.com",
+    port: 465, # implicit TLS
+    user_name: "resend",
+    password: ENV["RESEND_API_KEY"],
+    authentication: :plain,
+    tls: true,
+    open_timeout: 10,
+    read_timeout: 10
+  }
+  config.action_mailer.default_url_options = { host: ENV.fetch("APP_HOST", "expl.pro"), protocol: "https" }
+  config.action_mailer.default_options = { from: ENV.fetch("MAILER_FROM", "Explorer <no-reply@expl.pro>") }
+  config.action_mailer.raise_delivery_errors = true
 
   # Enable locale fallbacks for I18n (makes lookups for any locale fall back to
   # the I18n.default_locale when a translation cannot be found).
@@ -95,11 +114,9 @@ Rails.application.configure do
   # Only use :id for inspections in production.
   config.active_record.attributes_for_inspect = [ :id ]
 
-  # Enable DNS rebinding protection and other `Host` header attacks.
-  # config.hosts = [
-  #   "example.com",     # Allow requests from example.com
-  #   /.*\.example\.com/ # Allow requests from subdomains like `www.example.com`
-  # ]
-  # Skip DNS rebinding protection for the default health check endpoint.
-  # config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
+  # Enable DNS rebinding protection and other `Host` header attacks: only the
+  # canonical host (APP_HOST) and www are accepted. The health endpoint is
+  # exempt so probes may use any Host header.
+  config.hosts += [ ENV.fetch("APP_HOST", "expl.pro"), "www.expl.pro" ]
+  config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
 end
