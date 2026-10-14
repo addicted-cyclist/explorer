@@ -64,6 +64,34 @@ class ViewFragmentCachingTest < ActionDispatch::IntegrationTest
     assert_match "Cached ridge", response.body
   end
 
+  test "friends page renders friends-prefixed classes, not cached mob-wc ones" do
+    pal = User.create!(valid_user_attributes(email: "pal@example.com"))
+    Friendship.connect!(pal, @user)
+    ride = pal.routes.create!(title: "Shared Loop", completed: true, duration: 1_800)
+    pal.calendar_entries.create!(route: ride, scheduled_on: Date.current,
+                                 start_time: Time.current.change(hour: 7),
+                                 end_time: Time.current.change(hour: 9),
+                                 completed: true)
+
+    # Warm the fragment through the friend-view calendar: its mobile routes
+    # list renders the same shared partial with the mob-wc prefix.
+    get friend_calendar_url(pal.username)
+    assert_response :success
+    assert_match "mob-wc__entry-metrics-n-thumb", response.body
+
+    # The friends page must render its own friends-prefixed markup and never
+    # reuse the calendar fragment: before the prefix went into the cache key,
+    # both pages shared one fragment and the card came back unstyled.
+    get friends_url
+    assert_response :success
+    assert_match "friends__entry-metrics-n-thumb", response.body
+    assert_no_match "mob-wc__entry-metrics-n-thumb", response.body
+
+    # And the friends prefix keeps caching under its own key afterwards.
+    get friends_url
+    assert_not_empty friends_thumb_hits, "repeat render must hit the friends-prefixed fragment"
+  end
+
   private
 
   def sidebar_body_hits
@@ -72,5 +100,9 @@ class ViewFragmentCachingTest < ActionDispatch::IntegrationTest
 
   def library_card_hits
     @cache_hits.select { |key| key.match?(/route-card-thumb|route-card-body/) }
+  end
+
+  def friends_thumb_hits
+    @cache_hits.select { |key| key.include?("card-metrics-thumb") && key.include?("friends") }
   end
 end
