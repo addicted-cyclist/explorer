@@ -157,8 +157,13 @@ module CalendarsHelper
     [ route, "wc-sidebar-body" ]
   end
 
-  # Same contract for the mobile route card's metrics + track thumb.
-  def mob_card_metrics_thumb_cache_key(route)
-    [ route, "mob-card-metrics-thumb" ]
+  # Fragment key for the shared metrics + track thumb partial (mobile route
+  # and entry cards, friends page cards). class_prefix MUST be in the key:
+  # the cached markup embeds prefix-scoped class names (mob-wc vs friends),
+  # and leaving it out made the first-rendered card style leak into every
+  # other card style. `route` expands to its cache_key, so any edit bumps
+  # updated_at and invalidates the fragment automatically.
+  def card_metrics_thumb_cache_key(route, class_prefix)
+    [ route, class_prefix, "card-metrics-thumb" ]
   end
 end
