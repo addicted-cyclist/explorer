@@ -1,8 +1,10 @@
-<%# Phase 0 capacity: metrics + track thumb are a pure function of the route
-    and view-independent — cached per route, shared across my / friend /
-    public viewers and every week render. %>
+<%# Phase 0 capacity: metrics + track thumb markup is a pure function of the
+    route + class_prefix (every class below is prefix-scoped), so the
+    fragment caches per route AND prefix, one entry per card style
+    (mob-wc, friends), shared across my / friend / public viewers and every
+    week render. %>
 <% route_path_opts = @is_friend_view ? { username: params[:username], week: params[:week] } : {} %>
-<% cache(mob_card_metrics_thumb_cache_key(route)) do %>
+<% cache(card_metrics_thumb_cache_key(route, class_prefix)) do %>
   <%= link_to route_path(route, **route_path_opts),
     class: "#{class_prefix}__entry-metrics-n-thumb",
     data: { turbo_frame: "_top" },
