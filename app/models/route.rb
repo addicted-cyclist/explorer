@@ -84,6 +84,11 @@ class Route < ApplicationRecord
   TRACK_SVG_MAX_POINTS = 200
   TRACK_SVG_PADDING = 4.0
 
+  # Trackpoints per smoothing window for elevation stats: a centered moving
+  # average over 5 readings strips the GPS altitude jitter that would
+  # otherwise be summed up as phantom climb/descent (see smooth_elevations).
+  ELEVATION_SMOOTHING_WINDOW = 5
+
   # Parse the attached GPX file and populate stats fields
   def parse_gpx!
     return unless gpx_file.attached?
@@ -97,8 +102,11 @@ class Route < ApplicationRecord
       if elevations.any?
         self.min_elevation = elevations.min
         self.max_elevation = elevations.max
-        self.elevation_gain = compute_elevation_gain(elevations)
-        self.elevation_loss = compute_elevation_loss(elevations)
+        # GPS altitude jitter must be smoothed away before the delta sums,
+        # or every wiggle is counted as phantom climb/descent.
+        smoothed = smooth_elevations(elevations)
+        self.elevation_gain = compute_elevation_gain(smoothed)
+        self.elevation_loss = compute_elevation_loss(smoothed)
       end
 
       self.track_svg = build_track_svg(gpx.tracks.flat_map(&:points))
@@ -108,6 +116,23 @@ class Route < ApplicationRecord
   end
 
   private
+
+  # Centered moving average over ELEVATION_SMOOTHING_WINDOW points. Raw GPS
+  # altitude readings jitter by several meters between trackpoints; feeding
+  # that noise to compute_elevation_gain/loss counts every wiggle as real
+  # climb/descent and wildly inflates the stats. The window shrinks at the
+  # track ends (mean of the available neighbours), so the result always has
+  # the same length as the input. Series shorter than three points have no
+  # meaningful jitter to smooth and are returned unchanged.
+  def smooth_elevations(elevations)
+    return elevations if elevations.size < 3
+
+    half = ELEVATION_SMOOTHING_WINDOW / 2
+    elevations.each_index.map do |i|
+      window = elevations[[ i - half, 0 ].max..[ i + half, elevations.size - 1 ].min]
+      window.sum.to_f / window.size
+    end
+  end
 
   def compute_elevation_gain(elevations)
     gain = 0.0

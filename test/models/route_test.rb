@@ -58,12 +58,41 @@ class RouteTest < ActiveSupport::TestCase
     assert_operator route.distance, :>, 0
     assert_operator route.distance, :<, 5_000
     assert_equal 1_800, route.duration
-    assert_in_delta 50.0, route.elevation_gain, 0.01
-    assert_in_delta 30.0, route.elevation_loss, 0.01
+    # The 3-point track is shorter than the 5-point smoothing window, so
+    # every smoothed elevation collapses to the series mean (123.33) — the
+    # once-raw deltas (100 -> 150 -> 120) flatten to zero gain/loss. Min/max
+    # altitude stay on the raw readings.
+    assert_in_delta 0.0, route.elevation_gain, 0.01
+    assert_in_delta 0.0, route.elevation_loss, 0.01
     assert_in_delta 100.0, route.min_elevation, 0.01
     assert_in_delta 150.0, route.max_elevation, 0.01
     assert_equal "exploration", route.title
     assert_track_svg route.track_svg
+  end
+
+  test "parse_gpx! smooths GPS jitter before summing elevation gain and loss" do
+    route = @user.routes.create!(source: "upload", title: "Noisy climb")
+    # 40 points climbing a steady 1 m per point with ±3 m alternating GPS
+    # jitter — the noisy real-world profile that delta-summing the raw
+    # series turns into phantom climb/descent.
+    elevations = 40.times.map { |i| 100 + i + (i.even? ? 3 : -3) }
+    route.gpx_file.attach(io: StringIO.new(gpx_with_elevations(elevations)),
+                          filename: "noisy-climb.gpx", content_type: "application/gpx+xml")
+
+    route.parse_gpx!
+    route.reload
+
+    # What the old, unsmoothed math would have reported for this track
+    raw_gain = elevations.each_cons(2).sum { |a, b| [ b - a, 0 ].max }
+    raw_loss = elevations.each_cons(2).sum { |a, b| [ a - b, 0 ].max }
+    assert_operator raw_gain, :>, 120
+    assert_operator raw_loss, :>, 90
+    # Smoothed: gain hugs the true 39 m climb, the jitter-driven loss nearly
+    # vanishes, while min/max altitude stay on the raw readings.
+    assert_in_delta 39.0, route.elevation_gain, 3.0
+    assert_operator route.elevation_loss, :<, 5.0
+    assert_in_delta elevations.min, route.min_elevation, 0.01
+    assert_in_delta elevations.max, route.max_elevation, 0.01
   end
 
   test "parse_gpx! falls back to the gpx metadata name when the title is blank" do
@@ -136,6 +165,31 @@ class RouteTest < ActiveSupport::TestCase
   end
 
   private
+
+  # Minimal GPX document whose single track carries the given elevations,
+  # one trackpoint per reading a minute apart along a short line.
+  def gpx_with_elevations(elevations)
+    trackpoints = elevations.each_with_index.map do |ele, i|
+      stamp = format("%02d", i)
+      <<~POINT.squish
+        <trkpt lat="47.37#{stamp}" lon="8.54#{stamp}">
+          <ele>#{ele}</ele>
+          <time>2026-09-09T08:#{stamp}:00Z</time>
+        </trkpt>
+      POINT
+    end.join
+
+    <<~GPX
+      <?xml version="1.0" encoding="UTF-8"?>
+      <gpx version="1.1" creator="explorer-test-suite" xmlns="http://www.topografix.com/GPX/1/1">
+        <trk>
+          <trkseg>
+            #{trackpoints}
+          </trkseg>
+        </trk>
+      </gpx>
+    GPX
+  end
 
   # The track thumbnail is an SVG path fitted into the 100x60 viewBox:
   # "M x,y L x,y ..." with every coordinate inside the box.
