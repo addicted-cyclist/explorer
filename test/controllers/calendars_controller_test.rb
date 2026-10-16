@@ -460,18 +460,41 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     assert_predicate @route.reload, :completed?
   end
 
-  test "toggle_completed from the grid streams the day column repaint" do
+  test "toggle_completed from the grid answers 204 — the card repaints itself" do
     entry = @user.calendar_entries.create!(route: @route, scheduled_on: Date.new(2026, 10, 28),
                                            start_time: "08:00", end_time: "08:30")
 
     patch toggle_completed_calendar_path, params: { entry_id: entry.id, from_calendar: "1", week: "2026-10-26" },
           headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
 
-    assert_response :ok
-    assert_equal Mime[:turbo_stream], response.media_type
-    assert_match(/action="replace" target="wc-day-20261028"/, response.body)
-    assert_match(/action="replace" target="mob-week-day-20261028"/, response.body)
+    # Nothing outside the card depends on completion (telemetry / KPIs / strip
+    # are planned metrics), so the server only persists and answers 204; the
+    # completion-confetti controller flips the card's class in place.
+    assert_response :no_content
+    assert_predicate response.body, :blank?
     assert entry.reload.completed?
+  end
+
+  test "unchecking from the grid answers 204 as well" do
+    entry = @user.calendar_entries.create!(route: @route, scheduled_on: Date.new(2026, 10, 28),
+                                           start_time: "08:00", end_time: "08:30", completed: true)
+
+    patch toggle_completed_calendar_path, params: { entry_id: entry.id, from_calendar: "1", week: "2026-10-26" },
+          headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
+
+    assert_response :no_content
+    assert_not entry.reload.completed?
+  end
+
+  test "my calendar cards carry the completion-confetti controller on both layouts" do
+    @user.calendar_entries.create!(route: @route, scheduled_on: Date.new(2026, 10, 28),
+                                   start_time: "08:00", end_time: "08:30")
+
+    get calendar_path(week: "2026-10-26")
+
+    assert_response :ok
+    assert_match(/data-controller="entry-time-editor completion-confetti"/, @response.body)
+    assert_match(/data-controller="completion-confetti"/, @response.body)
   end
 
   test "unchecking an entry never clears the route's completed state" do
@@ -743,7 +766,7 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
 
     patch toggle_completed_calendar_path, params: { entry_id: older.id, from_calendar: "1" },
           headers: { "ACCEPT" => Mime[:turbo_stream].to_s }
-    assert_response :ok
+    assert_response :no_content
 
     get calendar_url
 

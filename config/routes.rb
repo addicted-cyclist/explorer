@@ -30,6 +30,15 @@ Rails.application.routes.draw do
   # preflight for the loopback/dev-host fetch.
   match "gpx/:signed_id/*filename", to: "gpx_files#show", via: %i[get options], as: :gpx_file, format: false
 
+  # Cacheable avatar serving (every .account-avatar__img: header chip,
+  # calendar pips, account page). ActiveStorage's default blob URL redirects
+  # to a 5-minute signed disk URL, so browsers re-requested the photo on
+  # every page view; this endpoint streams the blob itself under a year-long
+  # immutable cache. Like the GPX route above, the signed_id is the
+  # capability token: the public calendar renders the owner's avatar pip to
+  # anonymous visitors, so the image must be fetchable without a session.
+  get "avatars/:signed_id", to: "avatars#show", as: :user_avatar, format: false
+
   resource :calendar, only: %i[show] do
     collection do
       post "allocate"

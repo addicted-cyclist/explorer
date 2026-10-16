@@ -1,9 +1,10 @@
 <%# One mobile day: header, the day's entry cards (dot-nav slider when the
     day holds several) and the "Add route" tile. Repainted whole by the
-    allocate / remove_entry / update_entry / toggle_completed / join Turbo
-    Streams; mob-week re-applies the visible-day selection after each swap.
-    initial_date seeds the server-rendered selection on full page loads —
-    stream renders omit it, so the class simply stays off there. %>
+    allocate / remove_entry / update_entry / join Turbo Streams; mob-week
+    re-applies the visible-day selection after each swap. initial_date seeds
+    the server-rendered selection on full page loads — stream renders omit
+    it, so the class simply stays off there. Completion toggles its card in
+    place (completion-confetti) and never repaints the panel. %>
 <article class="mob-wc__panel<%= " is-selected" if date == local_assigns[:initial_date] %>"
          id="<%= calendar_mobile_day_dom_id(date) %>"
          data-mob-week-target="dayPanel" data-date="<%= date.iso8601 %>">

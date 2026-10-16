@@ -1,10 +1,12 @@
 # The weekly training calendar (Phase 7). `show` renders my week (/calendar)
 # or an accepted friend's week (/calendar/:username) from one template that
-# branches on @is_friend_view. allocate / update_entry / remove_entry /
-# toggle_completed serve the calendar grid (from_calendar=1 — Turbo Stream
-# fragment swaps of the affected day column plus the telemetry bar, with a
-# redirect fallback for no-JS browsers); allocate / update_entry / remove_entry
-# also serve the route detail page with plain redirects (Phase 6 behavior). The public share (Phase 9) lives in
+# branches on @is_friend_view. allocate / update_entry / remove_entry serve
+# the calendar grid (from_calendar=1 — Turbo Stream fragment swaps of the
+# affected day column plus the telemetry bar, with a redirect fallback for
+# no-JS browsers); toggle_completed shares the flag but only persists — its
+# card repaints itself in place, so with JS it answers 204 No Content.
+# allocate / update_entry / remove_entry also serve the route detail page
+# with plain redirects (Phase 6 behavior). The public share (Phase 9) lives in
 # PublicCalendarController; both controllers share CalendarWeekSupport.
 class CalendarsController < ApplicationController
   include CalendarWeekSupport
@@ -115,8 +117,11 @@ class CalendarsController < ApplicationController
   # Per-entry completed checkbox on my scheduled cards. Completion lives on
   # the entry and syncs one-way into the my routes: checking an entry marks a
   # not-yet-done route done, unchecking only clears the entry — a route's
-  # Done state never regresses from the calendar. Without JS we bounce back
-  # to the visited week.
+  # Done state never regresses from the calendar. Nothing outside the card
+  # depends on completion (telemetry / KPIs / strip are planned metrics), so
+  # with JS the card flips its completed class in place (completion-confetti
+  # controller, which also plays the celebration) and the server answers
+  # 204 No Content; without JS we bounce back to the visited week.
   def toggle_completed
     entry = current_user.calendar_entries.find(params[:entry_id])
     entry.completed = !entry.completed
@@ -126,11 +131,7 @@ class CalendarsController < ApplicationController
     entry.save!
 
     respond_to do |format|
-      format.turbo_stream do
-        prepare_week_state
-        @entry = entry
-        render :toggle_completed
-      end
+      format.turbo_stream { head :no_content }
       format.html do
         notice = entry.completed? ? "Marked \"#{entry.route.title}\" as completed." : "Marked \"#{entry.route.title}\" as not completed."
         redirect_to calendar_fallback_path(route_path(entry.route)), notice: notice

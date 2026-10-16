@@ -102,6 +102,10 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
 
     get account_path
     assert_select "img.account-avatar__img"
+    # The avatar must point at the cacheable signed-id endpoint, never at
+    # ActiveStorage's redirect chain (re-fetched on every page view).
+    assert_select %(img.account-avatar__img[src^="/avatars/"])
+    assert_no_match %r{/rails/active_storage/}, response.body
   end
 
   test "update rejects an avatar that is not real image content" do
