@@ -65,3 +65,9 @@ application.register("share-button", ShareButtonController);
 // user types DELETE into the confirmation input.
 import DeleteConfirmController from "./delete_confirm_controller";
 application.register("delete-confirm", DeleteConfirmController);
+
+// v0.11 — completion confetti: when the toggle_completed stream lands the
+// freshly checked card, it bounces, the check pops and a confetti burst fires
+// from the check button (checking only — unchecking never celebrates).
+import CompletionConfettiController from "./completion_confetti_controller";
+application.register("completion-confetti", CompletionConfettiController);

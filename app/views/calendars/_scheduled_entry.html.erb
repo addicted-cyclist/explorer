@@ -9,9 +9,12 @@
     page renders derive it from @joined_origin_ids via the helper. Title
     links carry a native tooltip so truncated names stay readable. %>
 <% joined = local_assigns.fetch(:joined) { calendar_entry_joined?(entry) } %>
+<%# The completion-confetti controller (my view only) flips the completed
+    class in place on check-submit and plays the celebration: card bounce,
+    check pop and a confetti burst. The PATCH persists server-side (204). %>
 <article class="wc-entry<%= " wc-entry--completed" if entry.completed? %>"
          id="<%= dom_id(entry) %>"
-         data-controller="entry-time-editor">
+         data-controller="entry-time-editor completion-confetti">
   <div class="wc-entry__top">
     <% if @is_public_view %>
       <h4 class="wc-entry__title t-title-sm">

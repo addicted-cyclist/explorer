@@ -22,6 +22,7 @@
  *= require upload-edit-modal
  *= require empty-states
  *= require flash-messages
+ *= require celebration
  
  *= require color-helper
 

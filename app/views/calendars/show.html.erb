@@ -92,5 +92,6 @@
 <%# Phase 8 — mobile weekly calendar: same data, rendered next to the
     desktop grid; CSS swaps the two layouts below 768px (see the .mob-wc
     section in application.css). The allocate / remove_entry / update_entry /
-    join / toggle_completed streams repaint both layouts. %>
+    join streams repaint both layouts; completion toggles its card in place
+    (completion-confetti) and answers 204. %>
 <%= render "calendars/mobile/show" %>
