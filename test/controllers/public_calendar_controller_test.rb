@@ -144,11 +144,23 @@ class PublicCalendarControllerTest < ActionDispatch::IntegrationTest
       first_name: "Fern", last_name: "Fresh", username: "fresh_rider"
     } }
 
+    # New accounts are hard-gated: the join stays parked behind the gate…
+    assert_redirected_to authenticated_root_path
+    follow_redirect!
+    assert_redirected_to email_verification_gate_path
+
+    # …and completes once the address is verified, with the same landing
+    # and confirmation flash as the sign-in flow.
     fresh = User.find_by!(email: "fresh@example.com")
-    assert_equal @entry.id, fresh.calendar_entries.sole.origin_entry_id
+    code = fresh.generate_email_verification_code!
+    post email_verification_verify_path, params: { code: code }
+
+    assert_equal @entry.id, fresh.reload.calendar_entries.sole.origin_entry_id
     assert_redirected_to public_calendar_path(@owner.public_token)
     follow_redirect!
+    assert_response :success
     assert_match "wc-join--joined", response.body
+    assert_match(/You joined "Ridge loop"/, flash[:notice])
   end
 
   test "signed-in visitor joins from the public page and stays there" do

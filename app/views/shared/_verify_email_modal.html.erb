@@ -1,0 +1,97 @@
+<%# v0.12 — verify-email modal (design-refs/stitch_explorer_v0.12).
+    hard: true  — standalone gate page (email_verification#gate) for new
+                  accounts: locked modal, no close button, no backdrop
+                  dismissal, no "Verify later" — the code is the only way
+                  through, Sign out sits below the card.
+    hard: false — soft nag for legacy accounts, rendered in the app layout:
+                  closable; closing writes the 24h snooze cookie
+                  (data-modal-snooze, handled by the modal controller). %>
+<% modal_data = { "data-email-verification-cooldown-value" => current_user.email_code_cooldown_left } %>
+<% if hard %>
+  <% modal_data["data-modal-locked"] = "true" %>
+<% else %>
+  <% modal_data["data-modal-snooze"] = "email_verification_snoozed" %>
+  <% modal_data["data-modal-snooze-hours"] = User::EMAIL_VERIFICATION_SNOOZE_HOURS %>
+<% end %>
+<div class="modal" id="verify-email-modal"
+     data-controller="modal email-verification"
+     data-modal-auto-open="true"
+     <%= tag.attributes(modal_data) %>
+     aria-hidden="true">
+  <% if hard %>
+    <div class="modal__backdrop" aria-hidden="true"></div>
+  <% else %>
+    <div class="modal__backdrop" data-action="click->modal#close" aria-hidden="true"></div>
+  <% end %>
+
+  <div class="modal__card modal__card--verify" role="dialog" aria-modal="true" aria-labelledby="verify-email-title">
+    <% unless hard %>
+      <button type="button" class="icon-btn verify-modal__close" data-action="modal#close" aria-label="Close">
+        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+      </button>
+    <% end %>
+
+    <div class="verify-modal__icon">
+      <span class="material-symbols-outlined" aria-hidden="true">mail</span>
+    </div>
+    <h2 class="t-headline-sm c-primary" id="verify-email-title">Verify your email address</h2>
+    <p class="t-body-sm c-secondary verify-modal__intro">We've sent a 6-digit confirmation code to</p>
+    <p class="t-title-md c-primary verify-modal__address"><%= current_user.email %></p>
+
+    <% if flash[:verification_alert] %>
+      <p class="verify-modal__flash verify-modal__flash--alert t-body-sm" role="alert"><%= flash[:verification_alert] %></p>
+    <% elsif flash[:verification_notice] %>
+      <p class="verify-modal__flash verify-modal__flash--notice t-body-sm"><%= flash[:verification_notice] %></p>
+    <% end %>
+
+    <%= form_with url: email_verification_verify_path, class: "verify-modal__form" do %>
+      <div class="verify-modal__digits">
+        <% User::EMAIL_CODE_LENGTH.times do |i| %>
+          <input type="text" inputmode="numeric" autocomplete="<%= i.zero? ? "one-time-code" : "off" %>"
+                 maxlength="1" name="code[]" aria-label="Verification digit <%= i + 1 %>"
+                 class="verify-modal__digit t-title-md c-primary"
+                 data-email-verification-target="input"
+                 data-action="input->email-verification#input keydown->email-verification#keydown paste->email-verification#paste">
+        <% end %>
+      </div>
+      <button type="submit" class="btn btn--primary verify-modal__submit">
+        Verify Email
+        <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span>
+      </button>
+    <% end %>
+
+    <div class="verify-modal__resend t-body-sm c-secondary" data-email-verification-target="resend">
+      <span>Didn't receive the email?</span>
+      <%= button_to email_verification_resend_path, class: "verify-modal__resend-btn t-body-sm",
+                    form: { class: "verify-modal__resend-form" } do %>
+        <span data-email-verification-target="resendLabel">Resend code</span>
+      <% end %>
+    </div>
+
+    <div class="verify-modal__links">
+      <button type="button" class="verify-modal__link t-body-sm" data-action="email-verification#toggleEmailForm">
+        Change email address
+      </button>
+      <% unless hard %>
+        <span class="c-tertiary" aria-hidden="true">&bull;</span>
+        <button type="button" class="verify-modal__link t-body-sm" data-action="modal#close">Verify later</button>
+      <% end %>
+    </div>
+
+    <%= form_with url: email_verification_update_email_path,
+      html: {
+              class: "verify-modal__email-form",
+              hidden: true,
+              data: { email_verification_target: "emailForm" }
+            } do %>
+      <%= email_field_tag :email, nil, required: true, placeholder: "New email address",
+                          autocomplete: "email", class: "input verify-modal__email-input" %>
+      <button type="submit" class="btn btn--secondary">Save &amp; resend</button>
+    <% end %>
+
+    <div class="verify-modal__info t-body-sm c-secondary">
+      <span class="material-symbols-outlined" aria-hidden="true">info</span>
+      <span>Check your spam folder if the code hasn't arrived within a couple of minutes. Codes expire after 10 minutes.</span>
+    </div>
+  </div>
+</div>

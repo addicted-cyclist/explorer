@@ -44,6 +44,13 @@ class User < ApplicationRecord
   # Generate or clear public_token based on calendar_public toggle
   before_save :ensure_public_token
 
+  # An email change drops the verified state (and any outstanding
+  # code) so a fresh code must confirm the new address. persisted? keeps the
+  # callback off creation, where the email always "changes" from nil - new
+  # accounts start unverified by design anyway.
+  before_save :reset_email_verification,
+              if: -> { persisted? && will_save_change_to_email? }
+
   # Sign-in accepts email OR username: the sign-in form posts the handle as
   # :email (Devise's default authentication key), so match it against both
   # columns case-insensitively.
@@ -74,6 +81,93 @@ class User < ApplicationRecord
   # Display name for the account menu: full name, falling back to username
   def name
     [ first_name, last_name ].join(" ").strip.presence || username
+  end
+
+  # ---- email verification (6-digit code) ---------------------------
+  # Custom flow instead of Devise :confirmable (technote.FEATURES.md): new
+  # accounts are hard-gated behind the code modal, while legacy accounts
+  # (email_verification_soft, backfilled true in the migration) keep the
+  # dismissable nag. Only a peppered HMAC digest of the code is stored —
+  # never the plaintext.
+
+  EMAIL_CODE_LENGTH = 6
+  EMAIL_CODE_TTL = 10.minutes
+  EMAIL_CODE_RESEND_COOLDOWN = 1.minute
+  EMAIL_CODE_MAX_ATTEMPTS = 5
+
+  # How long the soft (legacy) nag stays dismissed after "Verify later".
+  EMAIL_VERIFICATION_SNOOZE_HOURS = 24
+
+  def email_verified?
+    email_verified_at.present?
+  end
+
+  def email_verification_soft?
+    email_verification_soft
+  end
+
+  def email_verification_hard?
+    !email_verification_soft?
+  end
+
+  # True when there is no live code: none sent yet, past the TTL, or the
+  # attempt budget burned. Drives the lazy legacy send and the resend UI.
+  def email_code_stale?
+    verification_code_digest.blank? || verification_code_sent_at.blank? ||
+      verification_code_sent_at.before?(EMAIL_CODE_TTL.ago) ||
+      verification_code_attempts >= EMAIL_CODE_MAX_ATTEMPTS
+  end
+
+  # Seconds until "Resend code" may fire again (0 = ready now). The modal's
+  # countdown is seeded from the same value the server enforces.
+  def email_code_cooldown_left
+    return 0 if verification_code_sent_at.blank?
+
+    left = (verification_code_sent_at + EMAIL_CODE_RESEND_COOLDOWN - Time.current).ceil
+    left.positive? ? left : 0
+  end
+
+  # Mints a fresh zero-padded code, stores only its digest and returns the
+  # plaintext — whose only consumer is the verification email.
+  def generate_email_verification_code!
+    code = format("%0#{EMAIL_CODE_LENGTH}d", SecureRandom.random_number(10**EMAIL_CODE_LENGTH))
+    update_columns(verification_code_digest: email_code_digest(code),
+                   verification_code_sent_at: Time.current,
+                   verification_code_attempts: 0)
+    code
+  end
+
+  # Mint + deliver in one call. A dead SMTP relay must not 500 a sign-up or
+  # an app page load — the account can always request a fresh code from the
+  # modal, so delivery failures are logged and swallowed.
+  def deliver_verification_code
+    code = generate_email_verification_code!
+    UserMailer.verification_code(self, code).deliver_now
+    code
+  rescue StandardError => e
+    Rails.logger.warn("Verification email could not be sent: #{e.class}: #{e.message}")
+    code
+  end
+
+  # Checks a submitted code. :ok verifies the account and clears the code;
+  # :invalid counts an attempt (wrong or malformed input); :expired means
+  # the TTL passed; :exhausted means five bad tries burned the budget and a
+  # fresh code must be requested.
+  def verify_email_code!(code)
+    return :invalid if code.to_s.scan(/\d/).join.length != EMAIL_CODE_LENGTH
+    return :exhausted if verification_code_attempts >= EMAIL_CODE_MAX_ATTEMPTS
+    return :expired if verification_code_sent_at.blank? || verification_code_sent_at.before?(EMAIL_CODE_TTL.ago)
+
+    if ActiveSupport::SecurityUtils.secure_compare(email_code_digest(code), verification_code_digest.to_s)
+      update_columns(email_verified_at: Time.current,
+                     verification_code_digest: nil,
+                     verification_code_sent_at: nil,
+                     verification_code_attempts: 0)
+      :ok
+    else
+      update_columns(verification_code_attempts: verification_code_attempts + 1)
+      :invalid
+    end
   end
 
   # True when an accepted friendship links this user and +other+ in either
@@ -222,5 +316,22 @@ class User < ApplicationRecord
     return if avatar.blob.byte_size <= AVATAR_MAX_BYTES
 
     errors.add(:avatar, "is too large (maximum is 5 MB)")
+  end
+
+  # peppered HMAC digest of a verification code: the database only
+  # ever stores this, never the plaintext (brute-forcing 10^6 codes needs
+  # the pepper, i.e. secret_key_base).
+  def email_code_digest(code)
+    OpenSSL::HMAC.hexdigest("SHA256", Rails.application.secret_key_base, code.to_s)
+  end
+
+  # an email change un-trusts the address: drop the verified flag
+  # and any outstanding code so the next visit sends a fresh one to the new
+  # address (account page edit or the modal's change-email form).
+  def reset_email_verification
+    self.email_verified_at = nil
+    self.verification_code_digest = nil
+    self.verification_code_sent_at = nil
+    self.verification_code_attempts = 0
   end
 end

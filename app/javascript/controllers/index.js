@@ -66,8 +66,14 @@ application.register("share-button", ShareButtonController);
 import DeleteConfirmController from "./delete_confirm_controller";
 application.register("delete-confirm", DeleteConfirmController);
 
-// v0.11 — completion confetti: when the toggle_completed stream lands the
+// Completion confetti: when the toggle_completed stream lands the
 // freshly checked card, it bounces, the check pops and a confetti burst fires
 // from the check button (checking only — unchecking never celebrates).
 import CompletionConfettiController from "./completion_confetti_controller";
 application.register("completion-confetti", CompletionConfettiController);
+
+// verify-email modal: six OTP boxes (auto-advance/backspace/paste),
+// the resend countdown seeded from the server cooldown and the inline
+// change-email form — shared by the hard gate and the soft nag.
+import EmailVerificationController from "./email_verification_controller";
+application.register("email-verification", EmailVerificationController);

@@ -53,7 +53,7 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
 
   # ---- Phase 12 — profile editor ---------------------------------------------
 
-  test "update applies the profile fields" do
+  test "update applies the profile fields but locks the email of a verified user" do
     patch account_path, params: {
       user: { first_name: "Alex", last_name: "Antoni", username: "alex_antoni",
               email: "alex@example.com" }
@@ -63,7 +63,51 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     assert_match(/profile has been updated/i, flash[:notice])
     @user.reload
     assert_equal "Alex", @user.first_name
-    assert_equal "alex@example.com", @user.email
+    # Verified addresses are locked — the posted email is ignored.
+    assert_equal "rider@example.com", @user.email
+  end
+
+  test "show marks a verified email with the badge and a disabled field" do
+    get account_path
+
+    assert_select ".account__verified", text: /Verified/
+    # disabled, not readonly: the browser drops disabled inputs from the form
+    # post entirely, so the profile PATCH can never carry the address.
+    assert_select "input[name='user[email]'][disabled]"
+  end
+
+  test "unverified user can still change the email without an immediate code email" do
+    # A real legacy (soft) account: pre-cutover flag + still unverified, so
+    # the account page is reachable past the hard gate.
+    legacy = User.create!(valid_user_attributes(email: "legacy@example.com")
+                          .merge(email_verification_soft: true, email_verified_at: nil))
+    sign_in legacy
+
+    get account_path
+    assert_select ".account__verified", count: 0
+
+    # Saving the profile is not a verification action: no unsolicited code
+    # email (the user may have dismissed the verification nag). The model
+    # callback drops the outstanding code; the next visit that shows the
+    # verification modal lazily re-issues a fresh one to the new address.
+    assert_emails 0 do
+      patch account_path, params: { user: { email: "moved@example.com" } }
+    end
+
+    assert_redirected_to account_path
+    assert_equal "Your profile has been updated.", flash[:notice]
+    legacy.reload
+    assert_equal "moved@example.com", legacy.email
+    refute legacy.email_verified?
+    assert legacy.verification_code_digest.blank?
+    assert legacy.verification_code_sent_at.blank?
+
+    # The next page view (modal not snoozed here) still delivers a fresh
+    # code — to the new address.
+    assert_emails 1 do
+      get account_path
+    end
+    assert_equal [ "moved@example.com" ], ActionMailer::Base.deliveries.last.to
   end
 
   test "update rejects an invalid username with the error summary" do

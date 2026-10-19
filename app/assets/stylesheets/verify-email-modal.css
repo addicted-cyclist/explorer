@@ -1,0 +1,193 @@
+/* ------------------------------------------------------------------ */
+/* Verify-email modal (v0.12, design-refs/stitch_explorer_v0.12)        */
+/* Soft: rendered in the app layout over any page, dismissable (24h    */
+/* snooze cookie). Hard: locked on the standalone gate page.           */
+/* ------------------------------------------------------------------ */
+
+.modal__card--verify {
+  max-width: 26rem;
+  text-align: center;
+}
+
+.verify-modal__close {
+  position: absolute;
+  top: var(--space-sm);
+  right: var(--space-sm);
+}
+
+.verify-modal__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  margin: 0 auto var(--space-md);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-canvas);
+  color: var(--color-text-primary);
+}
+
+.verify-modal__icon .material-symbols-outlined {
+  font-size: 1.375rem;
+}
+
+.verify-modal__intro {
+  margin-top: var(--space-xs);
+}
+
+.verify-modal__address {
+  overflow-wrap: anywhere;
+  margin-bottom: var(--space-md);
+}
+
+.verify-modal__flash {
+  margin-bottom: var(--space-md);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-lg);
+  text-align: left;
+}
+
+.verify-modal__flash--alert {
+  background: var(--color-accent-route-soft);
+  color: var(--color-on-error-container);
+}
+
+.verify-modal__flash--notice {
+  background: var(--color-surface-canvas);
+}
+
+.verify-modal__digits {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.verify-modal__digit {
+  width: 2.75rem;
+  height: 3.25rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-canvas);
+  font-size: 1.125rem;
+  font-weight: 600;
+  text-align: center;
+  outline: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.verify-modal__digit:focus {
+  border-color: var(--color-border-strong);
+  box-shadow: var(--focus-ring);
+}
+
+.verify-modal__submit {
+  width: 100%;
+  margin-bottom: var(--space-md);
+}
+
+.verify-modal__resend {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2xs);
+  margin-bottom: var(--space-md);
+}
+
+.verify-modal__resend-form {
+  display: inline-flex;
+}
+
+.verify-modal__resend-btn {
+  color: var(--color-text-primary);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.verify-modal__resend-btn[disabled],
+.verify-modal__resend-btn:disabled {
+  color: var(--color-text-tertiary);
+  text-decoration: none;
+  cursor: not-allowed;
+}
+
+.verify-modal__links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-md);
+}
+
+.verify-modal__link {
+  color: var(--color-text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.verify-modal__link:hover {
+  color: var(--color-text-primary);
+}
+
+.verify-modal__email-form {
+  display: flex;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.verify-modal__email-input {
+  flex: 1;
+  text-align: left;
+}
+
+.verify-modal__info {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  padding: var(--space-sm);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-canvas);
+  text-align: left;
+}
+
+.verify-modal__info .material-symbols-outlined {
+  flex: none;
+  font-size: 1.125rem;
+  color: var(--color-text-tertiary);
+}
+
+/* Bare host page behind the hard gate (verification_gate layout) */
+.gate {
+  min-height: 100dvh;
+}
+
+.gate-body {
+  background: var(--color-surface-container);
+}
+
+/* Sign out stays reachable below the locked gate card */
+.gate__signout {
+  position: fixed;
+  bottom: var(--space-lg);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 61; /* above the .modal overlay (60) */
+}
+
+.gate__signout-form {
+  display: inline-flex;
+}
+
+.gate__signout-btn {
+  color: var(--color-text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.gate__signout-btn:hover {
+  color: var(--color-text-primary);
+}
