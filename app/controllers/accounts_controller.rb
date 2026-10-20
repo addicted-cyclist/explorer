@@ -1,6 +1,7 @@
 # Phase 9 shipped the public-calendar share controls; Phase 12 turns the page
-# into the full account settings: profile editor (first/last name, username,
-# email), avatar upload (Active Storage, JPG/PNG/WebP ≤ 5 MB), a Devise-rules
+# into the full account settings: profile editor (first/last name, username;
+# the email is only editable while unverified), avatar upload (Active Storage,
+# JPG/PNG/WebP ≤ 5 MB), a Devise-rules
 # password change and account deletion with the dependent: :destroy cascade.
 # The connected-accounts section stays display-only for now.
 class AccountsController < ApplicationController
@@ -13,6 +14,13 @@ class AccountsController < ApplicationController
   # :calendar_public) and the profile editor (+ the avatar quick-form). The
   # notice adapts so the toggle keeps its established share messages.
   def update
+    # An email change drops any outstanding code (reset_email_verification)
+    # but does not email a fresh one here: a profile save is not a
+    # verification action, and a snoozed ("Verify later") legacy user asked
+    # not to be nagged. The lazy send re-issues a fresh code on the next
+    # visit that actually shows the verification modal. (The modal's own
+    # change-email form — EmailVerificationController#update_email — does
+    # re-issue immediately: that user is actively verifying.)
     if current_user.update(account_params)
       redirect_to account_path, notice: update_notice
     else
@@ -54,8 +62,13 @@ class AccountsController < ApplicationController
   private
 
   def account_params
-    params.require(:user).permit(:first_name, :last_name, :username, :email,
-                                 :calendar_public, :avatar)
+    # A verified address is the confirmed identity and must not be swappable
+    # to an unverified one, so :email is dropped for verified users (the
+    # disabled field never posts one anyway). Unverified users keep the edit
+    # — fixing a typo'd address is exactly how they get verified.
+    permitted = %i[first_name last_name username calendar_public avatar]
+    permitted << :email unless current_user.email_verified?
+    params.require(:user).permit(*permitted)
   end
 
   def password_params

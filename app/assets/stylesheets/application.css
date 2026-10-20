@@ -20,6 +20,7 @@
  *= require calendar-popover
  *= require route-card-kebab
  *= require upload-edit-modal
+ *= require verify-email-modal
  *= require empty-states
  *= require flash-messages
  *= require celebration

@@ -5,7 +5,11 @@ import { Controller } from "@hotwired/stimulus"
 // element on the page with `data-modal-open="<modal id>"` opens it. A modal
 // rendered inside a Turbo Frame can open itself on connect with
 // `data-modal-auto-open="true"`. Backdrop click, the close button and
-// Escape all dismiss it.
+// Escape all dismiss it — unless the modal is locked
+// (`data-modal-locked="true"`; the verify-email hard gate). A dismissable
+// modal may also carry `data-modal-snooze="<cookie name>"` (+ optional
+// `data-modal-snooze-hours`, default 24): hiding it writes that cookie, and
+// the server keeps the modal closed while it is set (verify-email nag).
 export default class extends Controller {
   connect() {
     this.previouslyFocused = null
@@ -55,13 +59,29 @@ export default class extends Controller {
   }
 
   hide() {
-    if (!this.isOpen) return
+    if (!this.isOpen || this.isLocked) return
 
     this.element.classList.remove("is-open")
     this.element.setAttribute("aria-hidden", "true")
     document.body.classList.remove("has-open-modal")
     this.previouslyFocused?.focus?.()
     this.previouslyFocused = null
+    this.writeSnooze()
+  }
+
+  // Locked modals (verify-email hard gate) ignore every dismissal path.
+  get isLocked() {
+    return this.element.dataset.modalLocked === "true"
+  }
+
+  // Remember the dismissal in a cookie the layout checks, so the modal
+  // stays closed for the configured hours (verify-email soft nag).
+  writeSnooze() {
+    const name = this.element.dataset.modalSnooze
+    if (!name) return
+
+    const hours = Number(this.element.dataset.modalSnoozeHours) || 24
+    document.cookie = `${name}=1; path=/; max-age=${hours * 60 * 60}; samesite=lax`
   }
 
   closeAllOthers() {

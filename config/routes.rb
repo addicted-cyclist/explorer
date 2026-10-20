@@ -1,6 +1,17 @@
 Rails.application.routes.draw do
   devise_for :users, controllers: { registrations: "users/registrations" }
 
+  # email verification (technote.FEATURES.md): the 6-digit code
+  # modal. The GET gate is the standalone wall for hard-gated (new)
+  # accounts; the three POSTs serve both the gate and the soft modal
+  # rendered in the app layout. require_email_verification! in
+  # ApplicationController bounces hard-gated users here and EmailVerificationController
+  # skips it, so these stay reachable while unverified.
+  get "email_verification", to: "email_verification#gate", as: :email_verification_gate
+  post "email_verification/verify", to: "email_verification#verify", as: :email_verification_verify
+  post "email_verification/resend", to: "email_verification#resend", as: :email_verification_resend
+  post "email_verification/email", to: "email_verification#update_email", as: :email_verification_update_email
+
   # Phase 9 — public read-only calendar share. The owner's public_token is
   # the capability: show renders the shared week, join books a ride onto the
   # visitor's own calendar. Both skip the Devise gate inside the controller.

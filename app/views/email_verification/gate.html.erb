@@ -1,0 +1,14 @@
+<%# The hard gate: the only page an unverified new account can
+    load, in the bare verification_gate layout (no app shell, no nav escape).
+    The modal is locked in hard mode: no close, no backdrop dismissal, no
+    "Verify later" — the 6-digit code is the only way through; Sign out
+    stays reachable below the card. A legacy (soft) account that somehow
+    lands here gets the closable variant instead. %>
+<main class="gate">
+  <%= render "shared/verify_email_modal", hard: current_user.email_verification_hard? %>
+  <div class="gate__signout">
+    <%= button_to "Sign out", destroy_user_session_path, method: :delete,
+                  form: { class: "gate__signout-form" },
+                  class: "gate__signout-btn t-body-sm" %>
+  </div>
+</main>

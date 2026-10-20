@@ -138,5 +138,15 @@
         </nav>
       </div>
     </footer>
+
+    <%# email verification nag for legacy accounts (new accounts are
+        hard-gated onto the standalone gate by ApplicationController and never
+        reach this layout). Renders over every page until verified or
+        snoozed — "Verify later" writes the 24h cookie via the modal
+        controller's data-modal-snooze. %>
+    <% if user_signed_in? && !current_user.email_verified? &&
+          current_user.email_verification_soft? && !cookies[:email_verification_snoozed] %>
+      <%= render "shared/verify_email_modal", hard: false %>
+    <% end %>
   </body>
 </html>

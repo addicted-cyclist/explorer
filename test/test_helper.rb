@@ -9,15 +9,18 @@ module ActiveSupport
     parallelize(workers: 1)
 
     # Attributes for a User that passes Devise's validatable module plus the
-    # app's own first_name/last_name/username validations. Extra keyword
-    # arguments override the defaults (e.g. first_name: "Alice").
+    # app's own first_name/last_name/username validations. Users default to
+    # email-verified so tests exercise their own concern; the
+    # verification flow's tests create unverified users explicitly via
+    # email_verified_at: nil.
     def valid_user_attributes(email: "rider@example.com", **overrides)
       {
         email: email,
         password: "password123",
         first_name: "Riley",
         last_name: "Rider",
-        username: email.delete("@.").tr(".", "_")
+        username: email.delete("@.").tr(".", "_"),
+        email_verified_at: Time.current
       }.merge(overrides)
     end
 

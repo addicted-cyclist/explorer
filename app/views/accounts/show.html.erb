@@ -103,8 +103,20 @@
           <div class="account__field">
             <%= form.label :email, "Email", class: "field-label c-secondary" %>
             <div class="account__input-wrap">
-              <%= form.email_field :email, autocomplete: "email",
-                    class: "input account__input--badged" %>
+              <%# A verified address is the confirmed identity, so it is locked
+                  twice: disabled here and dropped from account_params in the
+                  controller — the badge is the receipt. Unverified users keep
+                  the editable field so a typo'd address can still be fixed. %>
+              <% if current_user.email_verified? %>
+                <%= form.email_field :email, autocomplete: "email",
+                      class: "input account__input--badged", disabled: true %>
+                <span class="account__verified">
+                  <span class="material-symbols-outlined ms-14" aria-hidden="true">verified</span>
+                  Verified
+                </span>
+              <% else %>
+                <%= form.email_field :email, autocomplete: "email", class: "input" %>
+              <% end %>
             </div>
           </div>
         </div>
