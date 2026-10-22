@@ -48,6 +48,19 @@ class PublicCalendarControllerTest < ActionDispatch::IntegrationTest
     assert_select %(a.wc-gpx-btn[href="#{gpx_file_path(@route.gpx_file.blob.signed_id, "ridge_loop.gpx")}"])
   end
 
+  # Routes on a public calendar are publicly viewable (Phase 9 extended to
+  # detail pages): every rendered title — desktop day column + sidebar and
+  # both mobile surfaces — links to the (now public) route detail page.
+  test "show links route titles to the detail pages" do
+    get public_calendar_path(@owner.public_token)
+
+    assert_response :success
+    assert_select %(a[href="#{route_path(@route)}"]), minimum: 4 # desktop + mobile surfaces
+    assert_select %(a.wc-entry__link[href="#{route_path(@route)}"]) # desktop day column
+    assert_select %(a.mob-wc__entry-link[href="#{route_path(@route)}"]) # mobile day panel
+    assert_select %(a.mob-wc__route-link[href="#{route_path(@route)}"]) # mobile routes list
+  end
+
   # Phase 0 capacity: the public cards check gpx_file.attached? per route —
   # the week's entries must preload their attachments (and blobs, for the
   # signed-id links) or every rendered card adds an attachment query.

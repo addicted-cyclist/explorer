@@ -228,6 +228,92 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  # ---- Phase 9: routes on a public calendar are publicly viewable --------------
+
+  test "show renders the read-only view for a signed-in stranger on a public-calendar route" do
+    owner, route = create_public_route("owner@example.com")
+
+    get route_path(route)
+
+    assert_response :success
+    assert_match "Save Route", response.body
+    assert_match "Download GPX", response.body
+    assert_match owner.name, response.body
+    # Still the OTHER read-only view: no inline editors, no calendar chip
+    assert_no_match(/name="route\[tier\]"/, response.body)
+    assert_no_match(/calendar-picker/, response.body)
+    # The Calendar crumb returns to the shared calendar, not /calendar
+    assert_select %(a[href="#{public_calendar_path(owner.public_token)}"])
+  end
+
+  test "show renders for a guest when the route is on a public calendar" do
+    owner, route = create_public_route("owner@example.com")
+
+    sign_out :user
+
+    get route_path(route, week: Date.current.beginning_of_week.iso8601)
+
+    assert_response :success
+    assert_match "Download GPX", response.body
+    # The Calendar crumb carries the week back to the shared calendar
+    assert_select %(a[href="#{public_calendar_path(owner.public_token, week: Date.current.beginning_of_week.iso8601)}"])
+  end
+
+  test "show bounces a guest to sign-in for a private route" do
+    owner = User.create!(valid_user_attributes(email: "owner@example.com"))
+    route = owner.routes.create!(source: "upload", title: "Not mine")
+
+    sign_out :user
+
+    get route_path(route)
+
+    assert_redirected_to new_user_session_path
+  end
+
+  test "show 404s a signed-in stranger again once the share is switched off" do
+    owner, route = create_public_route("owner@example.com")
+
+    get route_path(route)
+    assert_response :success
+
+    owner.update!(calendar_public: false)
+    get route_path(route)
+    assert_response :not_found
+  end
+
+  test "show 404s a signed-in stranger again once the ride is unscheduled" do
+    owner, route = create_public_route("owner@example.com")
+
+    get route_path(route)
+    assert_response :success
+
+    owner.calendar_entries.destroy_all
+    get route_path(route)
+    assert_response :not_found
+  end
+
+  test "download works for a guest on a public-calendar route" do
+    _owner, route = create_public_route("owner@example.com")
+
+    sign_out :user
+
+    get download_route_path(route)
+
+    assert_response :success
+    assert_match(/attachment; filename="exploration\.gpx"/, response.headers["Content-Disposition"])
+  end
+
+  test "download bounces a guest to sign-in for a private route" do
+    owner = User.create!(valid_user_attributes(email: "owner@example.com"))
+    route = create_route_with_gpx(owner)
+
+    sign_out :user
+
+    get download_route_path(route)
+
+    assert_redirected_to new_user_session_path
+  end
+
   test "save deep-copies a friend's route with its own gpx blob" do
     owner = User.create!(valid_user_attributes(email: "owner@example.com"))
     Friendship.connect!(owner, @user)
@@ -296,6 +382,36 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
     post save_route_path(route)
 
     assert_response :not_found
+  end
+
+  test "save deep-copies a public route for a signed-in stranger" do
+    _owner, route = create_public_route("owner@example.com")
+    stranger = User.create!(valid_user_attributes(email: "stranger@example.com"))
+    sign_in stranger
+
+    assert_difference -> { stranger.routes.count }, +1 do
+      post save_route_path(route)
+    end
+
+    saved = stranger.routes.sole
+    assert_redirected_to route_path(saved)
+    assert_equal "Saved \"#{route.title}\" to My Routes.", flash[:notice]
+    assert_equal route.title, saved.title
+    # Copy contract: fresh upload owned by the stranger
+    assert_equal "upload", saved.source
+    assert_equal stranger, saved.user
+  end
+
+  test "save bounces a guest to sign-in" do
+    _owner, route = create_public_route("owner@example.com")
+
+    sign_out :user
+
+    assert_no_difference -> { Route.count } do
+      post save_route_path(route)
+    end
+
+    assert_redirected_to new_user_session_path
   end
 
   test "download as a friend streams the owner's gpx" do
@@ -511,5 +627,16 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
       route.parse_gpx!
       route.reload
     end
+  end
+
+  # Owner with a live public share and one scheduled — thus publicly
+  # viewable — route with an attached, parsed GPX. Returns [owner, route].
+  def create_public_route(owner_email)
+    owner = User.create!(valid_user_attributes(email: owner_email))
+    owner.update!(calendar_public: true)
+    route = create_route_with_gpx(owner)
+    owner.calendar_entries.create!(route: route, scheduled_on: Date.current + 2,
+                                   start_time: "08:00", end_time: "09:00")
+    [ owner, route ]
   end
 end

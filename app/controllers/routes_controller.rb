@@ -1,8 +1,17 @@
 class RoutesController < ApplicationController
-  # Privilege-sensitive actions stay owner-scoped; show/download/save open up
-  # to accepted friends (read-only other-user detail view, Phase 6).
+  # Privilege-sensitive actions stay owner-scoped; show/download/save open
+  # up to accepted friends (read-only other-user detail view, Phase 6) and,
+  # like the /c/:token share itself, to anyone at all while the route sits
+  # on its owner's live public calendar (Phase 9: a scheduled route on a
+  # public calendar is public — strangers and guests included).
   before_action :set_route, only: %i[edit update destroy toggle_completed]
   before_action :set_viewable_route, only: %i[show download save]
+
+  # show/download must open to guests for public-share routes. save stays
+  # behind the Devise gate — a guest is bounced to sign-in, the same
+  # "authorize to act" contract as the public calendar's Join. For private
+  # routes, set_viewable_route restores the filter's bounce itself.
+  skip_before_action :authenticate_user!, only: %i[show download]
 
   # Phase 0 capacity — the library picker's tracked-entry query used to load
   # the user's entire scheduling history on every index render. Bounded now:
@@ -160,13 +169,20 @@ class RoutesController < ApplicationController
     @route = current_user.routes.find(params[:id])
   end
 
-  # Read access: the owner or one of their accepted friends. Everyone else
-  # (including signed-in strangers) gets a 404, like the scoped finds.
+  # Read access: the owner or one of their accepted friends — or anyone at
+  # all while the route sits on its owner's live public share (routes on a
+  # public calendar are public, guests included). Everyone else — a signed-in
+  # stranger — gets the same 404 the scoped finds produce; a guest reaching a
+  # private route is bounced to sign-in exactly like the Devise filter did
+  # before show/download went public-capable.
   def set_viewable_route
     @route = Route.find(params[:id])
     return if @route.user == current_user || @route.user.friends_with?(current_user)
+    return if @route.publicly_viewable?
 
-    raise ActiveRecord::RecordNotFound
+    raise ActiveRecord::RecordNotFound if user_signed_in?
+
+    redirect_to new_user_session_path
   end
 
   # The shared upload modal also opens from the calendar sidebar's "Import

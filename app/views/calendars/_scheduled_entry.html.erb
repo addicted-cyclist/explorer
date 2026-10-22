@@ -3,11 +3,9 @@
     (X unschedules via calendar-dnd#removeEntry). Friend view: read-only — no
     checkbox/X/editor; the dock always renders and the join partial swaps
     Join+popover for an inert "Joined" button when joined. Public share
-    (Phase 9): like the friend card, but the title is plain text (route detail
-    pages stay auth-gated) and the dock join posts to the public join
-    endpoint — the join Turbo Stream passes joined: true explicitly, fresh
-    page renders derive it from @joined_origin_ids via the helper. Title
-    links carry a native tooltip so truncated names stay readable. %>
+    (Phase 9): like the friend card, and the dock join posts to the public
+    join endpoint — the join Turbo Stream passes joined: true explicitly,
+    fresh page renders derive it from @joined_origin_ids via the helper. %>
 <% joined = local_assigns.fetch(:joined) { calendar_entry_joined?(entry) } %>
 <%# The completion-confetti controller (my view only) flips the completed
     class in place on check-submit and plays the celebration: card bounce,
@@ -16,11 +14,7 @@
          id="<%= dom_id(entry) %>"
          data-controller="entry-time-editor completion-confetti">
   <div class="wc-entry__top">
-    <% if @is_public_view %>
-      <h4 class="wc-entry__title t-title-sm">
-        <span class="wc-entry__link c-primary" title="<%= entry.route.title %>"><%= entry.route.title %></span>
-      </h4>
-    <% elsif @is_friend_view %>
+    <% if @is_friend_view || @is_public_view %>
       <h4 class="wc-entry__title t-title-sm">
         <%= link_to entry.route.title, route_path(
           entry.route,

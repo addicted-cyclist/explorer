@@ -26,6 +26,17 @@ class Route < ApplicationRecord
     source == "upload"
   end
 
+  # ---- Public visibility (Phase 9 share) ----------------------------------
+  # A route scheduled on its owner's calendar is readable by anyone —
+  # friends on /calendar/:username, and any stranger or guest holding the
+  # share link — while the owner's calendar share is live. Unscheduled
+  # library routes (and everything, once the share is switched off or the
+  # ride is removed from the calendar) stay owner/friend-only.
+  # RoutesController gates the detail page and GPX download on this.
+  def publicly_viewable?
+    user.calendar_public? && calendar_entries.exists?(user_id: user_id)
+  end
+
   # ---- Deep copy (save to library, calendar join) ------------------------
   # Attributes carried onto a deep copy: the parsed GPX facts and display
   # metadata. Ownership, timestamps, source and the completed flag reset.
