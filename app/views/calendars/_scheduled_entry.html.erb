@@ -38,10 +38,17 @@
     <% end %>
   </div>
 
-  <div class="wc-entry__metrics t-label-sm">
+  <%# Row 2 metrics link to the route detail like the title, so the whole card
+      body reads as one target on read-only views. Params mirror the title
+      link: friend view carries username/week so the detail page's Calendar
+      crumb returns to the friend's week; the public share carries the week;
+      my view links the bare route path. %>
+  <% metrics_path_opts = calendar_read_only? ? { username: params[:username], week: params[:week] } : {} %>
+  <%= link_to route_path(entry.route, **metrics_path_opts),
+        class: "wc-entry__metrics t-label-sm" do %>
     <span class="wc-entry__metric c-primary"><%= format_distance(entry.route.distance) %> <span class="wc-entry__unit c-secondary">km</span></span>
     <span class="wc-entry__metric c-elevation"><%= format_elevation(entry.route.elevation_gain) %> <span class="wc-entry__unit c-secondary">m</span></span>
-  </div>
+  <% end %>
 
   <% if calendar_read_only? %>
     <p class="wc-entry__slot t-label-sm c-secondary">

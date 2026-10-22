@@ -22,9 +22,7 @@
       <%= link_to route.title, route_path(route, **route_path_opts),
         data: { turbo_frame: "_top" },
         class: "mob-wc__route-link",
-        title: route.title,
-        username: params[:username],
-        week: params[:week] %>
+        title: route.title %>
     </h3>
   <% end %>
 

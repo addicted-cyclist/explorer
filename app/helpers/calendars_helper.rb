@@ -164,6 +164,9 @@ module CalendarsHelper
   # other card style. `route` expands to its cache_key, so any edit bumps
   # updated_at and invalidates the fragment automatically.
   def card_metrics_thumb_cache_key(route, class_prefix)
-    [ route, class_prefix, "card-metrics-thumb" ]
+    # v2: the cached link no longer renders stray username/week anchor
+    # attributes; Redis-backed production fragments must not outlive the
+    # template fix, so the literal is versioned to invalidate them.
+    [ route, class_prefix, "card-metrics-thumb-v2" ]
   end
 end
