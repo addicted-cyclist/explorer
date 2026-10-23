@@ -3,7 +3,8 @@
     Phase 9 extension: a route scheduled on its owner's public calendar is
     readable by any stranger or guest (read-only; Save Route for signed-in
     users), and the Calendar crumb returns to the shared calendar itself —
-    plain /calendar would bounce a guest to sign-in. %>
+    plain /calendar would bounce a guest to sign-in. An accepted friend
+    returns to the owner's friend-view week (/calendar/:username) instead. %>
 <div class="route-detail">
   <nav class="route-detail__breadcrumb t-body-sm c-secondary" aria-label="Breadcrumb">
     <% if @is_owner %>
@@ -26,10 +27,12 @@
           <span>Calendar</span>
         <% end %>
       <% else %>
-        <%= link_to calendar_path(
-          username: params[:username],
-          week: params[:week]
-        ), class: "route-detail__crumb-link" do %>
+        <%# Accepted friend (from the friend view or the owner's share):
+            back to the owner's friend-view week — params[:username] is not
+            reliable here (absent on the share path), so target the owner
+            directly; week context rides along. %>
+        <%= link_to friend_calendar_path(@route.user.username, week: params[:week]),
+                    class: "route-detail__crumb-link" do %>
           <span>Calendar</span>
         <% end %>
       <% end %>

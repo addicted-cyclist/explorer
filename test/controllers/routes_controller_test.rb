@@ -246,6 +246,24 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
     assert_select %(a[href="#{public_calendar_path(owner.public_token)}"])
   end
 
+  # Regression: a friend arriving at a public-calendar route detail from the
+  # owner's share (/c/:token) carries no username param — the crumb used to
+  # read params[:username], dropped it, and bounced the friend to /calendar
+  # (their own week). It must always target the owner's friend view.
+  test "show routes a friend's Calendar crumb to the owner's friend view from the share" do
+    owner, route = create_public_route("owner@example.com")
+    Friendship.connect!(owner, @user)
+    week = Date.current.beginning_of_week.iso8601
+
+    get route_path(route, week: week)
+
+    assert_response :success
+    crumb_href = friend_calendar_path(owner.username, week: week)
+    assert_select %(nav.route-detail__breadcrumb a[href="#{crumb_href}"])
+    own_calendar_href = calendar_path(week: week)
+    assert_select %(nav.route-detail__breadcrumb a[href="#{own_calendar_href}"]), count: 0
+  end
+
   test "show renders for a guest when the route is on a public calendar" do
     owner, route = create_public_route("owner@example.com")
 
