@@ -5,6 +5,6 @@
       partial: "calendars/scheduled_entry", locals: { entry: @entry, joined: true } %>
 
 <%# Mirror the repaint in the mobile day panel; its entry card derives the
-    "Joined" dock state from @joined_origin_ids. %>
+    "Joined" dock state from @joined_entry_ids. %>
 <%= turbo_stream.replace calendar_mobile_day_dom_id(@entry.scheduled_on),
       partial: "calendars/mobile/day_panel", locals: { date: @entry.scheduled_on } %>

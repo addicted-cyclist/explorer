@@ -1,7 +1,7 @@
 <%# Scheduled entry card, Friends-card style, for the mobile day panel.
     My view: completed toggle + Remove. Friend view: read-only, with the
     Join ride button (or the inert Joined state, derived from
-    @joined_origin_ids exactly like the desktop dock). Public share
+    @joined_entry_ids exactly like the desktop dock). Public share
     (Phase 9): like the friend card, and the join posts to the public join
     endpoint (guests are bounced to sign-in and returned here afterwards). %>
 <% joined = local_assigns.fetch(:joined) { calendar_entry_joined?(entry) } %>
@@ -38,17 +38,18 @@
     </div>
     <div class="mob-wc__entry-actions">
       <% if @is_public_view %>
-        <% if joined %>
-          <span class="mob-wc__entry-joined t-label-md c-success">
-            <span class="material-symbols-outlined ms-16" aria-hidden="true">check_circle</span>
-            <span>Joined</span>
-          </span>
-        <% elsif user_signed_in? && entry.user_id == current_user.id %>
+        <% if user_signed_in? && entry.user_id == current_user.id %>
           <%# BUGS item 4: the share's origin owner — joining is blocked
-              server-side, so the card shows the inert state instead. %>
+              server-side, so this inert state wins over the ride-wide
+              "Joined" check. %>
           <span class="mob-wc__entry-joined t-label-md c-secondary">
             <span class="material-symbols-outlined ms-16" aria-hidden="true">person</span>
             <span>Your ride</span>
+          </span>
+        <% elsif joined %>
+          <span class="mob-wc__entry-joined t-label-md c-success">
+            <span class="material-symbols-outlined ms-16" aria-hidden="true">check_circle</span>
+            <span>Joined</span>
           </span>
         <% else %>
           <%= button_to public_calendar_join_path(params[:token], entry_id: entry.id, week: (@week_start.iso8601 if @week_start)),

@@ -665,6 +665,83 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match /Join Route/, response.body
   end
 
+  test "the join popover counts other joined riders beside the owner" do
+    friend = User.create!(valid_user_attributes(email: "joincount@example.com"))
+    Friendship.connect!(friend, @user)
+    friend_route = create_friend_route_with_gpx(friend)
+    friend_entry = friend.calendar_entries.create!(route: friend_route, scheduled_on: Date.new(2026, 10, 27),
+                                                   start_time: "07:30", end_time: "08:30")
+    2.times do |i|
+      rider = User.create!(valid_user_attributes(email: "joinrider#{i}@example.com"))
+      CalendarEntry.join_ride!(friend_entry, owner: rider)
+    end
+
+    get friend_calendar_path(friend.username, week: "2026-10-26")
+
+    assert_response :success
+    first_name = friend.name.split(" ").first
+    assert_match(/#{Regexp.escape(first_name)} &amp; 2 attending/, response.body)
+    assert_no_match(/is attending/, response.body)
+  end
+
+  test "the join popover keeps the owner-only line when nobody joined" do
+    friend = User.create!(valid_user_attributes(email: "joinalone@example.com"))
+    Friendship.connect!(friend, @user)
+    friend_route = create_friend_route_with_gpx(friend)
+    friend.calendar_entries.create!(route: friend_route, scheduled_on: Date.new(2026, 10, 27),
+                                    start_time: "07:30", end_time: "08:30")
+
+    get friend_calendar_path(friend.username, week: "2026-10-26")
+
+    assert_response :success
+    assert_match(/is attending/, response.body)
+    assert_no_match(/&amp; \d+ attending/, response.body)
+  end
+
+  test "the popover on a joined copy names the original author with the ride-wide count" do
+    author = User.create!(valid_user_attributes(email: "copyauthor@example.com", first_name: "Ada",
+                                                last_name: "Origin"))
+    author_route = create_friend_route_with_gpx(author)
+    ride = author.calendar_entries.create!(route: author_route, scheduled_on: Date.new(2026, 10, 27),
+                                           start_time: "07:30", end_time: "08:30")
+    joiner = User.create!(valid_user_attributes(email: "copyjoiner@example.com", first_name: "Grace",
+                                                last_name: "Hopper"))
+    CalendarEntry.join_ride!(ride, owner: joiner)
+    other = User.create!(valid_user_attributes(email: "copyother@example.com"))
+    CalendarEntry.join_ride!(ride, owner: other)
+    Friendship.connect!(joiner, @user)
+
+    # Viewing the JOINER's copy of the ride: the popover must still name the
+    # ride's original author and count every rider on the ride (the joiner
+    # plus the sibling rider), not just this copy's own joiners.
+    get friend_calendar_path(joiner.username, week: "2026-10-26")
+
+    assert_response :success
+    assert_match(/Ada &amp; 2 attending/, response.body)
+    assert_no_match(/is attending/, response.body)
+    assert_no_match(/Grace &amp;/, response.body)
+  end
+
+  test "a rider who joined the ride elsewhere sees a friend's copy as Joined" do
+    author = User.create!(valid_user_attributes(email: "crossauthor@example.com"))
+    author_route = create_friend_route_with_gpx(author)
+    ride = author.calendar_entries.create!(route: author_route, scheduled_on: Date.new(2026, 10, 27),
+                                           start_time: "07:30", end_time: "08:30")
+    other = User.create!(valid_user_attributes(email: "crossrider@example.com"))
+    CalendarEntry.join_ride!(ride, owner: other)
+    CalendarEntry.join_ride!(ride, owner: @user) # I attend via my own copy of the original
+    Friendship.connect!(other, @user)
+
+    # Viewing the other rider's copy of the same ride: the dock must hold
+    # the inert Joined state — a Join here would be rejected server-side.
+    get friend_calendar_path(other.username, week: "2026-10-26")
+
+    assert_response :success
+    assert_match(/wc-join--joined/, response.body)
+    assert_no_match(/wc-popover/, response.body)
+    assert_no_match(/Join Route/, response.body)
+  end
+
   test "joining the same ride twice does not duplicate the copy" do
     friend = User.create!(valid_user_attributes(email: "joindup@example.com"))
     Friendship.connect!(friend, @user)

@@ -5,7 +5,7 @@
     Join+popover for an inert "Joined" button when joined. Public share
     (Phase 9): like the friend card, and the dock join posts to the public
     join endpoint — the join Turbo Stream passes joined: true explicitly,
-    fresh page renders derive it from @joined_origin_ids via the helper. %>
+    fresh page renders derive it from @joined_entry_ids via the helper. %>
 <% joined = local_assigns.fetch(:joined) { calendar_entry_joined?(entry) } %>
 <%# The completion-confetti controller (my view only) flips the completed
     class in place on check-submit and plays the celebration: card bounce,

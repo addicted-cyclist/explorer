@@ -127,6 +127,113 @@ class CalendarEntry < ApplicationRecord
     chain
   end
 
+  # ---- ride identity (join-tree roots) ---------------------------------------
+
+  # Ride identity: for each of +entries+, the id of its join-tree root — the
+  # ride's original entry (or the highest surviving ancestor when that
+  # original was deleted). Every entry of one ride resolves to the same root
+  # however the ride was joined. One query per ancestry level for the whole
+  # batch, never per entry; a dangling origin ends its chain and the
+  # in-memory resolution is seen-guarded against corrupt cycles.
+  def self.ride_roots_for(entries)
+    nodes = entries.index_by(&:id)
+    walk_up_ancestry!(nodes)
+    resolve_ride_roots(nodes)
+  end
+
+  # Ride-wide attendance for a batch of entries: for each entry id, the
+  # ride's original entry (:author — the join-tree root, whose owner is the
+  # person the popover names even on a joined copy) and the number of
+  # distinct OTHER riders on the same ride (:participants — every user
+  # holding an entry anywhere in the tree: the author, sibling branches,
+  # copies of copies). Walks ancestry upward, then the whole tree downward
+  # from the roots, one level per query — bounded by tree depth, never by
+  # ride or joiner count.
+  def self.ride_attendance_for(entries)
+    nodes = entries.index_by(&:id)
+    walk_up_ancestry!(nodes)
+    root_of = resolve_ride_roots(nodes)
+
+    riders = Hash.new { |hash, root_id| hash[root_id] = [] }
+    nodes.each_value { |node| riders[root_of[node.id]] << node.user_id }
+
+    # Down from the roots: the rest of each ride's tree — sibling branches
+    # the batch's own ancestry never touched.
+    frontier_ids = nodes.values.select { |node| root_of[node.id] == node.id }.map(&:id)
+    until frontier_ids.empty?
+      children = CalendarEntry.where(origin_entry_id: frontier_ids)
+                              .where.not(id: nodes.keys).to_a
+      break if children.empty?
+
+      children.each do |child|
+        nodes[child.id] = child
+        root_of[child.id] = root_of[child.origin_entry_id]
+        riders[root_of[child.id]] << child.user_id
+      end
+      frontier_ids = children.map(&:id)
+    end
+
+    # One query for every ride author's user — the popover renders the
+    # author's initials and name per card and must never query per card.
+    roots = nodes.values.select { |node| root_of[node.id] == node.id }
+    authors = User.where(id: roots.map(&:user_id)).index_by(&:id)
+    roots.each { |root| root.user = authors[root.user_id] if authors.key?(root.user_id) }
+
+    entries.to_h do |entry|
+      root_id = root_of[entry.id]
+      [ entry.id, { author: nodes[root_id], participants: riders[root_id].uniq.size - 1 } ]
+    end
+  end
+
+  # Ids of +entries+ whose ride +user+ already attends — by ride identity,
+  # not by entry: the ride's original owner, a join via the original, a
+  # sibling branch or a copy of a copy all count, matching
+  # ride_already_on_calendar?'s join guard. Both sides resolve through
+  # ride_roots_for, so the cost stays level-batched.
+  def self.joined_entry_ids(entries, user)
+    # My own originals are their own ride roots; joined copies walk up.
+    my_ride_ids = user.calendar_entries.where(origin_entry_id: nil).pluck(:id)
+    my_ride_ids += ride_roots_for(user.calendar_entries.where.not(origin_entry_id: nil)).values.uniq
+
+    roots = ride_roots_for(entries)
+    entries.filter_map { |entry| my_ride_ids.include?(roots[entry.id]) ? entry.id : nil }
+  end
+
+  # Load every ancestor of +nodes+' entries into +nodes+ (id => entry), one
+  # level per query. Only loaded entries' parents queue up, so a dangling
+  # origin (deleted ancestor) ends its chain instead of looping forever.
+  private_class_method def self.walk_up_ancestry!(nodes)
+    pending_ids = nodes.values.filter_map(&:origin_entry_id).uniq - nodes.keys
+    until pending_ids.empty?
+      found = CalendarEntry.where(id: pending_ids).to_a
+      found.each { |parent| nodes[parent.id] = parent }
+      pending_ids = found.filter_map(&:origin_entry_id).uniq - nodes.keys
+    end
+  end
+
+  # Map every entry in +nodes+ to its ride root id: follow origin links in
+  # memory (all ancestors are loaded by then) until the chain tops out. The
+  # seen-check keeps corrupt, cyclic data bounded.
+  private_class_method def self.resolve_ride_roots(nodes)
+    root_of = {}
+    nodes.each_value do |node|
+      next if root_of.key?(node.id)
+
+      chain = []
+      seen_ids = []
+      current = node
+      until current.nil? || root_of.key?(current.id) || seen_ids.include?(current.id)
+        seen_ids << current.id
+        chain << current
+        current = current.origin_entry_id && nodes[current.origin_entry_id]
+      end
+      root_id = current && root_of[current.id]
+      root_id ||= chain.last.id
+      chain.each { |chain_node| root_of[chain_node.id] = root_id }
+    end
+    root_of
+  end
+
   private
 
   # end_time is a bare time-of-day (no date column) and the app only derives

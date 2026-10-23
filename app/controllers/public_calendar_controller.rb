@@ -31,13 +31,12 @@ class PublicCalendarController < ApplicationController
     # Visitors see only the routes scheduled in the visible week (the same
     # privacy contract as the friend view) — never the whole library.
     @sidebar_routes = @week_entries.sort_by(&:calendar_sort_key).map(&:route).uniq
-    # Which of this week's rides the signed-in visitor already joined — the
-    # docks show the inert "Joined" state for them, stable across reloads.
-    @joined_origin_ids =
+    # Which of this week's rides the signed-in visitor already attends — by
+    # ride identity (any of their copies of the same join tree) — the docks
+    # show the inert "Joined" state for them, stable across reloads.
+    @joined_entry_ids =
       if user_signed_in?
-        current_user.calendar_entries
-                    .where(origin_entry_id: @week_entries.map(&:id))
-                    .pluck(:origin_entry_id)
+        CalendarEntry.joined_entry_ids(@week_entries, current_user)
       else
         []
       end
@@ -78,7 +77,7 @@ class PublicCalendarController < ApplicationController
         @week_entries = @owner.calendar_entries
                               .includes(:route)
                               .between(@week_start..(@week_start + 6)).to_a
-        @joined_origin_ids = [ origin_entry.id ]
+        @joined_entry_ids = [ origin_entry.id ]
         render :join
       end
       format.html do
