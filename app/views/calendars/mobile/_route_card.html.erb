@@ -2,8 +2,8 @@
     the friend's routes scheduled this week, or (public share, Phase 9) the
     shared week's routes. My view: the Schedule button opens the "Schedule
     route" sheet with the route as context. Friend view: GPX download, like
-    the desktop sidebar's friend card. Public share: plain-text title (route
-    detail stays auth-gated) + signed-id GPX download. %>
+    the desktop sidebar's friend card. Public share: the title opens the
+    (public-by-share) detail page + signed-id GPX download. %>
 <% route_path_opts = @is_friend_view ? { username: params[:username], week: params[:week] } : {} %>
 <article class="mob-wc__route" id="<%= dom_id(route, :mob_route) %>">
   <span class="mob-wc__route-tier t-label-sm t-uppercase <%= calendar_tier_class(route.tier) %>">
@@ -12,16 +12,17 @@
 
   <% if @is_public_view %>
     <h3 class="t-title-md">
-      <span class="mob-wc__route-link" title="<%= route.title %>"><%= route.title %></span>
+      <%= link_to route.title, route_path(route, week: params[:week]),
+            data: { turbo_frame: "_top" },
+            class: "mob-wc__route-link",
+            title: route.title %>
     </h3>
   <% else %>
     <h3 class="t-title-md">
       <%= link_to route.title, route_path(route, **route_path_opts),
         data: { turbo_frame: "_top" },
         class: "mob-wc__route-link",
-        title: route.title,
-        username: params[:username],
-        week: params[:week] %>
+        title: route.title %>
     </h3>
   <% end %>
 

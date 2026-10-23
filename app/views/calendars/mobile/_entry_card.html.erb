@@ -1,12 +1,18 @@
 <%# Scheduled entry card, Friends-card style, for the mobile day panel.
     My view: completed toggle + Remove. Friend view: read-only, with the
     Join ride button (or the inert Joined state, derived from
-    @joined_origin_ids exactly like the desktop dock). Public share
-    (Phase 9): like the friend card, but the title is plain text and the
-    join posts to the public join endpoint (guests are bounced to sign-in
-    and returned here afterwards). %>
+    @joined_entry_ids exactly like the desktop dock). Public share
+    (Phase 9): like the friend card, and the join posts to the public join
+    endpoint (guests are bounced to sign-in and returned here afterwards). %>
 <% joined = local_assigns.fetch(:joined) { calendar_entry_joined?(entry) } %>
-<% route_path_opts = @is_friend_view ? { username: params[:username], week: params[:week] } : {} %>
+<%# Detail-link context: friends need username so the detail page's Calendar
+    crumb returns to the friend week view; the share keeps just the week. %>
+<% route_path_opts =
+     if @is_friend_view
+       { username: params[:username], week: params[:week] }
+     else
+       { week: params[:week] }
+     end %>
 <%# completion-confetti flips the completed class in place on check-submit
     and plays the celebration; the PATCH persists server-side (204). %>
 <article class="mob-wc__entry<%= " mob-wc__entry--completed" if entry.completed? %>"
@@ -32,7 +38,15 @@
     </div>
     <div class="mob-wc__entry-actions">
       <% if @is_public_view %>
-        <% if joined %>
+        <% if user_signed_in? && entry.user_id == current_user.id %>
+          <%# BUGS item 4: the share's origin owner — joining is blocked
+              server-side, so this inert state wins over the ride-wide
+              "Joined" check. %>
+          <span class="mob-wc__entry-joined t-label-md c-secondary">
+            <span class="material-symbols-outlined ms-16" aria-hidden="true">person</span>
+            <span>Your ride</span>
+          </span>
+        <% elsif joined %>
           <span class="mob-wc__entry-joined t-label-md c-success">
             <span class="material-symbols-outlined ms-16" aria-hidden="true">check_circle</span>
             <span>Joined</span>
@@ -70,16 +84,10 @@
   </div>
 
   <div class="mob-wc__entry-info">
-    <% if @is_public_view %>
-      <h3 class="t-title-md">
-        <span class="mob-wc__entry-link" title="<%= entry.route.title %>"><%= entry.route.title %></span>
-      </h3>
-    <% else %>
-      <h3 class="t-title-md">
-        <%= link_to entry.route.title, route_path(entry.route, **route_path_opts),
-              class: "mob-wc__entry-link", title: entry.route.title %>
-      </h3>
-    <% end %>
+    <h3 class="t-title-md">
+      <%= link_to entry.route.title, route_path(entry.route, **route_path_opts),
+            class: "mob-wc__entry-link", title: entry.route.title %>
+    </h3>
     <p class="mob-wc__entry-time t-label-sm c-secondary">
       <span class="material-symbols-outlined ms-16" aria-hidden="true">schedule</span>
       <span><%= entry.start_time&.strftime("%I:%M %p") || "--:--" %></span>

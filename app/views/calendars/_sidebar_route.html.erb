@@ -1,8 +1,8 @@
 <%# One library route in the calendar sidebar. My view: draggable pool card
     with the shared kebab menu (wired back to the week view). Friend view:
     read-only card with a GPX download button. Public share (Phase 9): like
-    the friend card, but titles are plain text (route detail pages stay
-    auth-gated) and downloads ride the signed-id GPX endpoint. %>
+    the friend card — the title opens the (public-by-share) detail page —
+    but downloads ride the signed-id GPX endpoint, which needs no session. %>
 <% readonly = calendar_read_only? %>
 <article class="wc-route-card<%= " wc-route-card--friend" if readonly %>"
          id="<%= dom_id(route, :wc_sidebar) %>"
@@ -13,7 +13,8 @@
   <header class="wc-route-card__head">
     <% if @is_public_view %>
       <h3 class="wc-route-card__title t-title-md">
-        <span class="c-primary" title="<%= route.title %>"><%= route.title %></span>
+        <%= link_to route.title, route_path(route, week: params[:week]),
+              class: "c-primary", title: route.title %>
       </h3>
       <% if route.gpx_file.attached? %>
         <%= link_to calendar_public_gpx_path(route), class: "wc-gpx-btn c-secondary", title: "Download GPX", data: { turbo: false } do %>

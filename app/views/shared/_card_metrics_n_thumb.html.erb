@@ -7,9 +7,7 @@
 <% cache(card_metrics_thumb_cache_key(route, class_prefix)) do %>
   <%= link_to route_path(route, **route_path_opts),
     class: "#{class_prefix}__entry-metrics-n-thumb",
-    data: { turbo_frame: "_top" },
-    username: params[:username],
-    week: params[:week] do %>
+    data: { turbo_frame: "_top" } do %>
     <dl class="<%= class_prefix %>__entry-metrics t-label-sm">
       <div class="<%= class_prefix %>__metric">
         <dt class="t-uppercase c-secondary">Dist</dt>

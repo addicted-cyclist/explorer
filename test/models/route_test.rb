@@ -46,6 +46,43 @@ class RouteTest < ActiveSupport::TestCase
     assert_not_predicate uploaded_route, :google_drive?
   end
 
+  # ---- public visibility (Phase 9 share) -----------------------------------
+
+  test "publicly_viewable? is true for a route scheduled on a public calendar" do
+    @user.update!(calendar_public: true)
+    route = @user.routes.create!(source: "upload", title: "Shared loop")
+    @user.calendar_entries.create!(route: route, scheduled_on: Date.current + 2,
+                                   start_time: "08:00", end_time: "09:00")
+
+    assert_predicate route, :publicly_viewable?
+  end
+
+  test "publicly_viewable? is false while the owner's calendar is private" do
+    route = @user.routes.create!(source: "upload", title: "Private loop")
+    @user.calendar_entries.create!(route: route, scheduled_on: Date.current + 2,
+                                   start_time: "08:00", end_time: "09:00")
+
+    assert_not_predicate route, :publicly_viewable?
+  end
+
+  test "publicly_viewable? is false for an unscheduled library route even on a public calendar" do
+    @user.update!(calendar_public: true)
+    route = @user.routes.create!(source: "upload", title: "Shelf loop")
+
+    assert_not_predicate route, :publicly_viewable?
+  end
+
+  test "publicly_viewable? flips false when the ride is unscheduled" do
+    @user.update!(calendar_public: true)
+    route = @user.routes.create!(source: "upload", title: "Shared loop")
+    entry = @user.calendar_entries.create!(route: route, scheduled_on: Date.current + 2,
+                                           start_time: "08:00", end_time: "09:00")
+
+    assert_predicate route, :publicly_viewable?
+    entry.destroy!
+    assert_not_predicate route.reload, :publicly_viewable?
+  end
+
   # ---- parse_gpx! --------------------------------------------------------
 
   test "parse_gpx! fills stats and track svg while keeping an existing title" do

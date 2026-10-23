@@ -12,11 +12,25 @@ module CalendarsHelper
     @week_entries.select { |entry| entry.scheduled_on == date }.sort_by(&:calendar_sort_key)
   end
 
-  # True when +entry+ — a friend's scheduled ride — already has my joined
-  # copy: the dock swaps to the inert "Joined" button instead of the popover.
-  # Reads the controller-provided @joined_origin_ids (nil outside friend view).
+  # True when +entry+'s ride is already on my calendar — any of my copies of
+  # that ride, however I joined it (the original, a friend's copy, the
+  # share), not just a direct copy of this entry: the dock swaps to the
+  # inert "Joined" button instead of the popover, matching the join guard's
+  # ride identity. Reads the controller-provided @joined_entry_ids (nil
+  # outside friend and public views).
   def calendar_entry_joined?(entry)
-    @joined_origin_ids&.include?(entry.id) || false
+    @joined_entry_ids&.include?(entry.id) || false
+  end
+
+  # Ride-wide attendance for +entry+ — the friend-view popover's "<Author>
+  # & N attending" line: :author is the ride's original entry (the join-tree
+  # root — on a joined copy that is the original owner, not the copy's
+  # owner) and :participants the number of distinct other riders on the same
+  # ride anywhere in the join tree. Reads the controller-provided
+  # @ride_attendance (nil outside the friend view), so the week render never
+  # queries per card and stream templates can call it harmlessly.
+  def calendar_ride_attendance(entry)
+    (@ride_attendance || {})[entry.id] || { author: entry, participants: 0 }
   end
 
   # "Oct 19 – Oct 25, 2026" range label for the toolbar chip.
@@ -164,6 +178,9 @@ module CalendarsHelper
   # other card style. `route` expands to its cache_key, so any edit bumps
   # updated_at and invalidates the fragment automatically.
   def card_metrics_thumb_cache_key(route, class_prefix)
-    [ route, class_prefix, "card-metrics-thumb" ]
+    # v2: the cached link no longer renders stray username/week anchor
+    # attributes; Redis-backed production fragments must not outlive the
+    # template fix, so the literal is versioned to invalidate them.
+    [ route, class_prefix, "card-metrics-thumb-v2" ]
   end
 end

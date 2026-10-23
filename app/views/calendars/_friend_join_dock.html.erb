@@ -43,8 +43,16 @@
       </div>
 
       <p class="wc-popover__riders t-body-sm c-secondary">
-        <span class="wc-popover__avatar" aria-hidden="true"><%= calendar_initials(entry.route.user) %></span>
-        <span><%= entry.route.user.name.split(" ").first %> is attending</span>
+        <% attendance = calendar_ride_attendance(entry) %>
+        <% author = attendance[:author] %>
+        <span class="wc-popover__avatar" aria-hidden="true"><%= calendar_initials(author.user) %></span>
+        <span>
+          <% if attendance[:participants].positive? %>
+            <%= author.user.name.split(" ").first %> &amp; <%= attendance[:participants] %> attending
+          <% else %>
+            <%= author.user.name.split(" ").first %> is attending
+          <% end %>
+        </span>
       </p>
 
       <%= button_to join_calendar_path, method: :post, class: "btn btn--primary btn--sm wc-popover__cta",

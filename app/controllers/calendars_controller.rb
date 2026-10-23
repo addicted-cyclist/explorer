@@ -26,13 +26,21 @@ class CalendarsController < ApplicationController
                          .includes(:route)
                          .between(@week_start..(@week_start + 6))
                          .order(:scheduled_on, :start_time, :id).to_a
-    # Friend view: which of this week's rides I already joined — the dock
-    # shows the inert "Joined" state for them, stable across reloads.
-    @joined_origin_ids =
+    # Friend view: which of this week's rides I already attend — by ride
+    # identity (any of my copies of the same join tree, however I joined
+    # it), not by entry — so the dock's inert "Joined" state matches the
+    # join guard and holds across reloads.
+    @joined_entry_ids =
       if @is_friend_view
-        current_user.calendar_entries
-                    .where(origin_entry_id: @week_entries.map(&:id))
-                    .pluck(:origin_entry_id)
+        CalendarEntry.joined_entry_ids(@week_entries, current_user)
+      end
+    # Friend view: each ride's original entry (its author) plus the number
+    # of distinct other riders on the same ride, for the popover's
+    # "<Author> & N attending" line — ride-wide, so it reads the same on
+    # every entry of the ride. Batched per tree level, never per card.
+    @ride_attendance =
+      if @is_friend_view
+        CalendarEntry.ride_attendance_for(@week_entries)
       end
     @telemetry = build_telemetry(@week_entries)
     @sidebar_routes =
@@ -223,7 +231,7 @@ class CalendarsController < ApplicationController
         @week_entries = friend.calendar_entries
                               .includes(:route)
                               .between(@week_start..(@week_start + 6)).to_a
-        @joined_origin_ids = [ friend_entry.id ]
+        @joined_entry_ids = [ friend_entry.id ]
         render :join
       end
       format.html do

@@ -106,4 +106,202 @@ class CalendarEntryTest < ActiveSupport::TestCase
     assert_equal 1, @user.calendar_entries.where(origin_entry_id: origin.id).count
     assert_equal 1, @user.routes.where(title: "Once only").count
   end
+
+  # ---- BUGS item 4: a ride already on my calendar can never be copied ------
+
+  test "join_ride! refuses the origin owner joining their own ride" do
+    origin = @user.calendar_entries.create!(route: @route, scheduled_on: Date.new(2026, 10, 28),
+                                            start_time: "09:00", end_time: "10:30")
+
+    assert_no_difference -> { @user.routes.count } do
+      assert_no_difference -> { @user.calendar_entries.count } do
+        error = assert_raises(ActiveRecord::RecordInvalid) do
+          CalendarEntry.join_ride!(origin, owner: @user)
+        end
+
+        assert_match(/already on your calendar/, error.message)
+      end
+    end
+  end
+
+  test "join_ride! refuses a copy of a copy — second user joining third user's copy of a ride they already have" do
+    first = User.create!(valid_user_attributes(email: "chainfirst@example.com"))
+    second = User.create!(valid_user_attributes(email: "chainsecond@example.com"))
+    third = User.create!(valid_user_attributes(email: "chainthird@example.com"))
+    origin_route = first.routes.create!(source: "upload", title: "Chain ride", duration: 3_600)
+    origin = first.calendar_entries.create!(route: origin_route, scheduled_on: Date.new(2026, 10, 28),
+                                            start_time: "09:00", end_time: "10:00")
+    second_copy = CalendarEntry.join_ride!(origin, owner: second)
+    third_copy = CalendarEntry.join_ride!(second_copy, owner: third)
+
+    assert_no_difference -> { second.routes.count } do
+      assert_no_difference -> { second.calendar_entries.count } do
+        error = assert_raises(ActiveRecord::RecordInvalid) do
+          CalendarEntry.join_ride!(third_copy, owner: second)
+        end
+
+        assert_match(/already on your calendar/, error.message)
+      end
+    end
+  end
+
+  test "join_ride! refuses the origin itself when a copy of the same ride is already mine" do
+    first = User.create!(valid_user_attributes(email: "branchfirst@example.com"))
+    second = User.create!(valid_user_attributes(email: "branchsecond@example.com"))
+    third = User.create!(valid_user_attributes(email: "branchthird@example.com"))
+    origin_route = first.routes.create!(source: "upload", title: "Branch ride", duration: 3_600)
+    origin = first.calendar_entries.create!(route: origin_route, scheduled_on: Date.new(2026, 10, 28),
+                                            start_time: "09:00", end_time: "10:00")
+    second_copy = CalendarEntry.join_ride!(origin, owner: second)
+    CalendarEntry.join_ride!(second_copy, owner: third) # third's copy, via second
+
+    error = assert_raises(ActiveRecord::RecordInvalid) do
+      CalendarEntry.join_ride!(origin, owner: third) # same ride, straight from the origin owner
+    end
+
+    assert_match(/already on your calendar/, error.message)
+  end
+
+  test "join_ride! refuses sibling copies of the same ride" do
+    first = User.create!(valid_user_attributes(email: "sibfirst@example.com"))
+    second = User.create!(valid_user_attributes(email: "sibsecond@example.com"))
+    third = User.create!(valid_user_attributes(email: "sibthird@example.com"))
+    fourth = User.create!(valid_user_attributes(email: "sibfourth@example.com"))
+    origin_route = first.routes.create!(source: "upload", title: "Sibling ride", duration: 3_600)
+    origin = first.calendar_entries.create!(route: origin_route, scheduled_on: Date.new(2026, 10, 28),
+                                            start_time: "09:00", end_time: "10:00")
+    second_copy = CalendarEntry.join_ride!(origin, owner: second)
+    third_copy = CalendarEntry.join_ride!(second_copy, owner: third)
+    fourth_copy = CalendarEntry.join_ride!(origin, owner: fourth) # sibling branch
+
+    error = assert_raises(ActiveRecord::RecordInvalid) do
+      CalendarEntry.join_ride!(fourth_copy, owner: third)
+    end
+
+    assert_match(/already on your calendar/, error.message)
+  end
+
+  test "join_ride! still books a new scheduling of a ride I already joined once" do
+    owner = User.create!(valid_user_attributes(email: "rebook@example.com"))
+    origin_route = owner.routes.create!(source: "upload", title: "Weekly climb", duration: 3_600)
+    week_one = owner.calendar_entries.create!(route: origin_route, scheduled_on: Date.new(2026, 10, 28),
+                                              start_time: "09:00", end_time: "10:00")
+    first_copy = CalendarEntry.join_ride!(week_one, owner: @user)
+
+    week_two = owner.calendar_entries.create!(route: origin_route, scheduled_on: Date.new(2026, 11, 4),
+                                              start_time: "09:00", end_time: "10:00")
+    second_copy = CalendarEntry.join_ride!(week_two, owner: @user)
+
+    assert_not_equal first_copy.id, second_copy.id
+    assert_equal week_two.id, second_copy.origin_entry_id
+  end
+
+  # The ancestry guard must stay query-bounded: one query per chain LEVEL,
+  # never one per joined copy — a user with many joins must not pay a
+  # growing N+1 on every join POST.
+  test "join_ride! ancestry guard stays query-bounded for a user with many joined copies" do
+    joiner = User.create!(valid_user_attributes(email: "manyjoins@example.com"))
+    6.times do |i|
+      origin_owner = User.create!(valid_user_attributes(email: "manyorigin#{i}@example.com"))
+      origin = origin_owner.calendar_entries.create!(
+        route: origin_owner.routes.create!(source: "upload", title: "Ride #{i}", duration: 3_600),
+        scheduled_on: Date.new(2026, 10, 28), start_time: "08:00", end_time: "09:00")
+      CalendarEntry.join_ride!(origin, owner: joiner)
+    end
+    fresh_owner = User.create!(valid_user_attributes(email: "manyfresh@example.com"))
+    fresh = fresh_owner.calendar_entries.create!(
+      route: fresh_owner.routes.create!(source: "upload", title: "Fresh ride", duration: 3_600),
+      scheduled_on: Date.new(2026, 10, 29), start_time: "08:00", end_time: "09:00")
+
+    selects = 0
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+      selects += 1 if payload[:sql].to_s.match?(/\A\s*SELECT.*FROM "?calendar_entries"?/i)
+    end
+
+    begin
+      joined = CalendarEntry.join_ride!(fresh, owner: joiner)
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+    end
+
+    # The join itself succeeded — the bound is not bought by rejecting.
+    assert_equal fresh.id, joined.origin_entry_id
+    # Idempotency lookup + copies pluck + one level walk = 3; the old
+    # per-copy walk needed 8 for this setup.
+    assert selects <= 4, "expected ≤4 calendar_entries SELECTs, got #{selects}"
+  end
+
+  # ---- ride identity + ride-wide attendance (join-tree roots) ----------------
+
+  test "ride_roots_for maps every entry of a ride to the original however it was joined" do
+    first = User.create!(valid_user_attributes(email: "rootfirst@example.com"))
+    second = User.create!(valid_user_attributes(email: "rootsecond@example.com"))
+    third = User.create!(valid_user_attributes(email: "rootthird@example.com"))
+    origin_route = first.routes.create!(source: "upload", title: "Root ride", duration: 3_600)
+    origin = first.calendar_entries.create!(route: origin_route, scheduled_on: Date.new(2026, 10, 28),
+                                            start_time: "09:00", end_time: "10:00")
+    second_copy = CalendarEntry.join_ride!(origin, owner: second)
+    third_copy = CalendarEntry.join_ride!(second_copy, owner: third)
+
+    roots = CalendarEntry.ride_roots_for([ origin, second_copy, third_copy ])
+
+    # The original, a direct copy and a copy of a copy all share one root.
+    assert_equal({ origin.id => origin.id, second_copy.id => origin.id, third_copy.id => origin.id },
+                 roots)
+  end
+
+  test "ride_attendance_for names the original author and counts riders ride-wide" do
+    author = User.create!(valid_user_attributes(email: "attendauthor@example.com"))
+    origin_route = author.routes.create!(source: "upload", title: "Attendance ride", duration: 3_600)
+    origin = author.calendar_entries.create!(route: origin_route, scheduled_on: Date.new(2026, 10, 28),
+                                             start_time: "09:00", end_time: "10:00")
+    second = User.create!(valid_user_attributes(email: "attendsecond@example.com"))
+    second_copy = CalendarEntry.join_ride!(origin, owner: second)
+    third = User.create!(valid_user_attributes(email: "attendthird@example.com"))
+    CalendarEntry.join_ride!(origin, owner: third) # sibling branch
+    fourth = User.create!(valid_user_attributes(email: "attendfourth@example.com"))
+    deep_copy = CalendarEntry.join_ride!(second_copy, owner: fourth) # copy of a copy
+
+    attendance = CalendarEntry.ride_attendance_for([ origin, second_copy, deep_copy ])
+
+    # Every entry of the ride — original, direct copy or copy of a copy —
+    # reports the same author (the ride's original owner) and the same
+    # ride-wide rider count, sibling branch included: 3 riders besides the
+    # author.
+    assert_equal origin, attendance[origin.id][:author]
+    assert_equal origin, attendance[second_copy.id][:author]
+    assert_equal origin, attendance[deep_copy.id][:author]
+    assert_equal 3, attendance[origin.id][:participants]
+    assert_equal 3, attendance[second_copy.id][:participants]
+    assert_equal 3, attendance[deep_copy.id][:participants]
+  end
+
+  test "ride_attendance_for treats an unjoined entry as its own author with no riders" do
+    @entry.save!
+
+    attendance = CalendarEntry.ride_attendance_for([ @entry ])
+
+    assert_equal @entry, attendance[@entry.id][:author]
+    assert_equal 0, attendance[@entry.id][:participants]
+  end
+
+  test "joined_entry_ids matches a ride however I hold it" do
+    owner = User.create!(valid_user_attributes(email: "heldowner@example.com"))
+    other = User.create!(valid_user_attributes(email: "heldother@example.com"))
+    origin_route = owner.routes.create!(source: "upload", title: "Held ride", duration: 3_600)
+    origin = owner.calendar_entries.create!(route: origin_route, scheduled_on: Date.new(2026, 10, 28),
+                                            start_time: "09:00", end_time: "10:00")
+    other_copy = CalendarEntry.join_ride!(origin, owner: other)
+    CalendarEntry.join_ride!(other_copy, owner: @user) # my copy hangs off a copy of a copy
+    fresh_route = owner.routes.create!(source: "upload", title: "Not my ride", duration: 3_600)
+    fresh = owner.calendar_entries.create!(route: fresh_route, scheduled_on: Date.new(2026, 10, 29),
+                                           start_time: "09:00", end_time: "10:00")
+
+    joined = CalendarEntry.joined_entry_ids([ origin, other_copy, fresh ], @user)
+
+    # My copy's ancestry touches the ride, so the original and the friend's
+    # copy of it both count as "my rides"; a ride I never touched does not.
+    assert_equal [ origin.id, other_copy.id ].sort, joined.sort
+    assert_not_includes joined, fresh.id
+  end
 end

@@ -48,6 +48,21 @@ class PublicCalendarControllerTest < ActionDispatch::IntegrationTest
     assert_select %(a.wc-gpx-btn[href="#{gpx_file_path(@route.gpx_file.blob.signed_id, "ridge_loop.gpx")}"])
   end
 
+  # Routes on a public calendar are publicly viewable (Phase 9 extended to
+  # detail pages): every rendered title — desktop day column + sidebar and
+  # both mobile surfaces — links to the (now public) route detail page, and
+  # the desktop day column's metrics row is a second target on the same card.
+  test "show links route titles to the detail pages" do
+    get public_calendar_path(@owner.public_token)
+
+    assert_response :success
+    assert_select %(a[href="#{route_path(@route)}"]), minimum: 4 # desktop + mobile surfaces
+    assert_select %(a.wc-entry__link[href="#{route_path(@route)}"]) # desktop day column
+    assert_select %(a.wc-entry__metrics[href="#{route_path(@route)}"]) # desktop day column metrics row
+    assert_select %(a.mob-wc__entry-link[href="#{route_path(@route)}"]) # mobile day panel
+    assert_select %(a.mob-wc__route-link[href="#{route_path(@route)}"]) # mobile routes list
+  end
+
   # Phase 0 capacity: the public cards check gpx_file.attached? per route —
   # the week's entries must preload their attachments (and blobs, for the
   # signed-id links) or every rendered card adds an attachment query.
@@ -212,5 +227,44 @@ class PublicCalendarControllerTest < ActionDispatch::IntegrationTest
     post public_calendar_join_path(@owner.public_token, entry_id: other_entry.id)
 
     assert_response :not_found
+  end
+
+  # ---- BUGS item 4: the origin owner can never join their own ride ---------
+
+  test "owner joining their own shared ride is refused" do
+    sign_in @owner
+
+    assert_no_difference -> { @owner.routes.count } do
+      assert_no_difference -> { @owner.calendar_entries.count } do
+        post public_calendar_join_path(@owner.public_token, entry_id: @entry.id)
+      end
+    end
+
+    assert_redirected_to public_calendar_path(@owner.public_token)
+    assert_match(/already on your calendar/, flash[:alert])
+  end
+
+  test "owner sees the inert Your ride state on their own share instead of Join" do
+    sign_in @owner
+
+    get public_calendar_path(@owner.public_token)
+
+    assert_response :success
+    assert_match "Your ride", response.body
+    assert_select "form[action*='#{public_calendar_join_path(@owner.public_token)}']", count: 0
+    assert_select %(button[disabled]:contains("Your ride"))
+  end
+
+  test "parked join on my own share is dropped when I sign in" do
+    post public_calendar_join_path(@owner.public_token, entry_id: @entry.id) # guest = the logged-out owner
+
+    post user_session_path, params: { user: { email: @owner.email, password: "password123" } }
+
+    assert_redirected_to public_calendar_path(@owner.public_token)
+    follow_redirect!
+    assert_response :success
+    assert_equal 1, @owner.calendar_entries.count # no self-copy
+    assert_empty CalendarEntry.where(origin_entry_id: @entry.id)
+    assert_match "Your ride", response.body
   end
 end
