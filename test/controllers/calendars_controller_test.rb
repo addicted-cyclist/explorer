@@ -701,6 +701,25 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     assert_empty @user.calendar_entries.reload
   end
 
+  # ---- BUGS item 4: no copy of a ride that is already on my calendar --------
+
+  test "join refuses my friend's copy of my own ride" do
+    friend = User.create!(valid_user_attributes(email: "joinchain@example.com"))
+    Friendship.connect!(friend, @user)
+    my_entry = @user.calendar_entries.create!(route: @route, scheduled_on: Date.new(2026, 10, 27),
+                                              start_time: "07:30", end_time: "08:30")
+    friend_copy = CalendarEntry.join_ride!(my_entry, owner: friend) # friend joined MY ride
+
+    assert_no_difference -> { @user.routes.count } do
+      assert_no_difference -> { @user.calendar_entries.count } do
+        post join_calendar_path, params: { entry_id: friend_copy.id, week: "2026-10-26" }
+      end
+    end
+
+    assert_redirected_to calendar_path(week: "2026-10-26")
+    assert_match(/already on your calendar/, flash[:alert])
+  end
+
   # ---- Phase 8: mobile weekly calendar ---------------------------------------
 
   test "show renders the mobile week layout beside the desktop grid" do

@@ -228,4 +228,43 @@ class PublicCalendarControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :not_found
   end
+
+  # ---- BUGS item 4: the origin owner can never join their own ride ---------
+
+  test "owner joining their own shared ride is refused" do
+    sign_in @owner
+
+    assert_no_difference -> { @owner.routes.count } do
+      assert_no_difference -> { @owner.calendar_entries.count } do
+        post public_calendar_join_path(@owner.public_token, entry_id: @entry.id)
+      end
+    end
+
+    assert_redirected_to public_calendar_path(@owner.public_token)
+    assert_match(/already on your calendar/, flash[:alert])
+  end
+
+  test "owner sees the inert Your ride state on their own share instead of Join" do
+    sign_in @owner
+
+    get public_calendar_path(@owner.public_token)
+
+    assert_response :success
+    assert_match "Your ride", response.body
+    assert_select "form[action*='#{public_calendar_join_path(@owner.public_token)}']", count: 0
+    assert_select %(button[disabled]:contains("Your ride"))
+  end
+
+  test "parked join on my own share is dropped when I sign in" do
+    post public_calendar_join_path(@owner.public_token, entry_id: @entry.id) # guest = the logged-out owner
+
+    post user_session_path, params: { user: { email: @owner.email, password: "password123" } }
+
+    assert_redirected_to public_calendar_path(@owner.public_token)
+    follow_redirect!
+    assert_response :success
+    assert_equal 1, @owner.calendar_entries.count # no self-copy
+    assert_empty CalendarEntry.where(origin_entry_id: @entry.id)
+    assert_match "Your ride", response.body
+  end
 end

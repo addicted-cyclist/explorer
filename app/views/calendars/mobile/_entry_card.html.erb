@@ -43,6 +43,13 @@
             <span class="material-symbols-outlined ms-16" aria-hidden="true">check_circle</span>
             <span>Joined</span>
           </span>
+        <% elsif user_signed_in? && entry.user_id == current_user.id %>
+          <%# BUGS item 4: the share's origin owner — joining is blocked
+              server-side, so the card shows the inert state instead. %>
+          <span class="mob-wc__entry-joined t-label-md c-secondary">
+            <span class="material-symbols-outlined ms-16" aria-hidden="true">person</span>
+            <span>Your ride</span>
+          </span>
         <% else %>
           <%= button_to public_calendar_join_path(params[:token], entry_id: entry.id, week: (@week_start.iso8601 if @week_start)),
                 class: "btn btn--sm btn--primary mob-wc__entry-btn" do %>
