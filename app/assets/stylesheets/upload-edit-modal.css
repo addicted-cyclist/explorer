@@ -157,3 +157,70 @@ body.has-open-modal {
   margin-top: var(--space-sm);
   overflow-wrap: anywhere;
 }
+
+/* ------------------------------------------------------------------ */
+/* Upload modal — route prefix (v0.13, stitch_explorer_v0.13)          */
+/* ------------------------------------------------------------------ */
+
+.upload-prefix__label-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  margin: var(--space-md) 0 var(--space-xs);
+}
+
+/* The row owns the spacing; the label's default bottom margin would
+   off-center the help icon vertically. */
+.upload-prefix__label {
+  margin-bottom: 0;
+}
+
+.upload-prefix__help {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-text-tertiary);
+  cursor: help;
+  transition: color 0.15s ease;
+}
+
+.upload-prefix__help .material-symbols-outlined {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.upload-prefix__help:hover,
+.upload-prefix__help:focus-visible {
+  color: var(--color-text-secondary);
+}
+
+/* CSS-only tooltip: hover or keyboard focus reveals the design ref's
+   helper copy above the icon. */
+.upload-prefix__tooltip {
+  position: absolute;
+  bottom: calc(100% + 0.375rem);
+  left: 150%;
+  transform: translate(-50%, 2px);
+  z-index: 30;
+  width: max-content;
+  max-width: 17rem;
+  padding: 0.375rem 0.625rem;
+  border-radius: var(--radius);
+  background: var(--color-text-primary);
+  color: var(--color-surface-card);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 400;
+  text-align: center;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.upload-prefix__help:hover .upload-prefix__tooltip,
+.upload-prefix__help:focus-visible .upload-prefix__tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+}

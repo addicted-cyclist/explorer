@@ -54,12 +54,18 @@ class RoutesController < ApplicationController
       redirect_to upload_return_path, alert: "Choose at least one GPX file to upload." and return
     end
 
+    # v0.13 — route prefix (design-refs/stitch_explorer_v0.13): the modal's
+    # "Route prefix" field is prepended to every imported route's
+    # filename-derived title, so one batch lands grouped by place/trip
+    # ("[Da Nang] Classic 83km"). Transient form input, never persisted.
+    prefix = params.dig(:route, :title_prefix).to_s.squish
+
     imported, failed = [], []
 
     files.each do |file|
       route = current_user.routes.build(
         source: "upload",
-        title: File.basename(file.original_filename.to_s, ".*").presence || "Untitled"
+        title: prefixed_title(prefix, file.original_filename)
       )
       route.gpx_file.attach(io: file.tempfile, filename: file.original_filename, content_type: file.content_type)
       route.save!
@@ -194,6 +200,15 @@ class RoutesController < ApplicationController
 
   def route_params
     params.require(:route).permit(:title, :description, :tier, :sport_type, :duration)
+  end
+
+  # v0.13 — route prefix: join the upload modal's prefix with the
+  # filename-derived base title ("[Da Nang]" + "Classic 83km.gpx" ->
+  # "[Da Nang] Classic 83km"). A blank (or whitespace-only) prefix keeps
+  # the plain filename-derived title, so behavior is unchanged without one.
+  def prefixed_title(prefix, filename)
+    base = File.basename(filename.to_s, ".*").presence || "Untitled"
+    prefix.present? ? "#{prefix} #{base}" : base
   end
 
   # Remove a route that failed mid-import so no broken rows or orphaned
