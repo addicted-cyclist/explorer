@@ -93,18 +93,34 @@ class PublicCalendarControllerTest < ActionDispatch::IntegrationTest
     assert_select "a.wc-gpx-btn", minimum: 3 # one GPX button per attached route
   end
 
-  test "signed-in visitor sees Join docks, not owner controls" do
+  test "guest sees the direct join button, not the popover" do
+    get public_calendar_path(@owner.public_token)
+
+    assert_response :success
+    # One direct join form per surface: desktop day column + mobile day panel.
+    # The POST parks the join intent and bounces to sign-in — no popover step.
+    assert_select "form[action*='#{public_calendar_join_path(@owner.public_token)}']", count: 2
+    assert_select %(button[aria-haspopup="dialog"]), count: 0
+    assert_select "div.wc-popover", count: 0
+  end
+
+  test "signed-in visitor sees the join popover on the desktop dock" do
     visitor = User.create!(valid_user_attributes(email: "visitor@example.com"))
     sign_in visitor
 
     get public_calendar_path(@owner.public_token)
 
     assert_response :success
-    # One dock per surface: desktop day column + mobile day panel.
-    assert_select "form[action*='#{public_calendar_join_path(@owner.public_token)}']", count: 2
     # Owner-only chrome is gone for visitors
     assert_select ".wc-share-btn", count: 0
     assert_select ".wc-entry__remove", count: 0
+    # Desktop dock confirms through the popover (friend-view parity): a trigger
+    # button plus the hidden popover whose "Join Route" CTA posts to the public
+    # join endpoint; the mobile day panel keeps its direct join form.
+    assert_select %(button.wc-join__btn[aria-haspopup="dialog"]), count: 1
+    assert_select "div.wc-popover", count: 1
+    assert_select %(form[action*='#{public_calendar_join_path(@owner.public_token)}'] button.wc-popover__cta)
+    assert_select "form[action*='#{public_calendar_join_path(@owner.public_token)}']", count: 2
   end
 
   test "show 404s an unknown token" do

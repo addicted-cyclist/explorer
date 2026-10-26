@@ -1,28 +1,91 @@
-<%# "Join" dock control on a public share's scheduled ride — the popover-less
-    cousin of the friend view's join popover. The share's origin owner gets
-    the inert "Your ride" state — joining your own ride is blocked
-    server-side (CalendarEntry.join_ride! raises), so that state must win
-    over the ride-wide "Joined" check. Other signed-in visitors who already
-    attend the ride (via any copy of it) get the inert green "Joined" state;
-    everyone else gets the direct join button (guests are bounced to
-    sign-in and returned here afterwards; the join Turbo Stream repaints
-    in place). %>
-<% if user_signed_in? && entry.user_id == current_user.id %>
-  <%# BUGS item 4: the origin owner viewing their own shared calendar. %>
-  <button type="button" class="wc-join__btn wc-join--joined t-label-sm c-secondary" disabled>
-    <span class="material-symbols-outlined ms-16" aria-hidden="true">person</span>
-    <span>Your ride</span>
-  </button>
-<% elsif local_assigns[:joined] %>
-  <button type="button" class="wc-join__btn wc-join--joined t-label-sm c-success" disabled>
-    <span class="material-symbols-outlined ms-16" aria-hidden="true">check</span>
-    <span>Joined</span>
-  </button>
-<% else %>
-  <%= button_to public_calendar_join_path(params[:token], entry_id: entry.id, week: (@week_start.iso8601 if @week_start)),
-        class: "wc-join__btn t-label-sm c-primary",
-        aria: { label: "Add this ride to my calendar" } do %>
-    <span class="material-symbols-outlined ms-16" aria-hidden="true">add_circle</span>
-    <span>Join</span>
+<%# "Join" dock control on a public share's scheduled ride. The share's
+    origin owner gets the inert "Your ride" state — joining your own ride is
+    blocked server-side (CalendarEntry.join_ride! raises), so that state must
+    win over the ride-wide "Joined" check. Other signed-in visitors who
+    already attend the ride (via any copy of it) get the inert green "Joined"
+    state; other signed-in visitors get the friend view's confirm popover
+    (same join-route-popover controller, CTA posting to the public join
+    endpoint so the Turbo Stream repaints the public-view card in place).
+    Guests skip the popover and keep the direct join button — the POST parks
+    the intent in session and bounces to sign-in, and
+    ApplicationController#after_sign_in_path_for completes the join. %>
+<div class="wc-join" data-controller="join-route-popover">
+  <% if user_signed_in? && entry.user_id == current_user.id %>
+    <%# BUGS item 4: the origin owner viewing their own shared calendar. %>
+    <button type="button" class="wc-join__btn wc-join--joined t-label-sm c-secondary" disabled>
+      <span class="material-symbols-outlined ms-16" aria-hidden="true">person</span>
+      <span>Your ride</span>
+    </button>
+  <% elsif local_assigns[:joined] %>
+    <button type="button" class="wc-join__btn wc-join--joined t-label-sm c-success" disabled>
+      <span class="material-symbols-outlined ms-16" aria-hidden="true">check</span>
+      <span>Joined</span>
+    </button>
+  <% elsif user_signed_in? %>
+    <%# Signed-in visitor: the friend view's confirm-first popover — the
+        trigger button toggles it, the CTA posts to the public join endpoint
+        (join + public-view Turbo Stream repaint, popover closes on
+        submit-end). %>
+    <button type="button" class="wc-join__btn t-label-sm c-primary" aria-haspopup="dialog" aria-expanded="false"
+            data-join-route-popover-target="button" data-action="join-route-popover#toggle">
+      <span class="material-symbols-outlined ms-16" aria-hidden="true">add_circle</span>
+      <span>Join</span>
+    </button>
+
+    <div class="wc-popover" role="dialog" aria-label="Join this ride" hidden data-join-route-popover-target="popover">
+      <div class="wc-popover__actions" data-join-route-popover-target="actions">
+        <div class="wc-popover__head">
+          <span class="wc-popover__date t-label-sm t-uppercase c-secondary"><%= entry.scheduled_on.strftime("%A, %b %-d") %></span>
+          <button type="button" class="icon-btn wc-popover__close" aria-label="Close"
+                  data-join-route-popover-target="close" data-action="join-route-popover#close">
+            <span class="material-symbols-outlined ms-18" aria-hidden="true">close</span>
+          </button>
+        </div>
+
+        <h5 class="wc-popover__title t-title-md"><%= entry.route.title %></h5>
+
+        <div class="wc-popover__stats t-label-md">
+          <span class="wc-popover__stat">
+            <span class="material-symbols-outlined ms-16" aria-hidden="true">straighten</span>
+            <span><%= format_distance(entry.route.distance) %> km</span>
+          </span>
+          <span class="wc-popover__stat c-elevation">
+            <span class="material-symbols-outlined ms-16" aria-hidden="true">north_east</span>
+            <span><%= format_elevation(entry.route.elevation_gain) %> m</span>
+          </span>
+        </div>
+
+        <p class="wc-popover__riders t-body-sm c-secondary">
+          <% attendance = calendar_ride_attendance(entry) %>
+          <% author = attendance[:author] %>
+          <span class="wc-popover__avatar" aria-hidden="true"><%= calendar_initials(author.user) %></span>
+          <span>
+            <% if attendance[:participants].positive? %>
+              <%= author.user.name.split(" ").first %> &amp; <%= attendance[:participants] %> attending
+            <% else %>
+              <%= author.user.name.split(" ").first %> is attending
+            <% end %>
+          </span>
+        </p>
+
+        <%= button_to public_calendar_join_path(params[:token]), method: :post,
+              class: "btn btn--primary btn--sm wc-popover__cta",
+              params: { entry_id: entry.id, week: (@week_start.iso8601 if @week_start) },
+              form: { data: { action: "turbo:submit-end->join-route-popover#onSubmitEnd" } } do %>
+          <span class="material-symbols-outlined ms-18" aria-hidden="true">group_add</span>
+          <span>Join Route</span>
+        <% end %>
+      </div>
+    </div>
+  <% else %>
+    <%# Guest: direct join — the POST parks the intent in session and bounces
+        to sign-in; the parked join completes right after sign-in / sign-up
+        (see ApplicationController#after_sign_in_path_for). %>
+    <%= button_to public_calendar_join_path(params[:token], entry_id: entry.id, week: (@week_start.iso8601 if @week_start)),
+          class: "wc-join__btn t-label-sm c-primary",
+          aria: { label: "Add this ride to my calendar" } do %>
+      <span class="material-symbols-outlined ms-16" aria-hidden="true">add_circle</span>
+      <span>Join</span>
+    <% end %>
   <% end %>
-<% end %>
+</div>
