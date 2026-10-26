@@ -61,6 +61,57 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Choose at least one GPX file to upload.", flash[:alert]
   end
 
+  # ---- v0.13 route prefix (design-refs/stitch_explorer_v0.13): the upload
+  # ---- modal's "Route prefix" field lands the whole batch under one
+  # ---- place/trip label baked into the title.
+  test "create prepends the route prefix to the imported title" do
+    assert_difference -> { Route.count }, +1 do
+      post routes_path, params: {
+        route: {
+          gpx_files: [ gpx_fixture_upload("exploration.gpx") ],
+          title_prefix: "[Da Nang]"
+        },
+        commit: "Parse & Import"
+      }
+    end
+
+    assert_redirected_to routes_path
+    assert_equal "Imported route: [Da Nang] exploration.", flash[:notice]
+    assert_equal "[Da Nang] exploration", Route.sole.title
+  end
+
+  test "create applies one prefix to every file of a multi-file import" do
+    assert_difference -> { Route.count }, +2 do
+      post routes_path, params: {
+        route: {
+          gpx_files: [ gpx_fixture_upload("exploration.gpx"),
+                       gpx_fixture_upload("coast-climb.gpx") ],
+          title_prefix: "[Dolomites 2026]"
+        },
+        commit: "Parse & Import"
+      }
+    end
+
+    assert_redirected_to routes_path
+    assert_equal [ "[Dolomites 2026] coast-climb", "[Dolomites 2026] exploration" ],
+                 Route.order(:title).pluck(:title)
+  end
+
+  test "create ignores a blank route prefix" do
+    assert_difference -> { Route.count }, +1 do
+      post routes_path, params: {
+        route: {
+          gpx_files: [ gpx_fixture_upload("exploration.gpx") ],
+          title_prefix: "   "
+        },
+        commit: "Parse & Import"
+      }
+    end
+
+    assert_redirected_to routes_path
+    assert_equal "exploration", Route.sole.title
+  end
+
   # Regression from the production log: when the first save! fails (here the
   # filename-derived title exceeds the 200 character limit), the attachment
   # only exists in memory. The cleanup used to call purge_later on that

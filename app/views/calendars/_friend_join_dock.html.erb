@@ -18,50 +18,49 @@
       <span>Join</span>
     </button>
 
-    <div class="wc-popover" role="dialog" aria-label="Join this ride" hidden
-       data-join-route-popover-target="popover">
-    <div class="wc-popover__actions" data-join-route-popover-target="actions">
-      <div class="wc-popover__head">
-        <span class="wc-popover__date t-label-sm t-uppercase c-secondary"><%= entry.scheduled_on.strftime("%A, %b %-d") %></span>
-        <button type="button" class="icon-btn wc-popover__close" aria-label="Close"
-                data-join-route-popover-target="close" data-action="join-route-popover#close">
-          <span class="material-symbols-outlined ms-18" aria-hidden="true">close</span>
-        </button>
+    <div class="wc-popover" role="dialog" aria-label="Join this ride" hidden data-join-route-popover-target="popover">
+      <div class="wc-popover__actions" data-join-route-popover-target="actions">
+        <div class="wc-popover__head">
+          <span class="wc-popover__date t-label-sm t-uppercase c-secondary"><%= entry.scheduled_on.strftime("%A, %b %-d") %></span>
+          <button type="button" class="icon-btn wc-popover__close" aria-label="Close"
+                  data-join-route-popover-target="close" data-action="join-route-popover#close">
+            <span class="material-symbols-outlined ms-18" aria-hidden="true">close</span>
+          </button>
+        </div>
+
+        <h5 class="wc-popover__title t-title-md"><%= entry.route.title %></h5>
+
+        <div class="wc-popover__stats t-label-md">
+          <span class="wc-popover__stat">
+            <span class="material-symbols-outlined ms-16" aria-hidden="true">straighten</span>
+            <span><%= format_distance(entry.route.distance) %> km</span>
+          </span>
+          <span class="wc-popover__stat c-elevation">
+            <span class="material-symbols-outlined ms-16" aria-hidden="true">north_east</span>
+            <span><%= format_elevation(entry.route.elevation_gain) %> m</span>
+          </span>
+        </div>
+
+        <p class="wc-popover__riders t-body-sm c-secondary">
+          <% attendance = calendar_ride_attendance(entry) %>
+          <% author = attendance[:author] %>
+          <span class="wc-popover__avatar" aria-hidden="true"><%= calendar_initials(author.user) %></span>
+          <span>
+            <% if attendance[:participants].positive? %>
+              <%= author.user.name.split(" ").first %> &amp; <%= attendance[:participants] %> attending
+            <% else %>
+              <%= author.user.name.split(" ").first %> is attending
+            <% end %>
+          </span>
+        </p>
+
+        <%= button_to join_calendar_path, method: :post, class: "btn btn--primary btn--sm wc-popover__cta",
+              params: { entry_id: entry.id, week: @week_start.iso8601 },
+              form: { data: { action: "turbo:submit-end->join-route-popover#onSubmitEnd" } } do %>
+          <span class="material-symbols-outlined ms-18" aria-hidden="true">group_add</span>
+          <span>Join Route</span>
+        <% end %>
       </div>
-
-      <h5 class="wc-popover__title t-title-md"><%= entry.route.title %></h5>
-
-      <div class="wc-popover__stats t-label-md">
-        <span class="wc-popover__stat">
-          <span class="material-symbols-outlined ms-16" aria-hidden="true">straighten</span>
-          <span><%= format_distance(entry.route.distance) %> km</span>
-        </span>
-        <span class="wc-popover__stat c-elevation">
-          <span class="material-symbols-outlined ms-16" aria-hidden="true">north_east</span>
-          <span><%= format_elevation(entry.route.elevation_gain) %> m</span>
-        </span>
-      </div>
-
-      <p class="wc-popover__riders t-body-sm c-secondary">
-        <% attendance = calendar_ride_attendance(entry) %>
-        <% author = attendance[:author] %>
-        <span class="wc-popover__avatar" aria-hidden="true"><%= calendar_initials(author.user) %></span>
-        <span>
-          <% if attendance[:participants].positive? %>
-            <%= author.user.name.split(" ").first %> &amp; <%= attendance[:participants] %> attending
-          <% else %>
-            <%= author.user.name.split(" ").first %> is attending
-          <% end %>
-        </span>
-      </p>
-
-      <%= button_to join_calendar_path, method: :post, class: "btn btn--primary btn--sm wc-popover__cta",
-            params: { entry_id: entry.id, week: @week_start.iso8601 },
-            form: { data: { action: "turbo:submit-end->join-route-popover#onSubmitEnd" } } do %>
-        <span class="material-symbols-outlined ms-18" aria-hidden="true">group_add</span>
-        <span>Join Route</span>
-      <% end %>
     </div>
-  </div>
   <% end %>
 </div>

@@ -239,6 +239,8 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     assert_select "div#upload-modal[data-modal-id=upload]"
     assert_select %(form[action="#{routes_path}"][method=post][enctype="multipart/form-data"])
     assert_select "input[type=file][name=?]", "route[gpx_files][]"
+    # v0.13 — route prefix field (design-refs/stitch_explorer_v0.13)
+    assert_select "input[type=text][name=?]", "route[title_prefix]"
     # Calendar origin markers: the import lands back on the visited week
     assert_select %(input[type=hidden][name=from_calendar][value="1"])
     assert_select %(input[type=hidden][name=week][value="#{Date.current.beginning_of_week.iso8601}"])

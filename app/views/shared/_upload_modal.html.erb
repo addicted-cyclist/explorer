@@ -34,6 +34,27 @@
       </div>
       <p class="dropzone__files t-body-sm c-secondary" data-upload-dropzone-target="files" hidden></p>
 
+      <%# v0.13 — route prefix (design-refs/stitch_explorer_v0.13): prepended
+          to every imported route's filename-derived title, so one batch lands
+          grouped by place/trip ("[Da Nang] Classic 83km"). Transient form
+          field — RoutesController#create reads params[:route][:title_prefix];
+          nothing is persisted on the model. %>
+      <div class="field upload-prefix">
+        <div class="upload-prefix__label-row">
+          <label class="field-label upload-prefix__label" for="route_title_prefix">Route prefix</label>
+          <span class="upload-prefix__help" tabindex="0"
+                aria-label="Add route prefix to organize your routes by place, trip, etc.">
+            <span class="material-symbols-outlined" aria-hidden="true">info</span>
+            <span class="upload-prefix__tooltip" role="tooltip">
+              Add route prefix to organize your routes by place, trip, etc.
+            </span>
+          </span>
+        </div>
+        <%= text_field_tag "route[title_prefix]", nil, id: "route_title_prefix",
+                            class: "input", autocomplete: "off",
+                            placeholder: "e.g. [Da Nang], [Dolomites 2026], [Morning]" %>
+      </div>
+
       <footer class="modal__actions">
         <button type="button" class="btn btn--ghost c-secondary" data-action="modal#close">Cancel</button>
         <%= f.submit "Parse & Import", class: "btn btn--primary" %>
