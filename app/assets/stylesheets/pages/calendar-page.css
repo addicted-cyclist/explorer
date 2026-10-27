@@ -489,6 +489,15 @@
   gap: var(--space-2xs);
 }
 
+/* Interactive rows lifted above the card cover link (see primitives.css):
+   the completed checkbox, the title link and the time editor stay clickable */
+.wc-entry__top,
+.wc-entry__editor,
+button.wc-entry__slot {
+  position: relative;
+  z-index: 2;
+}
+
 .wc-entry__check-form {
   display: inline-flex;
   flex-shrink: 0;

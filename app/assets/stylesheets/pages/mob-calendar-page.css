@@ -220,6 +220,7 @@
 
   /* Scheduled entry card (Friends-card style) */
   .mob-wc__entry {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: var(--space-sm);
@@ -244,7 +245,11 @@
     gap: var(--space-2xs);
   }
 
+  /* Lifted above the card cover link so the check toggle, Join and Remove
+     controls stay clickable (see primitives.css) */
   .mob-wc__entry-header {
+    position: relative;
+    z-index: 2;
     display: flex;
     justify-content: space-between;
   }
@@ -297,7 +302,10 @@
     color: inherit;
   }
 
-  .mob-wc__entry-link:hover {
+  /* The card cover link owns most of the card's hover area, so the title
+     highlight fires from anywhere on the card, not just the title itself. */
+  .mob-wc__entry-link:hover,
+  .mob-wc__entry:hover .mob-wc__entry-link {
     color: var(--color-primary);
   }
 
@@ -457,6 +465,7 @@
   }
 
   .mob-wc__route {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: var(--space-sm);
@@ -490,7 +499,11 @@
     vector-effect: non-scaling-stroke;
   }
 
+  /* Lifted above the card cover link so the Schedule / GPX-download
+     controls stay clickable (see primitives.css) */
   .mob-wc__route-footer {
+    position: relative;
+    z-index: 2;
     display: flex;
     align-items: center;
     justify-content: space-between;

@@ -171,7 +171,7 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
   # (undefined method `google_drive?') once any route card or the stats bar
   # rendered, because Route never defined the source predicates.
   test "index renders routes from both sources with library stats" do
-    @user.routes.create!(source: "upload", title: "Uploaded ride")
+    uploaded = @user.routes.create!(source: "upload", title: "Uploaded ride")
     @user.routes.create!(source: "google_drive", title: "Drive ride", google_drive_file_id: "abc123")
 
     get routes_path
@@ -181,6 +181,10 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
     assert_match "Drive ride", response.body
     assert_match "Local GPX", response.body
     assert_match "Google Drive", response.body
+    # The whole card is clickable (BUGS: make full card clickable): every
+    # card stretches a cover link over its non-interactive areas
+    assert_select %(article.route-card a.card-link-cover[href="#{route_path(uploaded)}"]), count: 1
+    assert_select "article.route-card a.card-link-cover", count: 2
   end
 
   test "download streams the attached gpx file as an attachment" do

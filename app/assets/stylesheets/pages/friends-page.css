@@ -167,6 +167,7 @@
 }
 
 .friends__card {
+  position: relative; /* anchors the card cover link (see primitives.css) */
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
@@ -190,7 +191,11 @@
   display: none;
 }
 
+/* Lifted above the card cover link so the View calendar button stays
+   clickable (see primitives.css) */
 .friends__card-head {
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: var(--space-sm);
@@ -252,7 +257,10 @@
   white-space: nowrap;
 }
 
-.friends__ride-title a:hover {
+/* The card cover link owns most of the card's hover area, so the title
+   highlight fires from anywhere on the card, not just the title itself. */
+.friends__ride-title a:hover,
+.friends__card:hover .friends__ride-title a {
   color: var(--color-accent-route);
 }
 

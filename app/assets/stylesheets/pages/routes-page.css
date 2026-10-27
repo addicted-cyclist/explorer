@@ -415,7 +415,10 @@
   transition: color 0.15s ease;
 }
 
-.route-card__title a:hover {
+/* The card cover link owns most of the card's hover area, so the title
+   highlight fires from anywhere on the card, not just the title itself. */
+.route-card__title a:hover,
+.route-card:hover .route-card__title a {
   color: var(--color-accent-route);
 }
 
@@ -451,7 +454,11 @@
   line-height: 1.25rem;
 }
 
+/* Lifted above the card cover link so View Map, the calendar picker and the
+   kebab menu stay clickable (see primitives.css) */
 .route-card__footer {
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: space-between;

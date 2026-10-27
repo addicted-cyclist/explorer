@@ -5,26 +5,21 @@
     the desktop sidebar's friend card. Public share: the title opens the
     (public-by-share) detail page + signed-id GPX download. %>
 <% route_path_opts = @is_friend_view ? { username: params[:username], week: params[:week] } : {} %>
+<%# One detail target for the title link and the card cover link: the public
+    share keeps just the week param; the friend view also carries the username
+    so the detail page's Calendar crumb returns to the friend week view. %>
+<% detail_path = @is_public_view ? route_path(route, week: params[:week]) : route_path(route, **route_path_opts) %>
 <article class="mob-wc__route" id="<%= dom_id(route, :mob_route) %>">
   <span class="mob-wc__route-tier t-label-sm t-uppercase <%= calendar_tier_class(route.tier) %>">
     <%= route.tier.presence || "Unrated" %>
   </span>
 
-  <% if @is_public_view %>
-    <h3 class="t-title-md">
-      <%= link_to route.title, route_path(route, week: params[:week]),
-            data: { turbo_frame: "_top" },
-            class: "mob-wc__route-link",
-            title: route.title %>
-    </h3>
-  <% else %>
-    <h3 class="t-title-md">
-      <%= link_to route.title, route_path(route, **route_path_opts),
-        data: { turbo_frame: "_top" },
-        class: "mob-wc__route-link",
-        title: route.title %>
-    </h3>
-  <% end %>
+  <h3 class="t-title-md">
+    <%= link_to route.title, detail_path,
+          data: { turbo_frame: "_top" },
+          class: "mob-wc__route-link",
+          title: route.title %>
+  </h3>
 
   <%= render "shared/card_metrics_n_thumb", route: route, class_prefix: "mob-wc" %>
 
@@ -58,4 +53,10 @@
       </button>
     <% end %>
   </footer>
+
+  <%# Cover link: the whole card navigates to the detail page (out of the
+      lazy routes-list frame, like the title link); the footer's Schedule /
+      GPX controls stay clickable via their z-index lift (see primitives.css). %>
+  <%= link_to detail_path, class: "card-link-cover",
+        data: { turbo_frame: "_top" }, "aria-hidden": true, tabindex: -1 do %><% end %>
 </article>

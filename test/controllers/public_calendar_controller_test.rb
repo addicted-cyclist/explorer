@@ -61,6 +61,12 @@ class PublicCalendarControllerTest < ActionDispatch::IntegrationTest
     assert_select %(a.wc-entry__metrics[href="#{route_path(@route)}"]) # desktop day column metrics row
     assert_select %(a.mob-wc__entry-link[href="#{route_path(@route)}"]) # mobile day panel
     assert_select %(a.mob-wc__route-link[href="#{route_path(@route)}"]) # mobile routes list
+    # The whole card is clickable (BUGS: make full card clickable) on every
+    # calendar surface, and the cover link drops the nil week/username params
+    # just like the title links
+    assert_select %(article.wc-entry > a.card-link-cover[href="#{route_path(@route)}"]) # desktop day column
+    assert_select %(article.mob-wc__entry > a.card-link-cover[href="#{route_path(@route)}"]) # mobile day panel
+    assert_select %(article.mob-wc__route > a.card-link-cover[href="#{route_path(@route)}"]) # mobile routes list
   end
 
   # Phase 0 capacity: the public cards check gpx_file.attached? per route —

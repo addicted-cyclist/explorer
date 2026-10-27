@@ -104,4 +104,10 @@
       </button>
     </div>
   <% end %>
+
+  <%# Cover link: the whole card navigates to the detail page; the checkbox,
+      time row, editor and the floating dock stay clickable via their
+      z-index lifts (see primitives.css). Params mirror the metrics link. %>
+  <%= link_to route_path(entry.route, **metrics_path_opts), class: "card-link-cover",
+        "aria-hidden": true, tabindex: -1 do %><% end %>
 </article>

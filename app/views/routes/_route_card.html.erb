@@ -92,4 +92,9 @@
     </div>
     <%= render "shared/shared_card_menu", route: route %>
   </footer>
+
+  <%# Cover link: the whole card navigates to the detail page; the footer
+      controls stay clickable via their z-index lift (see primitives.css). %>
+  <%= link_to route_path(route), class: "card-link-cover",
+        "aria-hidden": true, tabindex: -1 do %><% end %>
 </article>
