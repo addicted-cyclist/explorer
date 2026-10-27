@@ -10,7 +10,7 @@ class Mapbox::StaticImageTest < ActiveSupport::TestCase
   test "line_geojson builds a SimpleStyle LineString Feature in [lon, lat] order" do
     payload = Mapbox::StaticImage.send(:line_geojson, [ [ -120.2, 38.5 ], [ -120.95, 40.7 ] ])
 
-    assert_equal '{"type":"Feature","properties":{"stroke":"#e11d48","stroke-width":8},' \
+    assert_equal '{"type":"Feature","properties":{"stroke":"#e11d48","stroke-width":5},' \
                  '"geometry":{"type":"LineString","coordinates":[[-120.2,38.5],[-120.95,40.7]]}}', payload
   end
 
@@ -22,7 +22,7 @@ class Mapbox::StaticImageTest < ActiveSupport::TestCase
       # track color percent-encoded to survive its quotes/braces/# ("#" ->
       # %23), and the token + auto-fit padding (CSS vertical,horizontal) as
       # query parameters.
-      payload = '{"type":"Feature","properties":{"stroke":"#e11d48","stroke-width":8},' \
+      payload = '{"type":"Feature","properties":{"stroke":"#e11d48","stroke-width":5},' \
                 '"geometry":{"type":"LineString","coordinates":[[-120.2,38.5],[-120.95,40.7]]}}'
       expected = "https://api.mapbox.com/styles/v1/mapbox/outdoors-v12/static/" \
                  "geojson(#{ERB::Util.url_encode(payload)})/auto/720x240@2x" \
