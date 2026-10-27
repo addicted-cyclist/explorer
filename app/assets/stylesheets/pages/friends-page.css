@@ -314,18 +314,11 @@
   background: var(--color-surface-container);
 }
 
-.friends__route-track {
+.friends__route-map {
+  display: block;
   width: 100%;
   height: 100%;
-}
-
-.friends__route-track path {
-  fill: none;
-  stroke: var(--color-track-elevation);
-  stroke-width: 3;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  vector-effect: non-scaling-stroke;
+  object-fit: cover;
 }
 
 /* Empty card variant (athlete without completed rides) --------------- */

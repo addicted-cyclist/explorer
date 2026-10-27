@@ -88,13 +88,16 @@ module RoutesHelper
 
   # ---- Phase 0 capacity — fragment caching ----------------------------------
 
-  # Fragment key for the library card's track thumbnail (SVG + source
+  # Fragment key for the library card's thumbnail (map thumb + source
   # overlay) — a pure function of the route. `route` expands to its
   # cache_key, so any edit bumps updated_at and invalidates the fragment.
   # The "Uploaded X ago" overlay stays outside the fragment:
   # time_ago_in_words is time-dependent and a cached label would freeze.
   def route_card_thumb_cache_key(route)
-    [ route, "route-card-thumb" ]
+    # v2: the thumb markup changed from the inline SVG route thread to the
+    # static map <img>; Redis-backed production fragments must not outlive
+    # the feature, so the literal is versioned to invalidate them.
+    [ route, "route-card-thumb-v2" ]
   end
 
   # Fragment key for the card's badges, title, description and metrics —

@@ -159,7 +159,7 @@ module CalendarsHelper
 
   # ---- Phase 0 capacity — fragment caching ----------------------------------
 
-  # Fragment key for a sidebar card's body (tier badge, track SVG, metrics
+  # Fragment key for a sidebar card's body (tier badge, map thumb, metrics
   # footer). That markup is a pure function of the route and identical across
   # my / friend / public views, so it caches once per route and is shared by
   # every viewer and every week render. `route` expands to its cache_key, so
@@ -168,7 +168,10 @@ module CalendarsHelper
   # fragment: it branches per view mode and its button_to forms embed
   # session-scoped CSRF tokens that would 422 every other user's submits.
   def wc_sidebar_body_cache_key(route)
-    [ route, "wc-sidebar-body" ]
+    # v2: the thumb markup changed from the inline SVG route thread to the
+    # static map <img>; Redis-backed production fragments must not outlive
+    # the feature, so the literal is versioned to invalidate them.
+    [ route, "wc-sidebar-body-v2" ]
   end
 
   # Fragment key for the shared metrics + track thumb partial (mobile route
@@ -181,6 +184,8 @@ module CalendarsHelper
     # v2: the cached link no longer renders stray username/week anchor
     # attributes; Redis-backed production fragments must not outlive the
     # template fix, so the literal is versioned to invalidate them.
-    [ route, class_prefix, "card-metrics-thumb-v2" ]
+    # v3: the thumb markup changed from the inline SVG route thread to the
+    # static map <img>.
+    [ route, class_prefix, "card-metrics-thumb-v3" ]
   end
 end

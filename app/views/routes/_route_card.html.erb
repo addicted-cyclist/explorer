@@ -7,16 +7,14 @@
   data-created="<%= route.created_at.to_i * 1000 %>">
   <%= link_to route_path(route) do %>
     <div class="route-card__thumb">
-      <%# Phase 0 capacity: track SVG + source overlay are a pure function of
+      <%# Phase 0 capacity: map thumb + source overlay are a pure function of
           the route — cached per route and shared across every viewer. The
           "Uploaded X ago" overlay stays outside the fragment: the label is
           time-dependent and must not freeze. %>
       <% cache(route_card_thumb_cache_key(route)) do %>
-        <% if route.track_svg.present? %>
-          <svg class="route-card__track" viewBox="<%= Route::TRACK_SVG_VIEWBOX %>"
-              preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
-            <path d="<%= route.track_svg %>"></path>
-          </svg>
+        <% thumb_img = route_static_map_thumb(route, "route-card__route-map") %>
+        <% if thumb_img %>
+          <%= thumb_img %>
         <% else %>
           <div class="route-card__thumb-fallback c-tertiary">
             <span class="material-symbols-outlined">route</span>

@@ -254,7 +254,7 @@ class User < ApplicationRecord
     last_entries = {}
     CalendarEntry.where(user_id: user_ids, completed: true)
                  .where(scheduled_on: ..Date.current)
-                 .includes(:route)
+                 .includes(route: { static_map_attachment: :blob })
                  .order(scheduled_on: :desc, start_time: :desc)
                  .each { |entry| last_entries[entry.user_id] ||= entry }
 
@@ -263,6 +263,7 @@ class User < ApplicationRecord
     last_routes = {}
     if remaining_ids.any?
       Route.where(user_id: remaining_ids, completed: true)
+           .includes(static_map_attachment: :blob)
            .order(updated_at: :desc)
            .each { |route| last_routes[route.user_id] ||= route }
     end
