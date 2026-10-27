@@ -23,7 +23,11 @@ class RoutesController < ApplicationController
   PICKER_RECENT_PAST_WINDOW = 90.days
 
   def index
-    @routes = current_user.routes.order(created_at: :desc)
+    # Both attachments preload: every library card renders the static map
+    # thumb, one SELECT per table for the whole grid instead of per card.
+    @routes = current_user.routes
+                          .includes(:gpx_file_attachment, static_map_attachment: :blob)
+                          .order(created_at: :desc)
     @stats = library_stats(@routes)
     @new_route = Route.new
     # Two bounded queries for the whole grid: each card's calendar button

@@ -52,6 +52,13 @@
         <span class="material-symbols-outlined ms-14" aria-hidden="true">arrow_forward</span>
       <% end %>
     </footer>
+
+    <%# Cover link: the whole card navigates to the last ride's detail page
+        (the header's View calendar button stays clickable via its z-index
+        lift). Only the filled card carries it — an empty card
+        (friends__ride--empty) has no ride to link to. %>
+    <%= link_to route_path(card.last_ride, username: card.friend.username),
+          class: "card-link-cover", "aria-hidden": true, tabindex: -1 do %><% end %>
   <% else %>
     <%# Empty variant — new athlete without any completed ride. %>
     <div class="friends__ride friends__ride--empty">

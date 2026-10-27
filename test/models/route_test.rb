@@ -85,7 +85,7 @@ class RouteTest < ActiveSupport::TestCase
 
   # ---- parse_gpx! --------------------------------------------------------
 
-  test "parse_gpx! fills stats and track svg while keeping an existing title" do
+  test "parse_gpx! fills stats while keeping an existing title" do
     route = @user.routes.create!(source: "upload", title: "exploration")
     route.gpx_file.attach(io: File.open(@gpx_path), filename: "exploration.gpx", content_type: "application/gpx+xml")
 
@@ -104,7 +104,63 @@ class RouteTest < ActiveSupport::TestCase
     assert_in_delta 100.0, route.min_elevation, 0.01
     assert_in_delta 150.0, route.max_elevation, 0.01
     assert_equal "exploration", route.title
-    assert_track_svg route.track_svg
+    # No Mapbox token in the test env: the thumb fetch is a silent no-op (no
+    # network, no raise) and the route keeps its fallback icon. The attach
+    # path is covered separately with a stubbed fetch.
+    assert_not route.static_map.attached?
+  end
+
+  test "parse_gpx! attaches the static map thumb when the render is fetchable" do
+    with_mapbox_stubbed do
+      route = @user.routes.create!(source: "upload", title: "Thumb ride")
+      route.gpx_file.attach(io: File.open(@gpx_path), filename: "exploration.gpx", content_type: "application/gpx+xml")
+
+      route.parse_gpx!
+      route.reload
+
+      assert route.static_map.attached?
+      assert_equal "image/png", route.static_map.content_type
+      assert_equal "static-map.png", route.static_map.filename.to_s
+      assert_equal STATIC_MAP_PNG_STUB, route.static_map.download
+    end
+  end
+
+  test "generate_static_map! backfills a thumb from the attached gpx without touching stats" do
+    route = @user.routes.create!(source: "upload", title: "Old route", duration: 22_500)
+    route.gpx_file.attach(io: File.open(@gpx_path), filename: "exploration.gpx", content_type: "application/gpx+xml")
+
+    with_mapbox_stubbed do
+      route.generate_static_map!
+    end
+    route.reload
+
+    assert route.static_map.attached?
+    # Thumb-only backfill contract: a duration edited by hand on the detail
+    # page survives (a parse_gpx! re-run would have overwritten it with 1800).
+    assert_equal 22_500, route.duration
+  end
+
+  test "generate_static_map! is idempotent and never re-attaches" do
+    route = @user.routes.create!(source: "upload", title: "Old route")
+    route.gpx_file.attach(io: File.open(@gpx_path), filename: "exploration.gpx", content_type: "application/gpx+xml")
+
+    with_mapbox_stubbed do
+      route.generate_static_map!
+      blob_id = route.static_map.blob.id
+      route.generate_static_map!
+
+      assert_equal blob_id, route.static_map.blob.id
+    end
+  end
+
+  test "generate_static_map! is a no-op without a gpx file" do
+    route = @user.routes.create!(source: "upload", title: "Manual entry")
+
+    with_mapbox_stubbed do
+      route.generate_static_map!
+    end
+
+    assert_not route.static_map.attached?
   end
 
   test "parse_gpx! smooths GPS jitter before summing elevation gain and loss" do
@@ -226,18 +282,5 @@ class RouteTest < ActiveSupport::TestCase
         </trk>
       </gpx>
     GPX
-  end
-
-  # The track thumbnail is an SVG path fitted into the 100x60 viewBox:
-  # "M x,y L x,y ..." with every coordinate inside the box.
-  def assert_track_svg(svg)
-    assert_not_nil svg
-    assert_match(/\AM[\d., ]+L[\d., ]+\z/, svg)
-
-    svg.scan(/-?\d+(?:\.\d+)?,-?\d+(?:\.\d+)?/).each do |pair|
-      x, y = pair.split(",").map(&:to_f)
-      assert x.between?(0, Route::TRACK_SVG_VIEWBOX.split(" ")[2].to_f)
-      assert y.between?(0, Route::TRACK_SVG_VIEWBOX.split(" ")[3].to_f)
-    end
   end
 end

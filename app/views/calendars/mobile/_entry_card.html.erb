@@ -95,4 +95,10 @@
   </div>
 
   <%= render "shared/card_metrics_n_thumb", route: entry.route, class_prefix: "mob-wc" %>
+
+  <%# Cover link: the whole card navigates to the detail page; the header's
+      check/join/remove controls stay clickable via their z-index lift (see
+      primitives.css). Params mirror the title link. %>
+  <%= link_to route_path(entry.route, **route_path_opts), class: "card-link-cover",
+        "aria-hidden": true, tabindex: -1 do %><% end %>
 </article>

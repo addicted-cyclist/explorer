@@ -50,6 +50,16 @@ Rails.application.routes.draw do
   # anonymous visitors, so the image must be fetchable without a session.
   get "avatars/:signed_id", to: "avatars#show", as: :user_avatar, format: false
 
+  # Cacheable route thumbnail serving (the Mapbox static map image captured at
+  # GPX parse time, drawn on every library/week/friends card). Same contract
+  # as the avatar endpoint above: ActiveStorage's default blob URL redirects
+  # to a 5-minute signed disk URL, so fragment-cached cards would re-request
+  # the image on every render; this streams the blob under a year-long
+  # immutable cache, keyed by the blob's signed_id so a regenerated image
+  # rotates the URL. Public like the GPX stream: thumbs render on the public
+  # calendar share to anonymous visitors.
+  get "route_thumbs/:signed_id", to: "static_maps#show", as: :route_static_map, format: false
+
   resource :calendar, only: %i[show] do
     collection do
       post "allocate"

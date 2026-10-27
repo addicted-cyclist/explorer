@@ -25,7 +25,10 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
     assert route.gpx_file.attached?
     assert_operator route.distance, :>, 0
     assert_equal 1_800, route.duration
-    assert_predicate route.track_svg, :present?
+    # No Mapbox token in tests: the thumb fetch is a silent no-op and the
+    # route keeps its fallback icon (the attach path is covered by the
+    # stubbed-fetch tests).
+    assert_not route.static_map.attached?
   end
 
   test "create sends an empty upload back with a flash alert" do
@@ -171,7 +174,7 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
   # (undefined method `google_drive?') once any route card or the stats bar
   # rendered, because Route never defined the source predicates.
   test "index renders routes from both sources with library stats" do
-    @user.routes.create!(source: "upload", title: "Uploaded ride")
+    uploaded = @user.routes.create!(source: "upload", title: "Uploaded ride")
     @user.routes.create!(source: "google_drive", title: "Drive ride", google_drive_file_id: "abc123")
 
     get routes_path
@@ -181,6 +184,10 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
     assert_match "Drive ride", response.body
     assert_match "Local GPX", response.body
     assert_match "Google Drive", response.body
+    # The whole card is clickable (BUGS: make full card clickable): every
+    # card stretches a cover link over its non-interactive areas
+    assert_select %(article.route-card a.card-link-cover[href="#{route_path(uploaded)}"]), count: 1
+    assert_select "article.route-card a.card-link-cover", count: 2
   end
 
   test "download streams the attached gpx file as an attachment" do
@@ -251,6 +258,30 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
     # The embed survives full-page renders without reloading
     assert_match 'id="route-map-frame"', response.body
     assert_match "data-turbo-permanent", response.body
+    # FEATURES: full-screen map toggle (map-fullscreen controller) — native
+    # Fullscreen API on our own container (plus a CSS overlay fallback). The
+    # iframe carries no permissions policy at all: least privilege — nothing
+    # inside the third-party embed needs delegated privileges (a former
+    # loopback-network token let gpx.studio reach the visitor's localhost and
+    # was removed; if an allow token ever returns, it must be a conscious,
+    # reviewed decision).
+    assert_select "div.route-detail__map[data-controller~=map-fullscreen]"
+    assert_select %(button[data-action~="map-fullscreen#toggle"][aria-label="View map full screen"])
+    assert_select %(span[data-map-fullscreen-target=icon])
+    assert_select "iframe#route-map-frame:not([allow])"
+  end
+
+  test "show renders the map empty state without a full-screen toggle" do
+    route = @user.routes.create!(source: "upload", title: "Mapless walk")
+
+    get route_path(route)
+
+    assert_response :success
+    assert_match "Mapless walk", response.body
+    # Nothing to full-screen: the toggle stays off with the empty map state
+    assert_select ".route-detail__map-empty"
+    assert_select %(button[data-action~="map-fullscreen#toggle"]), count: 0
+    assert_select "iframe#route-map-frame", count: 0
   end
 
   test "show renders the read-only friend view with save route" do
@@ -399,7 +430,10 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
     assert_equal route.description, saved.description
     assert_equal route.distance, saved.distance
     assert_equal route.duration, saved.duration
-    assert_equal route.track_svg, saved.track_svg
+    # The copy owns its own map render too: same bytes, different storage row
+    assert saved.static_map.attached?
+    assert_not_equal route.static_map.blob.id, saved.static_map.blob.id
+    assert_equal route.static_map.checksum, saved.static_map.checksum
     # Copy contract: fresh upload, not completed, no Drive lineage
     assert_equal "upload", saved.source
     assert_not saved.completed?
@@ -422,6 +456,8 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
     perform_enqueued_jobs
 
     assert saved.reload.gpx_file.attached?
+    # The copy's own map render survives the original's destruction too.
+    assert saved.static_map.attached?
     get download_route_path(saved)
     assert_response :success
     assert_match(/<gpx/i, response.body)
@@ -686,6 +722,9 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
   private
 
   # Route with an attached, already parsed GPX file (metadata populated).
+  # The parse runs against a stubbed Mapbox fetch, exactly like a production
+  # parse with a token configured: the route also carries its static map
+  # thumb, which the deep-copy tests below rely on.
   def create_route_with_gpx(user, attrs: {})
     user.routes.create!(attrs.reverse_merge(source: "upload", title: "Mont Blanc ridge")).tap do |route|
       route.gpx_file.attach(
@@ -693,7 +732,9 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
         filename: "exploration.gpx",
         content_type: "application/gpx+xml"
       )
-      route.parse_gpx!
+      with_mapbox_stubbed do
+        route.parse_gpx!
+      end
       route.reload
     end
   end

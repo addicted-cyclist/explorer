@@ -23,7 +23,7 @@ class CalendarsController < ApplicationController
     # tiebreaker — without it same-time entries follow heap order, which an
     # UPDATE (e.g. a completed toggle) reshuffles between renders.
     @week_entries = owner.calendar_entries
-                         .includes(:route)
+                         .includes(route: { gpx_file_attachment: :blob, static_map_attachment: :blob })
                          .between(@week_start..(@week_start + 6))
                          .order(:scheduled_on, :start_time, :id).to_a
     # Friend view: which of this week's rides I already attend — by ride
@@ -48,8 +48,12 @@ class CalendarsController < ApplicationController
         # Friend view: only the routes scheduled this week, in week order.
         @week_entries.sort_by(&:calendar_sort_key).map(&:route).uniq
       else
-        # My view: the whole library is the drag pool.
-        current_user.routes.order(created_at: :desc, id: :desc)
+        # My view: the whole library is the drag pool. Cards render the static
+        # map thumb (and the friend/public head checks the GPX), so both
+        # attachments ride along — same anti-N+1 preload as @week_entries.
+        current_user.routes
+                    .includes(:gpx_file_attachment, static_map_attachment: :blob)
+                    .order(created_at: :desc, id: :desc)
       end
     # The shared upload dialog behind the sidebar's "Import new GPX" CTA
     # (same modal the routes library renders).
@@ -69,7 +73,9 @@ class CalendarsController < ApplicationController
     @is_friend_view = false
     @is_public_view = false
     @week_start = resolve_week_start
-    @sidebar_routes = current_user.routes.order(created_at: :desc, id: :desc)
+    @sidebar_routes = current_user.routes
+                                  .includes(:gpx_file_attachment, static_map_attachment: :blob)
+                                  .order(created_at: :desc, id: :desc)
     render :mob_routes_list
   end
 
@@ -229,7 +235,7 @@ class CalendarsController < ApplicationController
         # Phase 8: the mobile day-panel repaint needs the week's entries, and
         # its entry card derives the "Joined" dock state from this set.
         @week_entries = friend.calendar_entries
-                              .includes(:route)
+                              .includes(route: { gpx_file_attachment: :blob, static_map_attachment: :blob })
                               .between(@week_start..(@week_start + 6)).to_a
         @joined_entry_ids = [ friend_entry.id ]
         render :join
@@ -268,7 +274,7 @@ class CalendarsController < ApplicationController
     # Same total order as #show (see there): stream repaints must agree with
     # the full render, and the id tiebreaker keeps same-time entries stable.
     @week_entries = current_user.calendar_entries
-                                .includes(:route)
+                                .includes(route: { gpx_file_attachment: :blob, static_map_attachment: :blob })
                                 .between(@week_start..(@week_start + 6))
                                 .order(:scheduled_on, :start_time, :id).to_a
     @telemetry = build_telemetry(@week_entries)

@@ -98,6 +98,19 @@ input[type="submit"] {
   border-left: 4px solid var(--color-accent-route);
 }
 
+/* Card cover link — stretches an invisible link over the whole card so every
+   non-interactive pixel navigates to the card's detail page (BUGS item: make
+   full card clickable). The card must be position:relative; interactive
+   controls inside (buttons, forms, docks, menus, popovers) must be lifted
+   above it with position:relative; z-index:2 to stay clickable. The link
+   itself is empty, aria-hidden and untabbable — the visible title link keeps
+   carrying the accessible name. */
+.card-link-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
 /* Recessed well for nested content and telemetry */
 .well {
   background: var(--color-surface-canvas);

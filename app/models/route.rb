@@ -2,6 +2,12 @@ class Route < ApplicationRecord
   belongs_to :user
 
   has_one_attached :gpx_file
+  # Thumbnail: a real map image rendered by the Mapbox Static Images API at
+  # parse time and stored as a blob (see Mapbox::StaticImage). Cards render it
+  # through the cacheable /route_thumbs/:signed_id endpoint; routes without
+  # one (parsed before the feature existed, or no Mapbox token) show the
+  # fallback route icon.
+  has_one_attached :static_map
   has_many :calendar_entries, dependent: :destroy
 
   # Difficulty label shown as the primary badge on library cards
@@ -42,13 +48,14 @@ class Route < ApplicationRecord
   # metadata. Ownership, timestamps, source and the completed flag reset.
   DEEP_COPY_ATTRIBUTES = %w[
     title description distance elevation_gain elevation_loss min_elevation
-    max_elevation duration tier sport_type track_svg
+    max_elevation duration tier sport_type
   ].freeze
 
   # Build (unsaved) a duplicate of this route owned by +owner+. The GPX file
-  # is re-attached byte-for-byte under the copy's own blob, so the copy and
-  # the original never share state — editing, re-uploading or deleting one
-  # can never affect the other. Call save! on the result.
+  # and the static map thumb are re-attached byte-for-byte under the copy's
+  # own blobs, so the copy and the original never share state — editing,
+  # re-uploading or deleting one can never affect the other. Call save! on
+  # the result.
   def deep_copy_for(owner)
     owner.routes.build(
       attributes.slice(*DEEP_COPY_ATTRIBUTES).merge(
@@ -56,15 +63,23 @@ class Route < ApplicationRecord
         "completed" => false
       )
     ).tap do |copy|
-      next unless gpx_file.attached?
-
-      # Buffer the bytes up front: the copy's upload is deferred until its
+      # Buffer the bytes up front: the copy's uploads are deferred until its
       # save!, by which time a Tempfile opened here would already be closed.
-      # GPX files are small, so buffering is safe.
-      copy.gpx_file.attach(
-        io: StringIO.new(gpx_file.download),
-        filename: gpx_file.filename,
-        content_type: gpx_file.content_type
+      # GPX files and map renders are small, so buffering is safe.
+      if gpx_file.attached?
+        copy.gpx_file.attach(
+          io: StringIO.new(gpx_file.download),
+          filename: gpx_file.filename,
+          content_type: gpx_file.content_type
+        )
+      end
+
+      next unless static_map.attached?
+
+      copy.static_map.attach(
+        io: StringIO.new(static_map.download),
+        filename: static_map.filename,
+        content_type: static_map.content_type
       )
     end
   end
@@ -87,13 +102,6 @@ class Route < ApplicationRecord
   def moving_duration
     duration.to_i.positive? ? duration : DEFAULT_MOVING_DURATION
   end
-
-  # ---- Track thumbnail (route library) ----------------------------------
-  # The parsed track is downsampled and projected into this fixed viewBox;
-  # the stored string is only the SVG path data ("M x,y L x,y …").
-  TRACK_SVG_VIEWBOX = "0 0 100 60".freeze
-  TRACK_SVG_MAX_POINTS = 200
-  TRACK_SVG_PADDING = 4.0
 
   # Trackpoints per smoothing window for elevation stats: a centered moving
   # average over 5 readings strips the GPS altitude jitter that would
@@ -120,13 +128,46 @@ class Route < ApplicationRecord
         self.elevation_loss = compute_elevation_loss(smoothed)
       end
 
-      self.track_svg = build_track_svg(gpx.tracks.flat_map(&:points))
+      generate_static_map!(track_coords(gpx))
       self.title ||= gpx.name.presence || self.title.presence || gpx_file.filename&.base.presence || "Untitled Route"
       save!
     end
   end
 
+  # Generate and attach the Mapbox static map thumb for this route. +coords+
+  # is the track's [lon, lat] pairs; pass nil to have them read from the
+  # attached GPX (the backfill task does this for routes parsed before the
+  # feature existed). Idempotent — a route that already has a thumb is left
+  # alone — and safe to call when Mapbox is unavailable: the service returns
+  # nil, no thumb is attached, and the route keeps its fallback icon. Never
+  # touches the parsed stats (distance/duration/elevations): a backfill must
+  # not clobber durations edited by hand on the detail page. +coords+ is the
+  # track's [lon, lat] pairs — pass nil to have them read from the attached
+  # GPX (the backfill task does this for routes parsed before the feature
+  # existed); an empty array (no usable trackpoints) simply skips the thumb.
+  def generate_static_map!(coords = nil)
+    return if static_map.attached?
+
+    if coords.nil?
+      return unless gpx_file.attached?
+
+      coords = gpx_file.open do |file|
+        track_coords(GPX::GPXFile.new(gpx_file: file.path))
+      end
+    end
+    return if coords.size < 2
+
+    attachable = Mapbox::StaticImage.attachable(coords)
+    static_map.attach(attachable) if attachable
+  end
+
   private
+
+  # The GPX track's usable points as [lon, lat] pairs — the one extraction
+  # shared by the stats parse and the standalone thumb generation.
+  def track_coords(gpx)
+    gpx.tracks.flat_map(&:points).filter_map { |p| [ p.lon, p.lat ] if p.lon && p.lat }
+  end
 
   # Centered moving average over ELEVATION_SMOOTHING_WINDOW points. Raw GPS
   # altitude readings jitter by several meters between trackpoints; feeding
@@ -159,58 +200,5 @@ class Route < ApplicationRecord
       loss += (a - b) if a > b
     end
     loss
-  end
-
-  # Build the thumbnail polyline: downsample the track, project it with an
-  # equirectangular projection (longitude shrunk by cos of the mean latitude),
-  # then fit it aspect-preserving into the fixed viewBox. Returns the SVG path
-  # data string, or nil when the track has fewer than two usable points.
-  def build_track_svg(points)
-    coords = points.filter_map { |p| [ p.lon, p.lat ] if p.lon && p.lat }
-    return if coords.size < 2
-
-    coords = downsample_track(coords, TRACK_SVG_MAX_POINTS)
-
-    mean_lat = coords.sum { |_, lat| lat } / coords.size
-    cos_lat = Math.cos(mean_lat * Math::PI / 180.0)
-    projected = coords.map { |lon, lat| [ lon * cos_lat, lat ] }
-
-    min_x, max_x = projected.map(&:first).minmax
-    min_y, max_y = projected.map(&:last).minmax
-    span_x = max_x - min_x
-    span_y = max_y - min_y
-    return if span_x <= 0 && span_y <= 0
-
-    viewbox_w = TRACK_SVG_VIEWBOX.split(" ")[2].to_f
-    viewbox_h = TRACK_SVG_VIEWBOX.split(" ")[3].to_f
-    drawable_w = viewbox_w - (TRACK_SVG_PADDING * 2)
-    drawable_h = viewbox_h - (TRACK_SVG_PADDING * 2)
-
-    # Uniform scale (preserves the track's aspect ratio), centered in the box
-    scale_x = span_x.positive? ? drawable_w / span_x : Float::INFINITY
-    scale_y = span_y.positive? ? drawable_h / span_y : Float::INFINITY
-    scale = [ scale_x, scale_y ].min
-    offset_x = (viewbox_w - (span_x * scale)) / 2.0
-    offset_y = (viewbox_h - (span_y * scale)) / 2.0
-
-    # SVG y grows downward, latitude grows upward -> flip y
-    segments = projected.map do |x, y|
-      px = (offset_x + ((x - min_x) * scale)).round(1)
-      py = (viewbox_h - (offset_y + ((y - min_y) * scale))).round(1)
-      "#{px},#{py}"
-    end
-
-    "M#{segments.shift} L#{segments.join(' ')}"
-  end
-
-  # Thin out the coordinate list so at most +max+ points remain, keeping the
-  # first and last points of the track.
-  def downsample_track(coords, max)
-    return coords if coords.size <= max
-
-    stride = (coords.size.to_f / max).ceil
-    sampled = coords.each_slice(stride).map(&:first)
-    sampled[-1] = coords[-1]
-    sampled
   end
 end

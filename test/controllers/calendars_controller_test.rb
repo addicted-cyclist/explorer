@@ -213,8 +213,13 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
       assert_select "button.wc-entry__check"
       # The X lives in the floating bottom dock, revealed on card hover
       assert_select "article.wc-entry > .wc-entry__dock .wc-entry__remove", count: 2
+      # The whole entry card is clickable (BUGS: make full card clickable)
+      assert_select %(article.wc-entry > a.card-link-cover[href="#{route_path(@route)}"]), count: 1
+      assert_select %(article.wc-entry > a.card-link-cover[href="#{route_path(other)}"]), count: 1
     end
     assert_match "63.7 km", response.body # 21.5 + 42.2
+    # The mobile day-panel cards carry the same full-card cover link
+    assert_select %(article.mob-wc__entry > a.card-link-cover[href="#{route_path(@route)}"]), minimum: 1
   end
 
   test "show lists the whole library in the sidebar for my view" do
@@ -249,7 +254,7 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
   # ---- Phase 0 capacity: lazy mobile routes list ----------------------------
 
   test "mobile routes list frame serves the whole library for my view" do
-    @user.routes.create!(source: "upload", title: "Pool route", duration: 1_800)
+    pool_route = @user.routes.create!(source: "upload", title: "Pool route", duration: 1_800)
 
     get routes_list_calendar_path
 
@@ -258,6 +263,10 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     assert_match "Pool route", response.body
     # My-view card contract: a Schedule button per route opens the sheet
     assert_select %(button[data-action~="mob-sheet#open"]), count: 2
+    # The whole card is clickable (BUGS: make full card clickable), and the
+    # cover link escapes the lazy frame to the top like the title link
+    assert_select %(article.mob-wc__route > a.card-link-cover[data-turbo-frame=_top]), count: 2
+    assert_select %(article.mob-wc__route > a.card-link-cover[href="#{route_path(pool_route)}"]), count: 1
   end
 
   test "mobile routes list endpoint requires sign in" do
@@ -298,6 +307,10 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     assert_select "article.wc-entry .wc-entry__remove", count: 0
     # The Join action lives in the same floating bottom dock
     assert_select "article.wc-entry > .wc-entry__dock .wc-join__btn", count: 1
+    # The whole entry card is clickable (BUGS: make full card clickable); the
+    # cover link keeps the friend scoping so the detail page's Calendar crumb
+    # returns to this friend's week view
+    assert_select %(article.wc-entry > a.card-link-cover[href="#{route_path(friend_route, username: friend.username)}"]), count: 1
     # Nav: a friend's week view highlights Friends, not My calendar
     assert_select %(a.app-nav__link--active[href="#{friends_path}"]), text: "Friends"
     assert_select %(a.app-nav__link--active[href="#{calendar_path}"]), count: 0

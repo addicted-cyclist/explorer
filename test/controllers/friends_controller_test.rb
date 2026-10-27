@@ -64,6 +64,9 @@ class FriendsControllerTest < ActionDispatch::IntegrationTest
     assert_match "Moderate", response.body
     assert_match "routes this week", response.body
     assert_match "1 active explorer this week", response.body
+    # The whole card is clickable (BUGS: make full card clickable) and the
+    # cover link keeps the friend scoping for the detail page's Calendar crumb
+    assert_select %(article.friends__card a.card-link-cover[href="#{route_path(ride, username: pal.username)}"]), count: 1
   end
 
   test "index falls back to the last completed library route" do
@@ -89,6 +92,9 @@ class FriendsControllerTest < ActionDispatch::IntegrationTest
     assert_match "New athlete", response.body
     assert_no_match(/Planned Not Ridden/, response.body)
     assert_match "0 routes this week", response.body
+    # No ride → no cover link at all (BUGS: "empty card: no link at all");
+    # only the header's View calendar button points anywhere
+    assert_select "article.friends__card a.card-link-cover", count: 0
   end
 
   test "index ships the popup empty and never preloads other accounts" do

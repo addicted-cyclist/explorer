@@ -43,7 +43,7 @@
     <% end %>
   </header>
 
-  <%# Phase 0 capacity: the card body (tier, track SVG, metrics) is a pure
+  <%# Phase 0 capacity: the card body (tier, map thumb, metrics) is a pure
       function of the route and identical across my / friend / public views —
       cached per route and shared by every viewer. The head above stays
       uncached: it branches per view mode and carries the kebab menu whose
@@ -52,11 +52,9 @@
     <span class="wc-route-card__tier t-label-sm t-uppercase <%= calendar_tier_class(route.tier) %>"><%= route.tier.presence || "Unrated" %></span>
 
     <div class="wc-route-card__thumb">
-      <% if route.track_svg.present? %>
-        <svg class="wc-route-card__track" viewBox="<%= Route::TRACK_SVG_VIEWBOX %>"
-             preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
-          <path d="<%= route.track_svg %>"></path>
-        </svg>
+      <% thumb_img = route_static_map_thumb(route, "wc-route-card__route-map") %>
+      <% if thumb_img %>
+        <%= thumb_img %>
       <% else %>
         <div class="wc-route-card__thumb-fallback c-tertiary">
           <span class="material-symbols-outlined" aria-hidden="true">route</span>

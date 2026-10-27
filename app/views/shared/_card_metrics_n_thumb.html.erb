@@ -27,12 +27,10 @@
       </div>
     </dl>
 
-    <% if route.track_svg.present? %>
+    <% thumb_img = route_static_map_thumb(route, "#{class_prefix}__route-map") %>
+    <% if thumb_img %>
       <div class="<%= class_prefix %>__route-thumb" aria-hidden="true">
-        <svg class="<%= class_prefix %>__route-track" viewBox="<%= Route::TRACK_SVG_VIEWBOX %>"
-              preserveAspectRatio="xMidYMid meet" focusable="false">
-          <path d="<%= route.track_svg %>"></path>
-        </svg>
+        <%= thumb_img %>
       </div>
     <% else %>
       <div class="<%= class_prefix %>__route-thumb <%= class_prefix %>__route-thumb--empty c-tertiary" aria-hidden="true">

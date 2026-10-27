@@ -349,24 +349,19 @@
   align-items: center;
   justify-content: center;
   height: 9rem;
-  padding: var(--space-sm);
   border-radius: var(--radius-lg);
   background: var(--color-surface-canvas);
   overflow: hidden;
 }
 
-.route-card__track {
+/* Real map image (Mapbox static render) in the thumb box. The wrapper clips
+   with overflow: hidden; object-fit: cover fills the box while the render's
+   auto-fit padding keeps the route clear of the cropped edges. */
+.route-card__route-map {
+  display: block;
   width: 100%;
   height: 100%;
-}
-
-.route-card__track path {
-  fill: none;
-  stroke: var(--color-track-elevation);
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  opacity: 0.9;
+  object-fit: cover;
 }
 
 .route-card__thumb-fallback {
@@ -415,7 +410,10 @@
   transition: color 0.15s ease;
 }
 
-.route-card__title a:hover {
+/* The card cover link owns most of the card's hover area, so the title
+   highlight fires from anywhere on the card, not just the title itself. */
+.route-card__title a:hover,
+.route-card:hover .route-card__title a {
   color: var(--color-accent-route);
 }
 
@@ -451,7 +449,11 @@
   line-height: 1.25rem;
 }
 
+/* Lifted above the card cover link so View Map, the calendar picker and the
+   kebab menu stay clickable (see primitives.css) */
 .route-card__footer {
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: space-between;
