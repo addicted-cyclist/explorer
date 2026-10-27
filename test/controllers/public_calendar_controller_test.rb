@@ -92,10 +92,10 @@ class PublicCalendarControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :success
-    # The eager load issues one attachment SELECT for the whole week —
-    # never one per rendered card.
-    assert attachment_selects <= 2,
-           "expected the attachment preload (≤2 SELECTs), got #{attachment_selects}"
+    # The eager load batches the week's attachments (GPX + static map) and
+    # the header adds one fixed avatar query — never one per rendered card.
+    assert attachment_selects <= 3,
+           "expected the batched attachment SELECTs (≤3), got #{attachment_selects}"
     assert_select "a.wc-gpx-btn", minimum: 3 # one GPX button per attached route
   end
 

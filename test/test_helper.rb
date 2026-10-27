@@ -39,6 +39,33 @@ module ActiveSupport
 
       Rack::Test::UploadedFile.new(path.to_s, "application/gpx+xml", false, original_filename: filename)
     end
+
+    # Canned bytes for stubbed Mapbox fetches. Tests never decode the image,
+    # so a PNG-magic-prefixed byte string is enough for attach and content
+    # type assertions.
+    STATIC_MAP_PNG_STUB = ("\x89PNG\r\n\x1a\n".b + "explorer-test-render" * 4).freeze
+
+    # Run the block with Mapbox::StaticImage stubbed so the suite never talks
+    # to api.mapbox.com. token: :test presents a token (the service then calls
+    # the stubbed fetch); token: false removes it — attachable must return nil
+    # without ever fetching, so the stubbed fetch raises as a tripwire.
+    # bytes: :stub serves STATIC_MAP_PNG_STUB; any other value is returned
+    # verbatim (nil simulates a failed request). Originals are restored.
+    def with_mapbox_stubbed(token: :test, bytes: :stub)
+      singleton = Mapbox::StaticImage.singleton_class
+      singleton.alias_method :__mapbox_orig_token, :access_token
+      singleton.alias_method :__mapbox_orig_fetch_png, :fetch_png
+      singleton.define_method(:access_token) { token == :test ? "test-token" : nil }
+      singleton.define_method(:fetch_png) do |url|
+        raise "Mapbox::StaticImage must not fetch without a token (asked for #{url})" if token != :test
+
+        bytes == :stub ? STATIC_MAP_PNG_STUB : bytes
+      end
+      yield
+    ensure
+      singleton.alias_method :access_token, :__mapbox_orig_token
+      singleton.alias_method :fetch_png, :__mapbox_orig_fetch_png
+    end
   end
 end
 
