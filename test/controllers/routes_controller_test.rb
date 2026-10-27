@@ -255,6 +255,26 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
     # The embed survives full-page renders without reloading
     assert_match 'id="route-map-frame"', response.body
     assert_match "data-turbo-permanent", response.body
+    # FEATURES: full-screen map toggle (map-fullscreen controller) — native
+    # Fullscreen API with a CSS overlay fallback; the embed may fullscreen
+    # itself via its allow list
+    assert_select "div.route-detail__map[data-controller~=map-fullscreen]"
+    assert_select %(button[data-action~="map-fullscreen#toggle"][aria-label="View map full screen"])
+    assert_select %(span[data-map-fullscreen-target=icon])
+    assert_select "iframe#route-map-frame[allow~=fullscreen]"
+  end
+
+  test "show renders the map empty state without a full-screen toggle" do
+    route = @user.routes.create!(source: "upload", title: "Mapless walk")
+
+    get route_path(route)
+
+    assert_response :success
+    assert_match "Mapless walk", response.body
+    # Nothing to full-screen: the toggle stays off with the empty map state
+    assert_select ".route-detail__map-empty"
+    assert_select %(button[data-action~="map-fullscreen#toggle"]), count: 0
+    assert_select "iframe#route-map-frame", count: 0
   end
 
   test "show renders the read-only friend view with save route" do

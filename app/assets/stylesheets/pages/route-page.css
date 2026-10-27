@@ -303,12 +303,60 @@ a.route-detail__crumb-link:hover {
 
 .route-detail__map-sub {
   display: none;
+  /* Keeps the sub text and the full-screen toggle pinned right in the
+     space-between head, with the pill left (FEATURES: full-screen map) */
+  margin-left: auto;
 }
 
 @media (min-width: 640px) {
   .route-detail__map-sub {
     display: inline;
   }
+}
+
+/* FEATURES: open route map on full screen — icon toggle in the embed head */
+.route-detail__map-expand {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.375rem;
+  border-radius: var(--radius-lg);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.route-detail__map-expand:hover,
+.route-detail__map-expand:focus-visible {
+  background: var(--color-surface-container);
+  color: var(--color-text-primary);
+}
+
+/* Native Fullscreen API: the card fills the screen, the iframe everything
+   below the 2.75rem head */
+.route-detail__map:fullscreen {
+  border-radius: 0;
+}
+
+.route-detail__map:fullscreen .route-detail__map-frame {
+  height: calc(100% - 2.75rem);
+}
+
+/* Fallback for browsers without element fullscreen (iPhone Safari): the
+   card covers the viewport like a modal. Below the upload (60) and
+   verify-email (61) modals so those still interrupt. */
+.route-detail__map--expanded {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  border-radius: 0;
+}
+
+.route-detail__map--expanded .route-detail__map-frame {
+  height: calc(100% - 2.75rem);
+}
+
+body.has-open-map {
+  overflow: hidden;
 }
 
 .route-detail__map-frame {

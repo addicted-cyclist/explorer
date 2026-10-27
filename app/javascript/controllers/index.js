@@ -77,3 +77,9 @@ application.register("completion-confetti", CompletionConfettiController);
 // change-email form — shared by the hard gate and the soft nag.
 import EmailVerificationController from "./email_verification_controller";
 application.register("email-verification", EmailVerificationController);
+
+// Full-screen route map toggle (FEATURES: open route map on full screen):
+// native Fullscreen API with a fixed-overlay fallback for browsers without
+// element fullscreen (iPhone Safari).
+import MapFullscreenController from "./map_fullscreen_controller";
+application.register("map-fullscreen", MapFullscreenController);
