@@ -18,7 +18,6 @@
       <% end %>
     </header>
 
-    <%# TODO! remove allow="loopback-network" from iframe%>
     <% if gpx_studio_embed_src(@route) %>
       <%# data-turbo-permanent: Turbo moves this node across full-page renders
           instead of recreating it, so the embed never reloads even when the
@@ -33,7 +32,6 @@
               src="<%= gpx_studio_embed_src(@route) %>"
               title="Interactive GPX map — gpx.studio viewer"
               loading="lazy"
-              allow="loopback-network"
               frameborder="0"
               style="outline: none;"></iframe>
     <% else %>
