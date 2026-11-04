@@ -43,6 +43,52 @@ class Route < ApplicationRecord
     user.calendar_public? && calendar_entries.exists?(user_id: user_id)
   end
 
+  # ---- Map page (technote.MYMAP-FEATURE.md) -------------------------------
+  # Routes that are public under the Phase 9 share rules — the same contract
+  # as #publicly_viewable? expressed in SQL, so MapsController can select
+  # other users' public routes for the viewport query without loading any
+  # private library rows. A route is public when its owner's calendar share
+  # is live AND the route is scheduled on that owner's own calendar.
+  scope :publicly_visible, lambda {
+    joins(:user)
+      .where(users: { calendar_public: true })
+      .where(<<~SQL.squish)
+        EXISTS (
+          SELECT 1 FROM calendar_entries ce
+          WHERE ce.route_id = routes.id AND ce.user_id = routes.user_id
+        )
+      SQL
+  }
+
+  # Routes the map can actually draw: a GPX is attached and the bounding box
+  # was captured by the parse (backfill task covers routes parsed before the
+  # columns existed). NULL bounds drop out of the viewport comparisons below
+  # on their own; the explicit joins keep the intent obvious.
+  scope :with_track, lambda {
+    joins(:gpx_file_attachment).where.not(min_lat: nil)
+  }
+
+  # Geographic-viewport intersection for the map's public-routes query
+  # (§5.1): the route's bounding box overlaps the requested rect. Latitudes
+  # always use the plain overlap test; longitudes branch because MapLibre
+  # bounds may cross the antimeridian (west > east, e.g. 175 → -170), which
+  # no single AND-clause can match. West/east may exceed ±180 after the
+  # client's wrap normalization — such views stay over-inclusive, never
+  # under-inclusive, so no route can be wrongly hidden. Pairs with LIMIT in
+  # the controller (§5: never return the whole public collection).
+  scope :intersecting_viewport, lambda { |west, south, east, north|
+    lon_match =
+      if west > east
+        "(max_lon >= :west OR min_lon <= :east)"
+      else
+        "(max_lon >= :west AND min_lon <= :east)"
+      end
+    where(
+      "#{lon_match} AND max_lat >= :south AND min_lat <= :north",
+      west: west, east: east, south: south, north: north
+    )
+  }
+
   # ---- Deep copy (save to library, calendar join) ------------------------
   # Attributes carried onto a deep copy: the parsed GPX facts and display
   # metadata. Ownership, timestamps, source and the completed flag reset.
@@ -128,10 +174,55 @@ class Route < ApplicationRecord
         self.elevation_loss = compute_elevation_loss(smoothed)
       end
 
-      generate_static_map!(track_coords(gpx))
+      coords = track_coords(gpx)
+      # Map page (technote.MYMAP-FEATURE.md §5.1): capture the bounding box
+      # from the very same trackpoints the thumb renders, so the viewport
+      # query never has to open GPX blobs to know where a route lives.
+      assign_map_bounds(coords)
+      generate_static_map!(coords)
       self.title ||= gpx.name.presence || self.title.presence || gpx_file.filename&.base.presence || "Untitled Route"
       save!
     end
+  end
+
+  # All usable trackpoints as [lon, lat, ele] triplets read fresh from the
+  # stored GPX — the geometry source for the Map page (technote §5: GeoJSON
+  # is generated server-side; the browser never downloads raw GPX files).
+  # ele is nil for trackpoints without an <ele> element; the elevation
+  # profile filters those out. Empty (not nil) without a GPX, so callers can
+  # iterate unconditionally.
+  def track_coordinates
+    return [] unless gpx_file.attached?
+
+    gpx_file.open do |file|
+      gpx = GPX::GPXFile.new(gpx_file: file.path)
+      gpx.tracks.flat_map(&:points).filter_map do |point|
+        next unless point.lon && point.lat
+
+        [ point.lon, point.lat, point.elevation ]
+      end
+    end
+  end
+
+  # The stored bounding box as a GeoJSON-style [west, south, east, north]
+  # array, or nil before the GPX has been parsed (bounds columns are set
+  # only by parse_gpx! / the backfill task).
+  def bounds_array
+    return if min_lat.nil? || min_lon.nil?
+
+    [ min_lon, min_lat, max_lon, max_lat ]
+  end
+
+  # Bounding-box column assignments for +coords+ ([lon, lat(, ele)] tuples) —
+  # shared by parse_gpx! and the map-bounds backfill task so both write
+  # identical values.
+  def self.map_bounds_from(coords)
+    lons = coords.map(&:first)
+    lats = coords.map { |coord| coord[1] }
+    {
+      min_lon: lons.min, max_lon: lons.max,
+      min_lat: lats.min, max_lat: lats.max
+    }
   end
 
   # Generate and attach the Mapbox static map thumb for this route. +coords+
@@ -162,6 +253,15 @@ class Route < ApplicationRecord
   end
 
   private
+
+  # Store the track's geographic bounding box (§5.1). coords are [lon, lat]
+  # pairs; empty input (no usable trackpoints) leaves the columns nil, which
+  # with_track and the viewport query treat as "not on the map".
+  def assign_map_bounds(coords)
+    return if coords.blank?
+
+    assign_attributes(Route.map_bounds_from(coords))
+  end
 
   # The GPX track's usable points as [lon, lat] pairs — the one extraction
   # shared by the stats parse and the standalone thumb generation.

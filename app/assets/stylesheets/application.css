@@ -27,6 +27,7 @@
  
  *= require color-helper
 
+ *= require vendor/maplibre-gl
  *= require_tree ./pages
 
  *= require_self

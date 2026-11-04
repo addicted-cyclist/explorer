@@ -257,6 +257,98 @@ class RouteTest < ActiveSupport::TestCase
                  @user.routes.build(source: "upload", title: "Ride", duration: 0).moving_duration
   end
 
+  # ---- map page (technote.MYMAP-FEATURE.md §5) ----------------------------
+
+  test "parse_gpx! records the track bounding box" do
+    route = @user.routes.create!(source: "upload", title: "Bounded")
+    route.gpx_file.attach(gpx_fixture_upload("exploration.gpx"))
+    route.parse_gpx!
+
+    # exploration.gpx spans lon 8.5417..8.5437, lat 47.3769..47.3789.
+    assert_in_delta 8.5417, route.min_lon, 1e-6
+    assert_in_delta 8.5437, route.max_lon, 1e-6
+    assert_in_delta 47.3769, route.min_lat, 1e-6
+    assert_in_delta 47.3789, route.max_lat, 1e-6
+  end
+
+  test "bounds_array returns [west, south, east, north] and nil before the parse" do
+    route = @user.routes.create!(source: "upload", title: "Unparsed")
+    assert_nil route.bounds_array
+
+    route.update!(min_lon: 8.0, max_lon: 8.5, min_lat: 47.0, max_lat: 47.5)
+    assert_equal [ 8.0, 47.0, 8.5, 47.5 ], route.bounds_array
+  end
+
+  test "track_coordinates yields [lon, lat, ele] triplets from the stored gpx" do
+    route = @user.routes.create!(source: "upload", title: "Tracked")
+    route.gpx_file.attach(gpx_fixture_upload("exploration.gpx"))
+
+    coords = route.track_coordinates
+    assert_equal 3, coords.size
+    assert_equal [ 8.5417, 47.3769, 100.0 ], coords.first
+    assert_equal [ 8.5437, 47.3789, 120.0 ], coords.last
+  end
+
+  test "track_coordinates is empty without a gpx file" do
+    route = @user.routes.create!(source: "upload", title: "Empty")
+    assert_equal [], route.track_coordinates
+  end
+
+  test "publicly_visible matches publicly_viewable? in SQL" do
+    @user.update!(calendar_public: true)
+    scheduled = @user.routes.create!(source: "upload", title: "Shared loop")
+    @user.calendar_entries.create!(route: scheduled, scheduled_on: Date.current + 2,
+                                   start_time: "08:00", end_time: "09:00")
+    unscheduled = @user.routes.create!(source: "upload", title: "Private library ride")
+
+    assert_includes Route.publicly_visible, scheduled
+    assert_not_includes Route.publicly_visible, unscheduled
+
+    # The same route stops being public when the owner's share goes dark.
+    @user.update!(calendar_public: false)
+    assert_not_includes Route.publicly_visible.reload, scheduled
+  end
+
+  test "with_track keeps only gpx-backed, bounds-carrying routes" do
+    tracked = @user.routes.create!(source: "upload", title: "Tracked")
+    tracked.gpx_file.attach(gpx_fixture_upload("exploration.gpx"))
+    tracked.parse_gpx!
+    unbounded = @user.routes.create!(source: "upload", title: "No parse yet")
+    unbounded.gpx_file.attach(gpx_fixture_upload("named_route.gpx"))
+
+    assert_includes Route.with_track, tracked
+    assert_not_includes Route.with_track, unbounded
+  end
+
+  test "intersecting_viewport selects overlapping boxes and rejects disjoint ones" do
+    inside = @user.routes.create!(min_lon: 8.0, max_lon: 8.5, min_lat: 47.0, max_lat: 47.5,
+                                  source: "upload", title: "Inside")
+    overlapping_edge = @user.routes.create!(min_lon: 8.4, max_lon: 9.0, min_lat: 47.4, max_lat: 48.0,
+                                            source: "upload", title: "Edge overlap")
+    outside = @user.routes.create!(min_lon: 0.0, max_lon: 1.0, min_lat: 10.0, max_lat: 11.0,
+                                   source: "upload", title: "Far away")
+
+    scope = Route.intersecting_viewport(8.2, 47.1, 8.6, 47.6)
+    assert_includes scope, inside
+    assert_includes scope, overlapping_edge
+    assert_not_includes scope, outside
+  end
+
+  test "intersecting_viewport matches either side of an antimeridian-crossing viewport" do
+    east_side = @user.routes.create!(min_lon: 172.0, max_lon: 178.0, min_lat: -20.0, max_lat: -10.0,
+                                     source: "upload", title: "West of the line")
+    west_side = @user.routes.create!(min_lon: -178.0, max_lon: -170.0, min_lat: -20.0, max_lat: -10.0,
+                                     source: "upload", title: "East of the line")
+    away = @user.routes.create!(min_lon: 0.0, max_lon: 1.0, min_lat: 10.0, max_lat: 11.0,
+                                source: "upload", title: "Greenwich")
+
+    # Viewport 175 → -170 crosses the dateline; both flanks must match.
+    scope = Route.intersecting_viewport(175.0, -20.0, -170.0, -10.0)
+    assert_includes scope, east_side
+    assert_includes scope, west_side
+    assert_not_includes scope, away
+  end
+
   private
 
   # Minimal GPX document whose single track carries the given elevations,

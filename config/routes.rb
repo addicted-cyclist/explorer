@@ -34,6 +34,16 @@ Rails.application.routes.draw do
     end
   end
 
+  # My Map (technote.MYMAP-FEATURE.md) — the MapLibre page and its GeoJSON
+  # data endpoints. All three sit behind the ApplicationController's default
+  # Devise + email-verification gates: the page draws the user's own routes
+  # (private included), and the public query is narrowed to strict Phase 9
+  # public visibility in SQL (Route.publicly_visible), so no authorization
+  # decision can be bypassed from the client.
+  get "map", to: "maps#show", as: :map
+  get "map/routes/own", to: "maps#own_routes", as: :own_map_routes
+  get "map/routes/public", to: "maps#public_routes", as: :public_map_routes
+
   # Public, tokenized GPX streaming for the gpx.studio embed. The signed_id
   # is the capability token and the response carries CORS headers, so the
   # embed (served from gpx.studio) can fetch the file without a session.

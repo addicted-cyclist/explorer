@@ -1,0 +1,682 @@
+/* ------------------------------------------------------------------ */
+/* My Map page (maps/show — design-refs/stitch_explorer_v0.14)         */
+/*                                                                     */
+/* Full-bleed MapLibre workspace: sub-bar, floating drawer, selected-  */
+/* route popup, status pill. Layout only — map chrome comes from the   */
+/* vendored vendor/maplibre-gl.css.                                    */
+/* ------------------------------------------------------------------ */
+
+.mymap {
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- Sub-bar (breadcrumb chip, scope pills, draw affordance) -------- */
+
+.mymap__subbar {
+  background: var(--color-surface-card);
+  border-bottom: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-sm);
+}
+
+.mymap__subbar-inner {
+  max-width: var(--container-max);
+  margin-inline: auto;
+  padding: var(--space-xs) var(--gutter-mobile);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+@media (min-width: 1024px) {
+  .mymap__subbar-inner {
+    padding-inline: var(--gutter-desktop);
+  }
+}
+
+.mymap__location {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  min-width: 0;
+}
+
+.mymap__location-pin {
+  font-size: 1rem;
+  color: var(--color-accent-route);
+}
+
+.mymap__location-label {
+  font-size: 0.8125rem;
+  line-height: 1rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mymap__subbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.mymap__scope {
+  display: none;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: var(--space-2xs);
+  background: var(--color-surface-canvas);
+  border-radius: var(--radius-lg);
+}
+
+@media (min-width: 640px) {
+  .mymap__scope {
+    display: flex;
+  }
+}
+
+.mymap__scope-pill {
+  padding: var(--space-2xs) var(--space-xs);
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 0.6875rem;
+  line-height: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.mymap__scope-pill:hover {
+  color: var(--color-text-primary);
+}
+
+.mymap__scope-pill.is-active {
+  background: var(--color-surface-card);
+  color: var(--color-text-primary);
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
+.mymap__draw .mymap__draw-label {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .mymap__draw .mymap__draw-label {
+    display: inline;
+  }
+}
+
+/* --- Stage: canvas + overlays --------------------------------------- */
+
+.mymap__stage {
+  position: relative;
+  /* Header (4rem) + sub-bar (~3.5rem); the footer stays reachable by
+     scrolling, matching the reference's calc(100vh - 8.5rem). */
+  height: calc(100dvh - 7.5rem);
+  min-height: 26rem;
+}
+
+.mymap__canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.mymap__canvas .maplibregl-ctrl-top-right {
+  /* Keep MapLibre's control column clear of the popup card. */
+  margin-right: 0.5rem;
+}
+
+/* --- Drawer (floating routes panel, top-left) ----------------------- */
+
+.mymap-drawer {
+  position: absolute;
+  top: var(--space-md);
+  left: var(--space-md);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  width: min(22.5rem, calc(100vw - 2rem));
+  max-height: calc(100% - 2rem);
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.95);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
+
+.mymap-drawer.is-collapsed .mymap-drawer__head {
+  border-bottom: 0;
+}
+
+.mymap-drawer__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-card);
+}
+
+.mymap-drawer__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-canvas);
+  color: var(--color-text-primary);
+}
+
+.mymap-drawer__icon .material-symbols-outlined {
+  font-size: 1.125rem;
+}
+
+.mymap-drawer__titles {
+  min-width: 0;
+  flex: 1;
+}
+
+.mymap-drawer__title {
+  font-size: 1.125rem;
+  line-height: 1.5rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.mymap-drawer__count {
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  color: var(--color-text-secondary);
+}
+
+.mymap-drawer__toggle,
+.mymap-popup__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.mymap-drawer__toggle:hover,
+.mymap-popup__close:hover {
+  background: var(--color-surface-canvas);
+  color: var(--color-text-primary);
+}
+
+.mymap-drawer__toggle .material-symbols-outlined,
+.mymap-popup__close .material-symbols-outlined {
+  font-size: 1.125rem;
+}
+
+.mymap-drawer__list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.mymap-drawer.is-collapsed .mymap-drawer__list,
+.mymap-drawer.is-collapsed .mymap-drawer__empty {
+  display: none;
+}
+
+.mymap-drawer__empty {
+  padding: var(--space-md);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+/* Collapsed state: head becomes a compact reopen chip */
+.mymap-drawer.is-collapsed {
+  width: auto;
+  max-width: calc(100vw - 2rem);
+}
+
+.mymap-drawer.is-collapsed .mymap-drawer__head {
+  padding: var(--space-sm) var(--space-md);
+}
+
+.mymap-drawer.is-collapsed .mymap-drawer__icon,
+.mymap-drawer.is-collapsed .mymap-drawer__count {
+  display: none;
+}
+
+/* --- Status pill (bottom-left) -------------------------------------- */
+
+.mymap-status {
+  position: absolute;
+  bottom: var(--space-md);
+  left: var(--space-md);
+  z-index: 25;
+  max-width: min(20rem, calc(100vw - 2rem));
+  padding: var(--space-2xs) var(--space-sm);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.9);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-sm);
+  color: var(--color-text-secondary);
+  text-align: left;
+  cursor: default;
+}
+
+.mymap-status::before {
+  content: "";
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-right: var(--space-2xs);
+  border-radius: var(--radius-full);
+  background: var(--color-track-split);
+  vertical-align: 1px;
+}
+
+.mymap-status.is-loading::before {
+  background: var(--color-track-elevation);
+}
+
+.mymap-status.is-error {
+  color: var(--color-accent-route);
+  cursor: pointer;
+}
+
+.mymap-status.is-error::before {
+  background: var(--color-accent-route);
+}
+
+/* --- Drawer route cards --------------------------------------------- */
+
+.mymap-card {
+  padding: var(--space-sm);
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.mymap-card:hover,
+.mymap-card:focus-visible {
+  border-color: var(--color-text-primary);
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  outline: none;
+}
+
+.mymap-card.is-selected {
+  border-color: var(--color-accent-route);
+}
+
+.mymap-card__badges {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  margin-bottom: var(--space-2xs);
+}
+
+.mymap-card__badge {
+  font-size: 0.625rem;
+  line-height: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 1px var(--space-2xs);
+  border-radius: var(--radius-sm);
+  background: rgb(225 29 72 / 0.1);
+  color: var(--color-accent-route);
+}
+
+.mymap-card.is-public .mymap-card__badge {
+  background: rgb(16 185 129 / 0.12);
+  color: #047857;
+}
+
+.mymap-card__tier {
+  font-size: 0.625rem;
+  line-height: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-tertiary);
+}
+
+.mymap-card__title {
+  font-size: 1rem;
+  line-height: 1.375rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.mymap-card__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  text-align: center;
+  margin-block: var(--space-sm);
+  padding: var(--space-sm);
+  background: rgb(244 244 245 / 0.9);
+  border: 1px solid rgb(228 228 231 / 0.5);
+  border-radius: var(--radius-xl);
+}
+
+.mymap-card__metric + .mymap-card__metric {
+  border-left: 1px solid rgb(228 228 231 / 0.6);
+}
+
+.mymap-card__metric-label {
+  display: block;
+  font-size: 0.625rem;
+  line-height: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  margin-bottom: 2px;
+}
+
+.mymap-card__metric-value {
+  display: block;
+  font-size: 1.125rem;
+  line-height: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.mymap-card__thumb {
+  position: relative;
+  height: 5rem;
+  border: 1px solid rgb(228 228 231 / 0.7);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface-canvas);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mymap-card__thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mymap-card__thumb-fallback {
+  color: var(--color-text-tertiary);
+}
+
+/* --- Selected-route popup (top-right card) -------------------------- */
+
+.mymap-popup {
+  position: absolute;
+  top: var(--space-md);
+  right: 4rem;
+  z-index: 28;
+  width: min(24rem, calc(100vw - 6.5rem));
+  max-height: calc(100% - 2rem);
+  overflow-y: auto;
+  padding: var(--space-lg);
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
+
+.mymap-popup__badge-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+
+.mymap-popup__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--radius-full);
+  background: var(--color-accent-route);
+  flex-shrink: 0;
+}
+
+.mymap-popup__dot--public {
+  background: var(--color-track-split);
+}
+
+.mymap-popup__badge {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.6875rem;
+  line-height: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-accent-route);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mymap-popup__badge--public {
+  color: #047857;
+}
+
+.mymap-popup__title {
+  font-size: 1.125rem;
+  line-height: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--color-text-primary);
+}
+
+.mymap-popup__description {
+  margin-top: var(--space-2xs);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.mymap-popup__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-xs);
+  margin-block: var(--space-md);
+  padding: var(--space-sm);
+  background: rgb(244 244 245 / 0.8);
+  border: 1px solid rgb(228 228 231 / 0.5);
+  border-radius: var(--radius-lg);
+}
+
+.mymap-popup__stat {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: var(--space-2xs) var(--space-sm);
+  background: var(--color-surface-card);
+  border: 1px solid rgb(228 228 231 / 0.4);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+}
+
+.mymap-popup__stat .material-symbols-outlined {
+  font-size: 1.125rem;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.mymap-popup__stat-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.625rem;
+  line-height: 1rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+.mymap-popup__stat-value {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+.mymap-popup__profile {
+  margin-bottom: var(--space-md);
+  padding: var(--space-sm);
+  background: var(--color-surface-canvas);
+  border: 1px solid rgb(228 228 231 / 0.5);
+  border-radius: var(--radius-lg);
+}
+
+.mymap-popup__profile-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-2xs);
+}
+
+.mymap-popup__profile-label {
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+.mymap-popup__profile-max {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.mymap-popup__profile-chart {
+  display: block;
+  width: 100%;
+  height: 5rem;
+}
+
+.mymap-popup__profile-area {
+  fill: rgb(56 189 248 / 0.25);
+  stroke: none;
+}
+
+.mymap-popup__profile-line {
+  fill: none;
+  stroke: var(--color-track-elevation);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.mymap-popup__profile-marker {
+  fill: var(--color-track-elevation);
+  stroke: var(--color-surface-card);
+  stroke-width: 1;
+}
+
+.mymap-popup__profile-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--space-2xs);
+}
+
+.mymap-popup__actions {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-xs);
+}
+
+.mymap-popup__open {
+  flex: 1;
+}
+
+.mymap-popup__download {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-card);
+  color: var(--color-text-secondary);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.mymap-popup__download:hover {
+  background: var(--color-surface-canvas);
+  color: var(--color-text-primary);
+}
+
+/* --- Responsive ------------------------------------------------------ */
+
+@media (max-width: 767px) {
+  .mymap-popup {
+    /* Bottom sheet on phones: clear of the mobile nav + status pill. */
+    top: auto;
+    right: var(--space-sm);
+    bottom: calc(4.5rem + var(--space-md));
+    left: var(--space-sm);
+    width: auto;
+    max-height: 55%;
+  }
+
+  .mymap-status {
+    bottom: 5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mymap-drawer,
+  .mymap-popup,
+  .mymap-card {
+    transition: none;
+  }
+}
+
+/* Custom "show my routes" control button (my-map controller) — MapLibre
+   ctrl-icon buttons are sized by the vendored stylesheet; only the glyph is
+   ours (crosshair/target, matching the design's reset control). */
+.maplibregl-ctrl-my-routes {
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='%2309090b'%3E%3Cpath d='M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A9 9 0 0 0 13 3.06V1h-2v2.06A9 9 0 0 0 3.06 11H1v2h2.06A9 9 0 0 0 11 20.94V23h2v-2.06A9 9 0 0 0 20.94 13H23v-2h-2.06zM12 19a7 7 0 1 1 0-14 7 7 0 0 1 0 14z'/%3E%3C/svg%3E");
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.mymap-drawer__more {
+  padding: var(--space-2xs) var(--space-xs);
+  text-align: center;
+}

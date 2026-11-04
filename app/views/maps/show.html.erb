@@ -1,0 +1,181 @@
+<% content_for :title, "My Map" %>
+<%# My Map (technote.MYMAP-FEATURE.md + design-refs/stitch_explorer_v0.14).
+    Full-bleed map workspace: sub-bar (location chip, scope pills, disabled
+    "draw" affordance), the MapLibre canvas, the floating routes drawer and
+    the selected-route popup. The my-map controller owns all data flow — the
+    markup below is only skeleton + templates. %>
+<% content_for :full_width, true %>
+
+<div class="mymap"
+     data-controller="my-map"
+     data-my-map-config-value="<%= map_frontend_config.to_json %>"
+     data-my-map-own-url-value="<%= own_map_routes_path %>"
+     data-my-map-public-url-value="<%= public_map_routes_path %>">
+
+  <div class="mymap__subbar">
+    <div class="mymap__subbar-inner">
+      <div class="mymap__location">
+        <span class="material-symbols-outlined mymap__location-pin" aria-hidden="true">location_on</span>
+        <span class="mymap__location-label"><%= map_frontend_config[:defaultPlaceLabel] %></span>
+      </div>
+      <div class="mymap__subbar-actions">
+        <div class="mymap__scope" role="group" aria-label="Filter map routes">
+          <button type="button" class="mymap__scope-pill is-active"
+                  data-my-map-target="scopePill" data-scope="all"
+                  data-action="my-map#setScope">All (<span data-my-map-target="allCount">0</span>)</button>
+          <button type="button" class="mymap__scope-pill"
+                  data-my-map-target="scopePill" data-scope="own"
+                  data-action="my-map#setScope">My Routes (<span data-my-map-target="ownCount">0</span>)</button>
+          <button type="button" class="mymap__scope-pill"
+                  data-my-map-target="scopePill" data-scope="public"
+                  data-action="my-map#setScope">Public (<span data-my-map-target="publicCount">0</span>)</button>
+        </div>
+        <%# Stage 2 affordance from the design reference: visible but inert
+            until route drawing ships (technote §10 keeps it out of scope). %>
+        <button type="button" class="mymap__draw btn btn--secondary" disabled
+                title="Draw new route (coming soon)">
+          <span class="material-symbols-outlined" aria-hidden="true">gesture</span>
+          <span class="mymap__draw-label">Draw new route</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="mymap__stage">
+    <div class="mymap__canvas" data-my-map-target="canvas"
+         aria-label="Map of your routes and public routes"></div>
+
+    <aside class="mymap-drawer" data-my-map-target="drawer" aria-label="Routes on the map">
+      <header class="mymap-drawer__head">
+        <div class="mymap-drawer__icon">
+          <span class="material-symbols-outlined" aria-hidden="true">route</span>
+        </div>
+        <div class="mymap-drawer__titles">
+          <h2 class="mymap-drawer__title">Found Routes</h2>
+          <p class="mymap-drawer__count"><span data-my-map-target="drawerCount">0</span> routes on the map</p>
+        </div>
+        <button type="button" class="mymap-drawer__toggle"
+                data-my-map-target="drawerToggle"
+                data-action="my-map#toggleDrawer"
+                aria-label="Collapse routes panel" title="Collapse panel">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+        </button>
+      </header>
+      <div class="mymap-drawer__list" data-my-map-target="cardList"></div>
+      <p class="mymap-drawer__empty t-body-sm c-secondary" data-my-map-target="drawerEmpty" hidden>
+        No routes to show yet. Upload GPX files in My Routes, or pan the map
+        to discover public routes from other riders.
+      </p>
+    </aside>
+
+    <%# Selected-route popup (v0.14 right-hand card): ownership/visibility
+        badge, title, blurb, stat tiles, elevation profile and the two
+        actions. All fields are filled by the my-map controller from the
+        selected feature's properties. %>
+    <aside class="mymap-popup" data-my-map-target="popup" hidden aria-label="Selected route details">
+      <div class="mymap-popup__badge-row">
+        <span class="mymap-popup__dot" data-my-map-target="popupDot" aria-hidden="true"></span>
+        <span class="mymap-popup__badge" data-my-map-target="popupBadge">Your route</span>
+        <button type="button" class="mymap-popup__close" data-action="my-map#closePopup"
+                aria-label="Close route preview" title="Close">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+        </button>
+      </div>
+
+      <h3 class="mymap-popup__title" data-my-map-target="popupTitle"></h3>
+      <p class="mymap-popup__description t-body-sm c-secondary" data-my-map-target="popupDescription" hidden></p>
+
+      <div class="mymap-popup__stats">
+        <div class="mymap-popup__stat">
+          <span class="material-symbols-outlined" aria-hidden="true">straighten</span>
+          <span class="mymap-popup__stat-label">Distance</span>
+          <span class="mymap-popup__stat-value" data-my-map-target="popupDistance">&mdash;</span>
+        </div>
+        <div class="mymap-popup__stat">
+          <span class="material-symbols-outlined" aria-hidden="true">moving</span>
+          <span class="mymap-popup__stat-label">Elev gain</span>
+          <span class="mymap-popup__stat-value" data-my-map-target="popupElevation">&mdash;</span>
+        </div>
+        <div class="mymap-popup__stat">
+          <span class="material-symbols-outlined" aria-hidden="true">speed</span>
+          <span class="mymap-popup__stat-label">Avg speed</span>
+          <span class="mymap-popup__stat-value" data-my-map-target="popupSpeed">&mdash;</span>
+        </div>
+        <div class="mymap-popup__stat">
+          <span class="material-symbols-outlined" aria-hidden="true">schedule</span>
+          <span class="mymap-popup__stat-label">Est. moving</span>
+          <span class="mymap-popup__stat-value" data-my-map-target="popupDuration">&mdash;</span>
+        </div>
+      </div>
+
+      <div class="mymap-popup__profile" data-my-map-target="profileBlock" hidden>
+        <div class="mymap-popup__profile-head">
+          <span class="mymap-popup__profile-label">Elevation profile</span>
+          <span class="mymap-popup__profile-max">Max: <span data-my-map-target="profileMax"></span></span>
+        </div>
+        <svg class="mymap-popup__profile-chart" viewBox="0 0 300 80" preserveAspectRatio="none"
+             aria-hidden="true" data-my-map-target="profileChart">
+          <path class="mymap-popup__profile-area" data-my-map-target="profileArea" d=""></path>
+          <path class="mymap-popup__profile-line" data-my-map-target="profileLine" d=""></path>
+          <circle class="mymap-popup__profile-marker" r="3" data-my-map-target="profileMarker"></circle>
+        </svg>
+        <div class="mymap-popup__profile-axis t-code-sm c-tertiary">
+          <span>0 km</span>
+          <span data-my-map-target="profileMid"></span>
+          <span data-my-map-target="profileEnd"></span>
+        </div>
+      </div>
+
+      <div class="mymap-popup__actions">
+        <%= link_to "#", class: "btn btn--primary mymap-popup__open",
+                    data: { my_map_target: "popupLink" } do %>
+          <span>Open Route Details</span>
+          <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span>
+        <% end %>
+        <%= link_to "#", class: "mymap-popup__download", title: "Download GPX",
+                    aria: { label: "Download GPX" }, data: { my_map_target: "popupDownload" } do %>
+          <span class="material-symbols-outlined" aria-hidden="true">download</span>
+        <% end %>
+      </div>
+    </aside>
+
+    <%# Live data state (design's bottom-left pill): counts plus loading /
+        error feedback. Clicking an errored pill retries the viewport fetch. %>
+    <button type="button" class="mymap-status t-body-sm" data-my-map-target="status"
+            data-action="my-map#retryPublic" hidden></button>
+
+    <%# Drawer card template — cloned per route by the controller; every
+        dynamic value is set via textContent/src, never injected HTML. %>
+    <template data-my-map-target="cardTemplate">
+      <article class="mymap-card" role="button" tabindex="0">
+        <div class="mymap-card__head">
+          <div class="mymap-card__headings">
+            <div class="mymap-card__badges">
+              <span class="mymap-card__badge" data-card-field="sport"></span>
+              <span class="mymap-card__tier" data-card-field="tier"></span>
+            </div>
+            <h3 class="mymap-card__title" data-card-field="title"></h3>
+          </div>
+        </div>
+        <div class="mymap-card__metrics">
+          <div class="mymap-card__metric">
+            <span class="mymap-card__metric-label">Dist</span>
+            <span class="mymap-card__metric-value" data-card-field="distance">&mdash;</span>
+          </div>
+          <div class="mymap-card__metric">
+            <span class="mymap-card__metric-label">Elev</span>
+            <span class="mymap-card__metric-value" data-card-field="elevation">&mdash;</span>
+          </div>
+          <div class="mymap-card__metric">
+            <span class="mymap-card__metric-label">Time</span>
+            <span class="mymap-card__metric-value" data-card-field="duration">&mdash;</span>
+          </div>
+        </div>
+        <div class="mymap-card__thumb">
+          <img class="mymap-card__thumb-img" loading="lazy" alt="" hidden>
+          <span class="mymap-card__thumb-fallback material-symbols-outlined" aria-hidden="true">route</span>
+        </div>
+      </article>
+    </template>
+  </div>
+</div>

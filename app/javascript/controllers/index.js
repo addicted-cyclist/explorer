@@ -78,6 +78,12 @@ application.register("completion-confetti", CompletionConfettiController);
 import EmailVerificationController from "./email_verification_controller";
 application.register("email-verification", EmailVerificationController);
 
+// My Map page (technote.MYMAP-FEATURE.md §3.2/§5/§6): MapLibre rendering,
+// viewport-driven public-route loading, drawer/popup interactions and the
+// initial-viewport chain (fit my routes → persisted → geolocation → default).
+import MyMapController from "./my_map_controller";
+application.register("my-map", MyMapController);
+
 // Full-screen route map toggle (FEATURES: open route map on full screen):
 // native Fullscreen API with a fixed-overlay fallback for browsers without
 // element fullscreen (iPhone Safari).
