@@ -110,6 +110,33 @@ class RouteTest < ActiveSupport::TestCase
     assert_not route.static_map.attached?
   end
 
+  test "parse_gpx! stores the downsampled line and profile as map geometry" do
+    route = @user.routes.create!(source: "upload", title: "Stored geometry")
+    route.gpx_file.attach(io: File.open(@gpx_path), filename: "exploration.gpx", content_type: "application/gpx+xml")
+
+    route.parse_gpx!
+    route.reload
+
+    geometry = route.map_geometry
+    assert_equal [ [ 8.5417, 47.3769 ], [ 8.5427, 47.3779 ], [ 8.5437, 47.3789 ] ],
+                 geometry["coordinates"]
+    # The profile is presentation data derived from the sampled line — never
+    # a stats source (gain/loss stay full-series computations above).
+    profile = geometry["profile"]
+    assert_equal 3, profile.length
+    assert_in_delta 100.0, profile.first[1], 0.01
+    assert_in_delta 120.0, profile.last[1], 0.01
+    profile.each_cons(2) { |(d1, _), (d2, _)| assert_operator d2, :>=, d1 }
+  end
+
+  test "track_coordinates streams the gpx into [lon, lat, ele] triplets" do
+    route = @user.routes.create!(source: "upload", title: "Triplets")
+    route.gpx_file.attach(io: File.open(@gpx_path), filename: "exploration.gpx", content_type: "application/gpx+xml")
+
+    assert_equal [ [ 8.5417, 47.3769, 100.0 ], [ 8.5427, 47.3779, 150.0 ], [ 8.5437, 47.3789, 120.0 ] ],
+                 route.track_coordinates
+  end
+
   test "parse_gpx! attaches the static map thumb when the render is fetchable" do
     with_mapbox_stubbed do
       route = @user.routes.create!(source: "upload", title: "Thumb ride")

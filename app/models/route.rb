@@ -174,34 +174,44 @@ class Route < ApplicationRecord
         self.elevation_loss = compute_elevation_loss(smoothed)
       end
 
-      coords = track_coords(gpx)
+      # The full-resolution track as [lon, lat, ele] triplets — bounds, the
+      # stored map geometry and the thumb all derive from this one array.
+      points = gpx.tracks.flat_map(&:points).filter_map do |point|
+        next unless point.lon && point.lat
+
+        [ point.lon, point.lat, point.elevation ]
+      end
       # Map page (technote.MYMAP-FEATURE.md §5.1): capture the bounding box
       # from the very same trackpoints the thumb renders, so the viewport
       # query never has to open GPX blobs to know where a route lives.
-      assign_map_bounds(coords)
-      generate_static_map!(coords)
+      assign_map_bounds(points)
+      # Map page (§5/§9): the downsampled line + profile chart are derived
+      # once here and persisted in map_geometry, so map requests never parse
+      # GPX blobs and cache warmth cannot change their latency.
+      # Presentation-only: the stats above remain full-series computations
+      # and nothing ever reads map_geometry back into them.
+      self.map_geometry = Map::TrackGeometry.build(points)
+
+      generate_static_map!(points.map { |lon, lat, _ele| [ lon, lat ] })
+
       self.title ||= gpx.name.presence || self.title.presence || gpx_file.filename&.base.presence || "Untitled Route"
       save!
     end
   end
 
   # All usable trackpoints as [lon, lat, ele] triplets read fresh from the
-  # stored GPX — the geometry source for the Map page (technote §5: GeoJSON
-  # is generated server-side; the browser never downloads raw GPX files).
-  # ele is nil for trackpoints without an <ele> element; the elevation
-  # profile filters those out. Empty (not nil) without a GPX, so callers can
-  # iterate unconditionally.
+  # stored GPX — the geometry source for the map backfills and the map
+  # feature's self-heal (technote §5: GeoJSON is generated server-side; the
+  # browser never downloads raw GPX files). Streams the document once via
+  # Map::TrackExtractor instead of building the gpx gem's full point tree —
+  # ~0.2s per multi-megabyte track instead of ~1.2s. ele is nil for
+  # trackpoints without an <ele> element; the elevation profile filters
+  # those out. Empty (not nil) without a GPX, so callers can iterate
+  # unconditionally.
   def track_coordinates
     return [] unless gpx_file.attached?
 
-    gpx_file.open do |file|
-      gpx = GPX::GPXFile.new(gpx_file: file.path)
-      gpx.tracks.flat_map(&:points).filter_map do |point|
-        next unless point.lon && point.lat
-
-        [ point.lon, point.lat, point.elevation ]
-      end
-    end
+    gpx_file.open { |file| Map::TrackExtractor.extract(file) }
   end
 
   # The stored bounding box as a GeoJSON-style [west, south, east, north]
