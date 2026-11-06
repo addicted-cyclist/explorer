@@ -29,7 +29,7 @@ const INT_FORMAT = new Intl.NumberFormat("en-US");
 //     browser geolocation → configured default (§3.1)
 export default class MyMapController extends Controller {
   static targets = [
-    "canvas", "locationLabel", "scopePill", "allCount", "ownCount", "publicCount",
+    "stage", "canvas", "locationLabel", "scopePill", "allCount", "ownCount", "publicCount",
     "drawer", "drawerToggle", "drawerCount", "cardList", "drawerEmpty",
     "cardTemplate", "status", "popup", "popupDot", "popupBadge",
     "popupTitle", "popupDescription", "popupDistance", "popupElevation",
@@ -157,7 +157,10 @@ export default class MyMapController extends Controller {
       positionOptions: { enableHighAccuracy: false },
       trackUserLocation: false,
     }), "top-right");
-    this.map.addControl(new maplibregl.FullscreenControl(), "top-right");
+    // Fullscreen the whole stage (canvas + drawer + popup + status pill),
+    // not the bare map canvas — the found-routes drawer and the selected-
+    // route popup are stage children and must stay visible in fs mode.
+    this.map.addControl(new maplibregl.FullscreenControl({ container: this.stageTarget }), "top-right");
     this.map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-right");
     this.map.addControl(
       new maplibregl.AttributionControl({ customAttribution: this.config.customAttribution || [] }),
