@@ -1,6 +1,7 @@
 import { Controller } from "@hotwired/stimulus";
 import maplibregl from "maplibre-gl";
 import { captureRouteThumbs } from "../map/route_thumb_capture";
+import { ownRoutesHotspotBounds } from "../map/own_routes_hotspot";
 
 const KM_FORMAT = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
 const INT_FORMAT = new Intl.NumberFormat("en-US");
@@ -24,7 +25,7 @@ const INT_FORMAT = new Intl.NumberFormat("en-US");
 //     every settled camera move
 //   * click/select: highlight + popup with stats, elevation profile and the
 //     links to the existing detail page / GPX download (§6.1)
-//   * initial viewport: fit my routes (zoom-capped) → persisted view →
+//   * initial viewport: my most-ridden place (zoom-capped) → persisted view →
 //     browser geolocation → configured default (§3.1)
 export default class MyMapController extends Controller {
   static targets = [
@@ -95,7 +96,7 @@ export default class MyMapController extends Controller {
     this.publicTruncated = false;
     this.activeScope = "all";
     this.selectedId = null;
-    this.initialViewportResolved = false;
+    this.viewportResolved = false;
     this.lastFetchedKey = null;
     // Key of the request currently in flight (committed synchronously — see
     // loadPublicRoutes), plus the delta-loading state: merged public
@@ -498,10 +499,11 @@ export default class MyMapController extends Controller {
     if (this.viewportResolved) return;
     this.viewportResolved = true;
 
-    const bounds = this.ownRoutesBounds();
+    const bounds = ownRoutesHotspotBounds(this.ownFeatures);
     if (bounds) {
-      // Own routes win; maxZoom keeps tiny tracks from blowing the map up
-      // (§3.1: "avoid excessive zoom levels for very small extents").
+      // The most-ridden place wins; maxZoom keeps tiny tracks from blowing
+      // the map up (§3.1: "avoid excessive zoom levels for very small
+      // extents").
       // The public fetch rides the fit transition's own moveend so it
       // queries the FINAL bounds — an immediate getBounds() raced the
       // animation and fetched the wrong, pre-fit region on page load.
@@ -520,22 +522,12 @@ export default class MyMapController extends Controller {
     this.loadPublicRoutes(this.map.getBounds());
   }
 
-  ownRoutesBounds() {
-    const bounds = new maplibregl.LngLatBounds();
-    let any = false;
-    this.ownFeatures.forEach((feature) => {
-      const box = feature.properties && feature.properties.bounds;
-      if (!box) return;
-      bounds.extend([ box[0], box[1] ]);
-      bounds.extend([ box[2], box[3] ]);
-      any = true;
-    });
-    return any ? bounds : null;
-  }
-
-  // "Return to my routes / reset" control action (technote §3.2).
+  // "Return to my routes" control action (technote §3.2): the heart button
+  // dives into the same place the page loads on — the user's most-ridden
+  // own-routes hotspot (see resolveInitialViewport). No routes → configured
+  // default, same as before.
   fitToOwnRoutes(fly) {
-    const bounds = this.ownRoutesBounds();
+    const bounds = ownRoutesHotspotBounds(this.ownFeatures);
     if (bounds) {
       this.map.fitBounds(bounds, { padding: 64, maxZoom: 14, duration: fly ? 800 : 0 });
     } else {

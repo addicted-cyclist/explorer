@@ -80,7 +80,7 @@ application.register("email-verification", EmailVerificationController);
 
 // My Map page (technote.MYMAP-FEATURE.md §3.2/§5/§6): MapLibre rendering,
 // viewport-driven public-route loading, drawer/popup interactions and the
-// initial-viewport chain (fit my routes → persisted → geolocation → default).
+// initial-viewport chain (my most-ridden place → persisted → geolocation → default).
 import MyMapController from "./my_map_controller";
 application.register("my-map", MyMapController);
 
