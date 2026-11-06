@@ -11,8 +11,7 @@
 # var) and nothing else — never to route-rendering code.
 #
 # Style resolution order:
-#   1. credentials :map/:style_url  — keeps secrets out of ENV/shell history,
-#                                     same pattern as Mapbox::StaticImage.
+#   1. credentials :map/:style_url  — keeps secrets out of ENV/shell history.
 #   2. ENV MAP_STYLE_URL            — 12-factor deploys; the URL carries any
 #                                     provider key embedded (e.g. MapTiler's
 #                                     "?key=...").
@@ -27,9 +26,15 @@
 # documents Mapbox serves now carry Studio-only root properties (e.g.
 # projection: { "name": "globe" }) that make MapLibre abort the style load
 # with `name: unknown property "name"` — leaving /map blank.
-# MAPBOX_ACCESS_TOKEN stays reserved for Mapbox::StaticImage (thumbnails).
 #
-# Evaluated at boot; a token or style change needs an app restart.
+# The same resolved style also feeds the Step 2 client-side thumbnail
+# renderer (app/javascript/map/route_thumb_capture.js), so route thumbs and
+# the /map page always share one provider configuration. There is no server
+# thumbnail dependency left — Mapbox::StaticImage and MAPBOX_ACCESS_TOKEN
+# are retired (thumbs are captured in the browser and POSTed to
+# /routes/:id/static_map).
+#
+# Evaluated at boot; a style change needs an app restart.
 Rails.application.config.x.map =
   {
     # MapLibre `style:` accepts a style-document URL or an inline style

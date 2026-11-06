@@ -1,4 +1,9 @@
-<div class="library" data-controller="library-filters">
+<div class="library"
+     data-controller="library-filters library-thumbs"
+     data-library-thumbs-config-value="<%= map_frontend_config.to_json %>"
+     data-library-thumbs-own-url-value="<%= own_map_routes_path %>"
+     data-library-thumbs-post-url-template-value="<%= static_map_route_path("__ROUTE_ID__") %>"
+     data-library-thumbs-pending-ids-value="<%= @pending_thumb_route_ids.to_json %>">
   <%# ------------------------------------------------------- hero %>
   <section class="library-hero">
     <div>

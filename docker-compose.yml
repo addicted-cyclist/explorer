@@ -24,7 +24,6 @@ services:
       REDIS_URL: ${REDIS_URL}
       RESEND_API_KEY: ${RESEND_API_KEY}
       MAILER_FROM: ${MAILER_FROM}
-      MAPBOX_ACCESS_TOKEN: ${MAPBOX_ACCESS_TOKEN}
       MAP_STYLE_URL: ${MAP_STYLE_URL}
     volumes:
       - app_storage:/rails/storage

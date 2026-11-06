@@ -34,8 +34,9 @@ module Map
 
       # Distance-even resampling of +points+ ([lon, lat, ele] triplets) down
       # to at most MAX_POINTS, always keeping the first and last — the route
-      # ends are its most recognizable feature (same strategy as
-      # Mapbox::StaticImage's cap). Recording density varies along a real
+      # ends are its most recognizable feature (the thumbnail renderer's
+      # vertex budget follows the same strategy). Recording density varies
+      # along a real
       # track (1s-sampled files pile points up while the device waits at the
       # start, smart recording thins straight stretches), so sampling by
       # index spends the vertex budget wherever the file happens to be dense

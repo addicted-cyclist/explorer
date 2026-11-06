@@ -89,3 +89,10 @@ application.register("my-map", MyMapController);
 // element fullscreen (iPhone Safari).
 import MapFullscreenController from "./map_fullscreen_controller";
 application.register("map-fullscreen", MapFullscreenController);
+
+// Step 2 thumbnails — library-side capture: routes the server flagged as
+// thumb-less are rendered by the offscreen MapLibre module and POSTed to
+// /routes/:id/static_map right on the library page (covers the
+// upload-return flow and any older routes missing a thumb).
+import LibraryThumbsController from "./library_thumbs_controller";
+application.register("library-thumbs", LibraryThumbsController);

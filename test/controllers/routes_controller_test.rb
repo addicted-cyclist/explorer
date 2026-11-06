@@ -25,9 +25,9 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
     assert route.gpx_file.attached?
     assert_operator route.distance, :>, 0
     assert_equal 1_800, route.duration
-    # No Mapbox token in tests: the thumb fetch is a silent no-op and the
-    # route keeps its fallback icon (the attach path is covered by the
-    # stubbed-fetch tests).
+    # Thumbs are captured client-side after the redirect (library_thumbs
+    # controller → POST static_map): the parse itself never attaches one, so
+    # the fresh route keeps its fallback icon until the browser capture lands.
     assert_not route.static_map.attached?
   end
 
@@ -719,12 +719,95 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
     assert_select %(button[form^="calendar-remove-form-"]), count: 2
   end
 
+  # ---- Step 2 thumbnails: POST /routes/:id/static_map -------------------------
+  # The browser's hidden MapLibre renderer captures the PNG and POSTs it as
+  # the raw request body (Content-Type: image/png).
+
+  test "static_map attaches the posted png and answers with the thumb url" do
+    route = create_route_with_gpx(@user)
+    route.static_map.purge
+
+    post static_map_route_path(route), params: static_map_png, headers: { "Content-Type" => "image/png" }
+
+    assert_response :success
+    route.reload
+    assert route.static_map.attached?
+    assert_equal "image/png", route.static_map.content_type
+    assert_equal "static-map.png", route.static_map.filename.to_s
+    assert_equal static_map_png, route.static_map.download
+    assert_match route_static_map_path(route.static_map.blob.signed_id), response.parsed_body["thumb_url"]
+  end
+
+  test "static_map is idempotent and never overwrites an existing thumb" do
+    route = create_route_with_gpx(@user)
+    blob_id = route.static_map.blob.id
+
+    post static_map_route_path(route), params: static_map_png, headers: { "Content-Type" => "image/png" }
+
+    assert_response :no_content
+    assert_equal blob_id, route.reload.static_map.blob.id
+  end
+
+  test "static_map rejects non-png bodies" do
+    route = create_route_with_gpx(@user)
+    route.static_map.purge
+
+    post static_map_route_path(route), params: "not an image", headers: { "Content-Type" => "text/plain" }
+
+    assert_response :unprocessable_entity
+    assert_not route.reload.static_map.attached?
+  end
+
+  test "static_map rejects oversized bodies" do
+    route = create_route_with_gpx(@user)
+    route.static_map.purge
+
+    post static_map_route_path(route),
+         params: "x" * (RoutesController::MAX_THUMB_BYTES + 1),
+         headers: { "Content-Type" => "image/png" }
+
+    assert_response :unprocessable_entity
+    assert_not route.reload.static_map.attached?
+  end
+
+  test "static_map refuses routes without a gpx" do
+    route = @user.routes.create!(source: "upload", title: "Manual entry")
+
+    post static_map_route_path(route), params: static_map_png, headers: { "Content-Type" => "image/png" }
+
+    assert_response :unprocessable_entity
+    assert_not route.reload.static_map.attached?
+  end
+
+  test "static_map is owner-only" do
+    owner = User.create!(valid_user_attributes(email: "owner@example.com"))
+    route = create_route_with_gpx(owner)
+    route.static_map.purge
+
+    post static_map_route_path(route), params: static_map_png, headers: { "Content-Type" => "image/png" }
+
+    assert_response :not_found
+    assert_not route.reload.static_map.attached?
+  end
+
+  test "static_map bounces a guest to sign-in" do
+    route = create_route_with_gpx(@user)
+    route.static_map.purge
+
+    sign_out :user
+
+    post static_map_route_path(route), params: static_map_png, headers: { "Content-Type" => "image/png" }
+
+    assert_redirected_to new_user_session_path
+    assert_not route.reload.static_map.attached?
+  end
+
   private
 
-  # Route with an attached, already parsed GPX file (metadata populated).
-  # The parse runs against a stubbed Mapbox fetch, exactly like a production
-  # parse with a token configured: the route also carries its static map
-  # thumb, which the deep-copy tests below rely on.
+  # Route with an attached, already parsed GPX file (metadata populated) and
+  # a static map thumb, attached directly the way the browser capture would
+  # leave it — the deep-copy tests below rely on the thumb travelling with
+  # the copy.
   def create_route_with_gpx(user, attrs: {})
     user.routes.create!(attrs.reverse_merge(source: "upload", title: "Mont Blanc ridge")).tap do |route|
       route.gpx_file.attach(
@@ -732,11 +815,16 @@ class RoutesControllerTest < ActionDispatch::IntegrationTest
         filename: "exploration.gpx",
         content_type: "application/gpx+xml"
       )
-      with_mapbox_stubbed do
-        route.parse_gpx!
-      end
+      route.parse_gpx!
+      route.static_map.attach(io: StringIO.new(static_map_png), filename: "static-map.png", content_type: "image/png")
       route.reload
     end
+  end
+
+  # Any PNG payload works: the endpoints store and stream blobs verbatim,
+  # they never decode them. Reuses the avatar fixture's bytes.
+  def static_map_png
+    File.binread(Rails.root.join("test/fixtures/files/avatar.png"))
   end
 
   # Owner with a live public share and one scheduled — thus publicly

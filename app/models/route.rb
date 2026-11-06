@@ -2,11 +2,13 @@ class Route < ApplicationRecord
   belongs_to :user
 
   has_one_attached :gpx_file
-  # Thumbnail: a real map image rendered by the Mapbox Static Images API at
-  # parse time and stored as a blob (see Mapbox::StaticImage). Cards render it
-  # through the cacheable /route_thumbs/:signed_id endpoint; routes without
-  # one (parsed before the feature existed, or no Mapbox token) show the
-  # fallback route icon.
+  # Thumbnail: a real map crop with the route drawn on it, rendered by the
+  # browser's hidden MapLibre instance (Step 2 — see
+  # app/javascript/map/route_thumb_capture.js) and stored as a blob via
+  # POST /routes/:id/static_map. Cards render it through the cacheable
+  # /route_thumbs/:signed_id endpoint; routes without one (parsed before the
+  # feature existed, or every capture attempt failed) show the fallback
+  # route icon until a later visit heals them.
   has_one_attached :static_map
   has_many :calendar_entries, dependent: :destroy
 
@@ -174,8 +176,10 @@ class Route < ApplicationRecord
         self.elevation_loss = compute_elevation_loss(smoothed)
       end
 
-      # The full-resolution track as [lon, lat, ele] triplets — bounds, the
-      # stored map geometry and the thumb all derive from this one array.
+      # The full-resolution track as [lon, lat, ele] triplets — bounds and
+      # the stored map geometry derive from this one array. (Step 2: thumbs
+      # are captured client-side after upload — see
+      # app/javascript/map/route_thumb_capture.js — never during the parse.)
       points = gpx.tracks.flat_map(&:points).filter_map do |point|
         next unless point.lon && point.lat
 
@@ -191,8 +195,6 @@ class Route < ApplicationRecord
       # Presentation-only: the stats above remain full-series computations
       # and nothing ever reads map_geometry back into them.
       self.map_geometry = Map::TrackGeometry.build(points)
-
-      generate_static_map!(points.map { |lon, lat, _ele| [ lon, lat ] })
 
       self.title ||= gpx.name.presence || self.title.presence || gpx_file.filename&.base.presence || "Untitled Route"
       save!
@@ -235,33 +237,6 @@ class Route < ApplicationRecord
     }
   end
 
-  # Generate and attach the Mapbox static map thumb for this route. +coords+
-  # is the track's [lon, lat] pairs; pass nil to have them read from the
-  # attached GPX (the backfill task does this for routes parsed before the
-  # feature existed). Idempotent — a route that already has a thumb is left
-  # alone — and safe to call when Mapbox is unavailable: the service returns
-  # nil, no thumb is attached, and the route keeps its fallback icon. Never
-  # touches the parsed stats (distance/duration/elevations): a backfill must
-  # not clobber durations edited by hand on the detail page. +coords+ is the
-  # track's [lon, lat] pairs — pass nil to have them read from the attached
-  # GPX (the backfill task does this for routes parsed before the feature
-  # existed); an empty array (no usable trackpoints) simply skips the thumb.
-  def generate_static_map!(coords = nil)
-    return if static_map.attached?
-
-    if coords.nil?
-      return unless gpx_file.attached?
-
-      coords = gpx_file.open do |file|
-        track_coords(GPX::GPXFile.new(gpx_file: file.path))
-      end
-    end
-    return if coords.size < 2
-
-    attachable = Mapbox::StaticImage.attachable(coords)
-    static_map.attach(attachable) if attachable
-  end
-
   private
 
   # Store the track's geographic bounding box (§5.1). coords are [lon, lat]
@@ -271,12 +246,6 @@ class Route < ApplicationRecord
     return if coords.blank?
 
     assign_attributes(Route.map_bounds_from(coords))
-  end
-
-  # The GPX track's usable points as [lon, lat] pairs — the one extraction
-  # shared by the stats parse and the standalone thumb generation.
-  def track_coords(gpx)
-    gpx.tracks.flat_map(&:points).filter_map { |p| [ p.lon, p.lat ] if p.lon && p.lat }
   end
 
   # Centered moving average over ELEVATION_SMOOTHING_WINDOW points. Raw GPS

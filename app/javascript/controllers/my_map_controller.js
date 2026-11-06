@@ -1,5 +1,6 @@
 import { Controller } from "@hotwired/stimulus";
 import maplibregl from "maplibre-gl";
+import { captureRouteThumbs } from "../map/route_thumb_capture";
 
 const KM_FORMAT = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
 const INT_FORMAT = new Intl.NumberFormat("en-US");
@@ -37,6 +38,10 @@ export default class MyMapController extends Controller {
     config: Object,
     ownUrl: String,
     publicUrl: String,
+    // POST URL template for the thumbnail capture, with the route id as the
+    // "__ROUTE_ID__" placeholder (maps/show.html.erb renders it from the
+    // static_map member route).
+    thumbPostUrlTemplate: String,
   };
 
   // Debounce for viewport-driven public fetches (§5.2).
@@ -261,6 +266,9 @@ export default class MyMapController extends Controller {
       this.updateCounts();
       this.renderDrawer();
       this.resolveInitialViewport();
+      // Step 2 thumbnails: routes the payload shows without a thumb are
+      // healed invisibly right after the map data lands.
+      this.selfHealThumbs();
     } catch (error) {
       // Own routes failing (offline, 500) must not kill the page: keep the
       // default viewport and the public flow alive.
@@ -268,6 +276,43 @@ export default class MyMapController extends Controller {
       this.setStatus("Couldn't load your routes — reload the page to retry.", "error");
       this.resolveInitialViewport();
     }
+  }
+
+  // Step 2 thumbnails — invisible self-heal on My Map load: own routes the
+  // payload shows without a thumb (parsed before the feature existed, or a
+  // failed capture elsewhere) are drawn by the offscreen renderer from this
+  // now-fast payload and POSTed to /routes/:id/static_map. Fire-and-forget:
+  // the map flow above never waits on tile downloads, and a page navigated
+  // away stops the batch through shouldContinue. Public features are never
+  // touched — thumbs are attached by their own owners only.
+  selfHealThumbs() {
+    const pending = this.ownFeatures.filter((feature) => !feature.properties.thumb_url);
+    if (pending.length === 0 || !this.thumbPostUrlTemplateValue) return;
+
+    captureRouteThumbs(pending, {
+      config: this.config,
+      postUrlTemplate: this.thumbPostUrlTemplateValue,
+      shouldContinue: () => Boolean(this.map), // false once disconnect() removed it
+      onCaptured: (feature, thumbUrl) => {
+        // Mutating the feature keeps later re-renders (scope switches,
+        // selection) showing the thumb without another fetch.
+        feature.properties.thumb_url = thumbUrl;
+        this.updateDrawerCardThumb(feature.properties.id, thumbUrl);
+      },
+    });
+  }
+
+  // Swap one drawer card's fallback icon for the freshly captured thumb.
+  updateDrawerCardThumb(routeId, thumbUrl) {
+    const card = this.cardListTarget.querySelector(`[data-route-id="${routeId}"]`);
+    if (!card) return;
+    const img = card.querySelector(".mymap-card__thumb-img");
+    const fallback = card.querySelector(".mymap-card__thumb-fallback");
+    if (!img || !img.hidden) return; // already showing a thumb
+
+    img.src = thumbUrl;
+    img.hidden = false;
+    if (fallback) fallback.hidden = true;
   }
 
   // Public routes for the current viewport (technote §5.1), delta-loaded:
