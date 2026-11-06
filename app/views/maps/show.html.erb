@@ -11,13 +11,17 @@
      data-my-map-config-value="<%= map_frontend_config.to_json %>"
      data-my-map-own-url-value="<%= own_map_routes_path %>"
      data-my-map-public-url-value="<%= public_map_routes_path %>"
+     data-my-map-place-label-url-value="<%= map_place_label_path %>"
      data-my-map-thumb-post-url-template-value="<%= static_map_route_path("__ROUTE_ID__") %>">
 
   <div class="mymap__subbar">
     <div class="mymap__subbar-inner">
+      <%# Location chip: the server-rendered default is the fallback; the
+          my-map controller rewrites it from the reverse geocoder
+          (MapsController#place_label → Photon) as the viewport moves. %>
       <div class="mymap__location">
         <span class="material-symbols-outlined mymap__location-pin" aria-hidden="true">location_on</span>
-        <span class="mymap__location-label"><%= map_frontend_config[:defaultPlaceLabel] %></span>
+        <span class="mymap__location-label" data-my-map-target="locationLabel"><%= map_frontend_config[:defaultPlaceLabel] %></span>
       </div>
       <div class="mymap__subbar-actions">
         <div class="mymap__scope" role="group" aria-label="Filter map routes">

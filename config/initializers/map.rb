@@ -56,7 +56,20 @@ Rails.application.config.x.map =
     # for routes with very small geographic extents).
     fit_max_zoom: 14.0,
     # Sub-bar location chip label (design-refs/stitch_explorer_v0.14).
+    # Rendered server-side as the fallback; rewritten client-side from the
+    # reverse geocoder below as the viewport moves.
     default_place_label: "Da Nang & Coastal Ridges, VN",
+    # Reverse geocoder for the sub-bar location chip (Photon — komoot's
+    # OpenStreetMap geocoder). The keyless public instance is the default;
+    # a self-hosted Photon (komoot/photon, e.g. http://localhost:2322)
+    # swaps in via credentials :map/:geocoder_url or ENV MAP_GEOCODER_URL.
+    # Map::ReverseGeocoder appends /reverse to this base URL.
+    geocoder_url:
+      Rails.application.credentials.dig(:map, :geocoder_url) ||
+      ENV["MAP_GEOCODER_URL"] ||
+      "https://photon.komoot.io",
+    # Language of the geocoder's place names (Photon `lang` param).
+    geocoder_lang: "en",
     # Zoom below which /map skips the public-routes fetch entirely: the §5.1
     # 500-cap makes regional/country-scale fetches a truncated head at best,
     # replaced the moment the rider zooms in — the client deltas from there.

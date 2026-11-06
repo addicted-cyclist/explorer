@@ -19,13 +19,16 @@ const INT_FORMAT = new Intl.NumberFormat("en-US");
 //     and delta-loaded: responses merge by id and only not-yet-loaded routes
 //     are requested, so covered areas never re-download (§5.2)
 //   * scope pills (All / My Routes / Public), routes drawer, status pill
+//   * location chip: "City, Region, Country" for the viewport center via
+//     the reverse-geocoder endpoint (Photon server-side), refreshed on
+//     every settled camera move
 //   * click/select: highlight + popup with stats, elevation profile and the
 //     links to the existing detail page / GPX download (§6.1)
 //   * initial viewport: fit my routes (zoom-capped) → persisted view →
 //     browser geolocation → configured default (§3.1)
 export default class MyMapController extends Controller {
   static targets = [
-    "canvas", "scopePill", "allCount", "ownCount", "publicCount",
+    "canvas", "locationLabel", "scopePill", "allCount", "ownCount", "publicCount",
     "drawer", "drawerToggle", "drawerCount", "cardList", "drawerEmpty",
     "cardTemplate", "status", "popup", "popupDot", "popupBadge",
     "popupTitle", "popupDescription", "popupDistance", "popupElevation",
@@ -38,6 +41,9 @@ export default class MyMapController extends Controller {
     config: Object,
     ownUrl: String,
     publicUrl: String,
+    // GET endpoint for the location chip's reverse-geocoded label
+    // (maps/show.html.erb renders it from the map_place_label route).
+    placeLabelUrl: String,
     // POST URL template for the thumbnail capture, with the route id as the
     // "__ROUTE_ID__" placeholder (maps/show.html.erb renders it from the
     // static_map member route).
@@ -104,6 +110,9 @@ export default class MyMapController extends Controller {
     // broken or slow base-map style degrades to console warnings instead of
     // setData TypeErrors (the map surface must stay alive even then).
     this.layersReady = false;
+    // Location chip fetch (updateLocationLabel): a newer viewport aborts an
+    // older in-flight label request, same contract as the public fetch.
+    this.labelAbortController = null;
 
     this.buildMap();
     this.ro = new ResizeObserver(() => {
@@ -124,6 +133,7 @@ export default class MyMapController extends Controller {
     // pending fetch or the debounce timer.
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
     if (this.abortController) this.abortController.abort();
+    if (this.labelAbortController) this.labelAbortController.abort();
     if (this.ro) this.ro.disconnect();
     if (this.map) {
       this.map.remove();
@@ -184,6 +194,7 @@ export default class MyMapController extends Controller {
 
     this.layersReady = true;
     this.loadOwnRoutes();
+    this.updateLocationLabel();
   }
 
   // Route GeoJSON sources/layers — deliberately plain LineString styling so
@@ -419,7 +430,9 @@ export default class MyMapController extends Controller {
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
     this.refreshTimer = setTimeout(() => {
       this.refreshTimer = null;
-      if (this.map) this.loadPublicRoutes(this.map.getBounds());
+      if (!this.map) return;
+      this.loadPublicRoutes(this.map.getBounds());
+      this.updateLocationLabel();
     }, MyMapController.REFRESH_DEBOUNCE_MS);
   }
 
@@ -576,6 +589,37 @@ export default class MyMapController extends Controller {
       () => {}, // denied / unavailable / timeout → stay on the default
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
     );
+  }
+
+  // ---- location chip (sub-bar) -------------------------------------------------
+
+  // "City, Region, Country" for the viewport center — server-side reverse
+  // geocoding (Photon, MapsController#place_label, cached per ~1 km cell).
+  // The camera-move debounce in onMoveEnd already throttles this to one
+  // request per settle; a newer viewport aborts an older in-flight request,
+  // and any failure keeps the current label (the server-rendered default on
+  // first paint) instead of blanking the chip.
+  async updateLocationLabel() {
+    if (!this.map || !this.placeLabelUrlValue || !this.hasLocationLabelTarget) return;
+    const center = this.map.getCenter();
+    if (this.labelAbortController) this.labelAbortController.abort();
+    this.labelAbortController = new AbortController();
+    const signal = this.labelAbortController.signal;
+    try {
+      const params = new URLSearchParams({ lon: center.lng, lat: center.lat });
+      const response = await fetch(`${this.placeLabelUrlValue}?${params}`, {
+        headers: { Accept: "application/json" },
+        signal,
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = await response.json();
+      if (signal.aborted) return; // superseded while the response was in flight
+      const label = payload && payload.place_label;
+      if (label) this.locationLabelTarget.textContent = label;
+    } catch (error) {
+      if (error.name === "AbortError") return; // superseded by a newer viewport
+      console.warn("Place label failed to load:", error);
+    }
   }
 
   // ---- selection + popup (technote §6.1) -------------------------------------

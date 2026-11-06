@@ -68,6 +68,27 @@ class MapsController < ApplicationController
     render json: payload
   end
 
+  # GET /map/place_label?lon=&lat= — reverse-geocoded "City, Region, Country"
+  # for the sub-bar location chip (Photon via Map::ReverseGeocoder, cached
+  # per ~1 km cell server-side). Malformed coordinates answer 400 JSON like
+  # the viewport params; an upstream failure renders a null place_label the
+  # client treats as "keep the current label".
+  def place_label
+    lon = Float(params[:lon])
+    lat = Float(params[:lat])
+    finite = [ lon, lat ].all?(&:finite?)
+    valid = finite && lat.between?(-90, 90) && lon.between?(-360, 360)
+    raise ArgumentError unless valid
+
+    # Same wrap rationale as the viewport lons above: MapLibre may hand back
+    # values past ±180, Photon wants [-180, 180].
+    lon = ((lon + 180.0) % 360.0) - 180.0
+    render json: { place_label: Map::ReverseGeocoder.label(lon, lat) }
+  rescue ArgumentError, TypeError
+    render json: { error: "Invalid coordinates: expected numeric lon and lat with lat in [-90, 90]." },
+           status: :bad_request
+  end
+
   private
 
   # Route ids of mine that are publicly viewable right now — one distinct

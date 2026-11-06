@@ -185,7 +185,71 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert JSON.parse(response.body)["error"].present?
   end
 
+  # ---- place label (location chip) -------------------------------------------
+
+  test "place label requires sign-in" do
+    sign_out @viewer
+
+    get map_place_label_path, params: { lon: "108.2022", lat: "16.0544" }
+    assert_redirected_to new_user_session_path
+  end
+
+  test "place label returns the reverse-geocoded label" do
+    with_label_result("Da Nang, Vietnam") do
+      get map_place_label_path, params: { lon: "108.2022", lat: "16.0544" }
+    end
+
+    assert_response :success
+    assert_equal({ "place_label" => "Da Nang, Vietnam" }, JSON.parse(response.body))
+  end
+
+  test "place label renders a null label when the geocoder has no answer" do
+    with_label_result(nil) do
+      get map_place_label_path, params: { lon: "108.2022", lat: "16.0544" }
+    end
+
+    assert_response :success
+    assert_equal({ "place_label" => nil }, JSON.parse(response.body))
+  end
+
+  test "place label normalizes lons past ±180 (MapLibre wrap) before geocoding" do
+    received = []
+    with_label_result(->(lon, lat) { received << [ lon, lat ]; "Somewhere" }) do
+      get map_place_label_path, params: { lon: "190", lat: "16.05" }
+    end
+
+    assert_response :success
+    assert_equal [ [ -170.0, 16.05 ] ], received
+  end
+
+  test "place label answers 400 for malformed coordinates" do
+    get map_place_label_path, params: { lon: "not-a-number", lat: "16.05" }
+    assert_response :bad_request
+
+    get map_place_label_path, params: { lon: "108.2", lat: "95" }
+    assert_response :bad_request
+
+    get map_place_label_path, params: { lon: "108.2", lat: "NaN" }
+    assert_response :bad_request
+
+    get map_place_label_path, params: { lat: "16.05" }
+    assert_response :bad_request
+  end
+
   private
+
+  # No mocha in this app — swap Map::ReverseGeocoder.label for the duration
+  # of +block+ and always restore the original method. +result+ may be a
+  # value or a callable receiving (lon, lat).
+  def with_label_result(result, &block)
+    original = Map::ReverseGeocoder.singleton_method(:label)
+    Map::ReverseGeocoder.define_singleton_method(:label) do |lon, lat|
+      result.respond_to?(:call) ? result.call(lon, lat) : result
+    end
+    block.call
+  ensure
+    Map::ReverseGeocoder.define_singleton_method(:label, original)
+  end
 
   def viewport
     # Zurich-area box covering the exploration.gpx fixture track.
