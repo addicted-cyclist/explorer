@@ -14,7 +14,9 @@
 #   1. credentials :map/:style_url  — keeps secrets out of ENV/shell history.
 #   2. ENV MAP_STYLE_URL            — 12-factor deploys; the URL carries any
 #                                     provider key embedded (e.g. MapTiler's
-#                                     "?key=...").
+#                                     "?key=..."). Blank values (dokploy passes
+#                                     an unset compose var through as "") fall
+#                                     through to the default below.
 #   3. OpenFreeMap Liberty          — keyless final default
 #                                     (https://openfreemap.org) so /map
 #                                     renders a real base map in fresh
@@ -41,8 +43,8 @@ Rails.application.config.x.map =
     # object; the client falls back to its minimal background-only style
     # when this resolves to nil.
     style_url:
-      Rails.application.credentials.dig(:map, :style_url) ||
-      ENV["MAP_STYLE_URL"] ||
+      Rails.application.credentials.dig(:map, :style_url).presence ||
+      ENV["MAP_STYLE_URL"].presence ||
       "https://tiles.openfreemap.org/styles/liberty",
     # Extra attribution rendered beside whatever the style JSON already
     # carries (tile providers require it; OpenFreeMap styles ship their own).
@@ -62,11 +64,12 @@ Rails.application.config.x.map =
     # Reverse geocoder for the sub-bar location chip (Photon — komoot's
     # OpenStreetMap geocoder). The keyless public instance is the default;
     # a self-hosted Photon (komoot/photon, e.g. http://localhost:2322)
-    # swaps in via credentials :map/:geocoder_url or ENV MAP_GEOCODER_URL.
-    # Map::ReverseGeocoder appends /reverse to this base URL.
+    # swaps in via credentials :map/:geocoder_url or ENV MAP_GEOCODER_URL
+    # (blank ENV values fall through to the default). Map::ReverseGeocoder
+    # appends /reverse to this base URL.
     geocoder_url:
-      Rails.application.credentials.dig(:map, :geocoder_url) ||
-      ENV["MAP_GEOCODER_URL"] ||
+      Rails.application.credentials.dig(:map, :geocoder_url).presence ||
+      ENV["MAP_GEOCODER_URL"].presence ||
       "https://photon.komoot.io",
     # Language of the geocoder's place names (Photon `lang` param).
     geocoder_lang: "en",
