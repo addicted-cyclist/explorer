@@ -78,8 +78,21 @@ application.register("completion-confetti", CompletionConfettiController);
 import EmailVerificationController from "./email_verification_controller";
 application.register("email-verification", EmailVerificationController);
 
+// My Map page (technote.MYMAP-FEATURE.md §3.2/§5/§6): MapLibre rendering,
+// viewport-driven public-route loading, drawer/popup interactions and the
+// initial-viewport chain (my most-ridden place → persisted → geolocation → default).
+import MyMapController from "./my_map_controller";
+application.register("my-map", MyMapController);
+
 // Full-screen route map toggle (FEATURES: open route map on full screen):
 // native Fullscreen API with a fixed-overlay fallback for browsers without
 // element fullscreen (iPhone Safari).
 import MapFullscreenController from "./map_fullscreen_controller";
 application.register("map-fullscreen", MapFullscreenController);
+
+// Step 2 thumbnails — library-side capture: routes the server flagged as
+// thumb-less are rendered by the offscreen MapLibre module and POSTed to
+// /routes/:id/static_map right on the library page (covers the
+// upload-return flow and any older routes missing a thumb).
+import LibraryThumbsController from "./library_thumbs_controller";
+application.register("library-thumbs", LibraryThumbsController);

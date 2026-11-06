@@ -1,8 +1,10 @@
 # frozen_string_literal: true
 
-# Cacheable serving of the route static map thumb (the Mapbox render captured
-# at GPX parse time) for every card that shows one: the library grid, the
-# calendar sidebar, the mobile week cards and the friends page. Mirrors
+# Cacheable serving of the route static map thumb (the image the browser's
+# hidden MapLibre renderer captured after upload — see
+# app/javascript/map/route_thumb_capture.js) for every card that shows one:
+# the library grid, the calendar sidebar, the mobile week cards and the
+# friends page. Mirrors
 # AvatarsController: ActiveStorage's default blob URL 302s to a 5-minute
 # signed disk URL, which defeats browser caching inside fragment-cached cards
 # — this endpoint streams the blob itself and stamps a year-long immutable

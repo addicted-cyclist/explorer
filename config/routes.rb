@@ -31,8 +31,23 @@ Rails.application.routes.draw do
       patch :toggle_completed
       get :download
       post :save
+      # Step 2 thumbnails: the browser's hidden MapLibre renderer captures a
+      # route thumb and POSTs the PNG here (owner-only, idempotent).
+      post :static_map
     end
   end
+
+  # My Map (technote.MYMAP-FEATURE.md) — the MapLibre page and its data
+  # endpoints. All four sit behind the ApplicationController's default
+  # Devise + email-verification gates: the page draws the user's own routes
+  # (private included), the public query is narrowed to strict Phase 9
+  # public visibility in SQL (Route.publicly_visible), and the location chip
+  # only ever geocodes the signed-in viewer's own viewport center, so no
+  # authorization decision can be bypassed from the client.
+  get "map", to: "maps#show", as: :map
+  get "map/routes/own", to: "maps#own_routes", as: :own_map_routes
+  get "map/routes/public", to: "maps#public_routes", as: :public_map_routes
+  get "map/place_label", to: "maps#place_label", as: :map_place_label
 
   # Public, tokenized GPX streaming for the gpx.studio embed. The signed_id
   # is the capability token and the response carries CORS headers, so the
@@ -50,14 +65,15 @@ Rails.application.routes.draw do
   # anonymous visitors, so the image must be fetchable without a session.
   get "avatars/:signed_id", to: "avatars#show", as: :user_avatar, format: false
 
-  # Cacheable route thumbnail serving (the Mapbox static map image captured at
-  # GPX parse time, drawn on every library/week/friends card). Same contract
-  # as the avatar endpoint above: ActiveStorage's default blob URL redirects
-  # to a 5-minute signed disk URL, so fragment-cached cards would re-request
-  # the image on every render; this streams the blob under a year-long
-  # immutable cache, keyed by the blob's signed_id so a regenerated image
-  # rotates the URL. Public like the GPX stream: thumbs render on the public
-  # calendar share to anonymous visitors.
+  # Client-captured thumbnail: the browser renders the route with a hidden
+  # MapLibre instance (app/javascript/map/route_thumb_capture.js) and POSTs
+  # the PNG here, where it becomes the route's :static_map attachment. Same
+  # contract as the avatar endpoint above for serving: ActiveStorage's
+  # default blob URL redirects to a 5-minute signed disk URL, so
+  # fragment-cached cards would re-request the image on every render; this
+  # streams the blob under a year-long immutable cache, keyed by the blob's
+  # signed_id so a regenerated image rotates the URL. Public like the GPX
+  # stream: thumbs render on the public calendar share to anonymous visitors.
   get "route_thumbs/:signed_id", to: "static_maps#show", as: :route_static_map, format: false
 
   resource :calendar, only: %i[show] do

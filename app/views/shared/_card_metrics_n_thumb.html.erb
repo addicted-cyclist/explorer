@@ -1,13 +1,15 @@
 <%# Phase 0 capacity: metrics + track thumb markup is a pure function of the
     route + class_prefix (every class below is prefix-scoped), so the
     fragment caches per route AND prefix, one entry per card style
-    (mob-wc, friends), shared across my / friend / public viewers and every
-    week render. %>
+    (mob-wc, friends, mymap-card), shared across my / friend / public viewers
+    and every week render. linked: false renders the same metrics + thumb
+    without the link wrapper — for the my-map drawer card template, where the
+    surrounding card is the click target and the route is blank (every value
+    an em dash, thumb the empty fallback) until the client fills the clone. %>
+<% linked = local_assigns.fetch(:linked, true) %>
 <% route_path_opts = @is_friend_view ? { username: params[:username], week: params[:week] } : {} %>
-<% cache(card_metrics_thumb_cache_key(route, class_prefix)) do %>
-  <%= link_to route_path(route, **route_path_opts),
-    class: "#{class_prefix}__entry-metrics-n-thumb",
-    data: { turbo_frame: "_top" } do %>
+<% cache(card_metrics_thumb_cache_key(route, class_prefix, linked: linked)) do %>
+  <% metrics_n_thumb = capture do %>
     <dl class="<%= class_prefix %>__entry-metrics t-label-sm">
       <div class="<%= class_prefix %>__metric">
         <dt class="t-uppercase c-secondary">Dist</dt>
@@ -37,5 +39,14 @@
         <span class="material-symbols-outlined" aria-hidden="true">route</span>
       </div>
     <% end %>
+  <% end %>
+  <% if linked %>
+    <%= link_to route_path(route, **route_path_opts),
+      class: "#{class_prefix}__entry-metrics-n-thumb",
+      data: { turbo_frame: "_top" } do %>
+      <%= metrics_n_thumb %>
+    <% end %>
+  <% else %>
+    <%= metrics_n_thumb %>
   <% end %>
 <% end %>

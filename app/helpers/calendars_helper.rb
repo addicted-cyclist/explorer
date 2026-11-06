@@ -175,17 +175,20 @@ module CalendarsHelper
   end
 
   # Fragment key for the shared metrics + track thumb partial (mobile route
-  # and entry cards, friends page cards). class_prefix MUST be in the key:
-  # the cached markup embeds prefix-scoped class names (mob-wc vs friends),
-  # and leaving it out made the first-rendered card style leak into every
-  # other card style. `route` expands to its cache_key, so any edit bumps
-  # updated_at and invalidates the fragment automatically.
-  def card_metrics_thumb_cache_key(route, class_prefix)
+  # and entry cards, friends page cards, my-map drawer card template).
+  # class_prefix MUST be in the key: the cached markup embeds prefix-scoped
+  # class names (mob-wc vs friends vs mymap-card), and leaving it out made
+  # the first-rendered card style leak into every other card style. `route`
+  # expands to its cache_key, so any edit bumps updated_at and invalidates
+  # the fragment automatically. linked flags the link-wrapped variant: the
+  # bare (link-less) markup caches under its own literal so a bare and a
+  # linked render of the same route + prefix can never share a fragment.
+  def card_metrics_thumb_cache_key(route, class_prefix, linked: true)
     # v2: the cached link no longer renders stray username/week anchor
     # attributes; Redis-backed production fragments must not outlive the
     # template fix, so the literal is versioned to invalidate them.
     # v3: the thumb markup changed from the inline SVG route thread to the
     # static map <img>.
-    [ route, class_prefix, "card-metrics-thumb-v3" ]
+    [ route, class_prefix, linked ? "card-metrics-thumb-v3" : "card-metrics-thumb-v3-bare" ]
   end
 end

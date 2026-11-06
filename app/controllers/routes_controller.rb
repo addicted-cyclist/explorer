@@ -4,7 +4,7 @@ class RoutesController < ApplicationController
   # like the /c/:token share itself, to anyone at all while the route sits
   # on its owner's live public calendar (Phase 9: a scheduled route on a
   # public calendar is public — strangers and guests included).
-  before_action :set_route, only: %i[edit update destroy toggle_completed]
+  before_action :set_route, only: %i[edit update destroy toggle_completed static_map]
   before_action :set_viewable_route, only: %i[show download save]
 
   # show/download must open to guests for public-share routes. save stays
@@ -22,6 +22,10 @@ class RoutesController < ApplicationController
   PICKER_UPCOMING_HORIZON = 1.year
   PICKER_RECENT_PAST_WINDOW = 90.days
 
+  # Step 2 thumbnail upload ceiling: a 1440x480 map render with the
+  # attribution line lands well under 500 KB; anything larger is not a thumb.
+  MAX_THUMB_BYTES = 2.megabytes
+
   def index
     # Both attachments preload: every library card renders the static map
     # thumb, one SELECT per table for the whole grid instead of per card.
@@ -34,6 +38,13 @@ class RoutesController < ApplicationController
     # tracks the route's next upcoming entry (else its most recent), so it can
     # commit a reschedule or a Remove without a reload.
     @calendar_entries_by_route = tracked_entries_by_route(@routes)
+    # Step 2 thumbnails: routes the browser still has to render a thumb for
+    # (parsed before the feature, or the capture failed last time). The
+    # library_thumbs controller heals them client-side; attachments are
+    # preloaded above, so this filter never queries per route.
+    @pending_thumb_route_ids = @routes.filter_map do |route|
+      route.id if route.gpx_file.attached? && !route.static_map.attached?
+    end
   end
 
   # Phase 6 detail page: the owner gets the editable MY view, an accepted
@@ -171,6 +182,40 @@ class RoutesController < ApplicationController
               filename: @route.gpx_file.filename.to_s,
               type: @route.gpx_file.content_type || "application/gpx+xml",
               disposition: "attachment"
+  end
+
+  # Step 2 thumbnails: the receiving end of the browser-side capture
+  # (app/javascript/map/route_thumb_capture.js). The hidden offscreen MapLibre
+  # renderer draws the route over the /map base style, canvas.toBlob()s the
+  # PNG and POSTs it here as the raw request body. set_route makes this
+  # owner-only: a forged POST can never attach a thumb to someone else's
+  # route. Idempotent by contract — a route that already has a thumb answers
+  # 204 and is never overwritten, so the blob's signed_id (and with it the
+  # year-cached /route_thumbs URL and every fragment cache keyed on it)
+  # stays stable. Failure paths answer 422 with a JSON message; the client
+  # logs them and the card keeps its fallback icon until the next visit.
+  def static_map
+    return head :no_content if @route.static_map.attached?
+
+    unless request.media_type == "image/png"
+      return render json: { error: "Expected an image/png request body." }, status: :unprocessable_entity
+    end
+    if request.content_length.to_i > MAX_THUMB_BYTES
+      return render json: { error: "Thumbnail exceeds the 2 MB limit." }, status: :unprocessable_entity
+    end
+    unless @route.gpx_file.attached?
+      return render json: { error: "Only routes with an attached GPX get a thumb." }, status: :unprocessable_entity
+    end
+
+    bytes = request.body.read
+    return render json: { error: "Empty request body." }, status: :unprocessable_entity if bytes.blank?
+
+    @route.static_map.attach(
+      io: StringIO.new(bytes),
+      filename: "static-map.png",
+      content_type: "image/png"
+    )
+    render json: { thumb_url: route_static_map_path(@route.static_map.blob.signed_id) }
   end
 
   private

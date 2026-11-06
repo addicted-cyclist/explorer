@@ -55,5 +55,6 @@
 # Ignore technical notes
 technote.*
 /design-refs/
+/technotes/
 
 /config/credentials/development.key

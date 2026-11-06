@@ -264,6 +264,13 @@
   padding-block: var(--space-lg);
 }
 
+/* Full-bleed pages (My Map, v0.14): the canvas hugs the viewport — no
+   column, no top padding; the page manages its own rhythm. */
+.app-main--flush .app-main__inner {
+  padding-block: 0;
+}
+
+
 /* Footer */
 .app-footer {
   background: var(--color-surface-card);

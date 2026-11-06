@@ -43,6 +43,13 @@
                     class: class_names("app-nav__link", { "app-nav__link--active": controller_name == "routes" && !friends_route },
                                        (controller_name == "routes" && !friends_route) ? "c-primary" : "c-secondary"),
                     aria: { current: ("page" if controller_name == "routes" && !friends_route) } %>
+              <%# My Map (design-refs/stitch_explorer_v0.14): the MapLibre page
+                  sits between the library and the calendar, same order as the
+                  reference header. %>
+              <%= link_to "My Map", map_path,
+                    class: class_names("app-nav__link", { "app-nav__link--active": controller_name == "maps" },
+                                       controller_name == "maps" ? "c-primary" : "c-secondary"),
+                    aria: { current: ("page" if controller_name == "maps") } %>
               <%= link_to "My calendar", calendar_path,
                     class: class_names("app-nav__link", { "app-nav__link--active": controller_name == "calendars" && !friends_calendar },
                                        (controller_name == "calendars" && !friends_calendar) ? "c-primary" : "c-secondary"),
@@ -91,8 +98,12 @@
       </div>
     </header>
 
-    <main class="app-main">
-      <div class="container app-main__inner">
+    <%# Full-bleed pages (the My Map canvas, v0.14) drop the centered
+        container: content_for(:full_width) opts the yield out of the
+        1280px column so the map can span the whole viewport. %>
+    <% full_width = content_for?(:full_width) %>
+    <main class="app-main <%= "app-main--flush" if full_width %>">
+      <div class="<%= "container" unless full_width %> app-main__inner">
         <% if notice.present? %>
           <p class="flash flash--notice c-primary"><%= notice %></p>
         <% end %>
@@ -112,6 +123,12 @@
           <span class="material-symbols-outlined" aria-hidden="true">route</span>
           <span class="t-label-sm">My Routes</span>
         <% end %>
+        <%# Map (My Map page, v0.14) — fifth thumb-reach item; the grid bar
+            flows the links evenly. %>
+        <%= link_to map_path, class: class_names("app-nav-mobile__link", "c-secondary", "is-active" => controller_name == "maps") do %>
+          <span class="material-symbols-outlined" aria-hidden="true">map</span>
+          <span class="t-label-sm">Map</span>
+        <% end %>
         <%= link_to calendar_path, class: class_names("app-nav-mobile__link", "c-secondary", "is-active" => controller_name == "calendars" && !friends_calendar) do %>
           <span class="material-symbols-outlined" aria-hidden="true">calendar_today</span>
           <span class="t-label-sm">Calendar</span>
@@ -127,17 +144,22 @@
       </nav>
     <% end %>
 
-    <footer class="app-footer">
-      <div class="container app-footer__inner">
-        <span class="app-footer__copy c-tertiary">© 2026 Explorer System Inc. All rights reserved.</span>
-        <nav class="app-footer__nav" aria-label="Footer">
-          <a href="#" class="app-footer__link c-secondary">Contact</a>
-          <a href="#" class="app-footer__link c-secondary">Contribute</a>
-          <a href="#" class="app-footer__link c-secondary">API / Docs</a>
-          <a href="#" class="app-footer__link c-secondary">Terms</a>
-        </nav>
-      </div>
-    </footer>
+    <%# The map page (full-bleed workspace, v0.14) opts out via
+        content_for :hide_footer: its canvas fills the viewport under the
+        sub-bar, so a footer would only push the page into scrolling. %>
+    <% unless content_for?(:hide_footer) %>
+      <footer class="app-footer">
+        <div class="container app-footer__inner">
+          <span class="app-footer__copy c-tertiary">© 2026 Explorer System Inc. All rights reserved.</span>
+          <nav class="app-footer__nav" aria-label="Footer">
+            <a href="#" class="app-footer__link c-secondary">Contact</a>
+            <a href="#" class="app-footer__link c-secondary">Contribute</a>
+            <a href="#" class="app-footer__link c-secondary">API / Docs</a>
+            <a href="#" class="app-footer__link c-secondary">Terms</a>
+          </nav>
+        </div>
+      </footer>
+    <% end %>
 
     <%# email verification nag for legacy accounts (new accounts are
         hard-gated onto the standalone gate by ApplicationController and never

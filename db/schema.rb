@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_10_27_090000) do
+ActiveRecord::Schema[7.2].define(version: 2026_11_05_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -88,6 +88,11 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_27_090000) do
     t.string "tier"
     t.string "sport_type"
     t.boolean "completed", default: false, null: false
+    t.float "min_lon"
+    t.float "max_lon"
+    t.float "min_lat"
+    t.float "max_lat"
+    t.jsonb "map_geometry"
     t.index ["user_id"], name: "index_routes_on_user_id"
   end
 
