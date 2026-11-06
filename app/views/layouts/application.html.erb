@@ -144,17 +144,22 @@
       </nav>
     <% end %>
 
-    <footer class="app-footer">
-      <div class="container app-footer__inner">
-        <span class="app-footer__copy c-tertiary">© 2026 Explorer System Inc. All rights reserved.</span>
-        <nav class="app-footer__nav" aria-label="Footer">
-          <a href="#" class="app-footer__link c-secondary">Contact</a>
-          <a href="#" class="app-footer__link c-secondary">Contribute</a>
-          <a href="#" class="app-footer__link c-secondary">API / Docs</a>
-          <a href="#" class="app-footer__link c-secondary">Terms</a>
-        </nav>
-      </div>
-    </footer>
+    <%# The map page (full-bleed workspace, v0.14) opts out via
+        content_for :hide_footer: its canvas fills the viewport under the
+        sub-bar, so a footer would only push the page into scrolling. %>
+    <% unless content_for?(:hide_footer) %>
+      <footer class="app-footer">
+        <div class="container app-footer__inner">
+          <span class="app-footer__copy c-tertiary">© 2026 Explorer System Inc. All rights reserved.</span>
+          <nav class="app-footer__nav" aria-label="Footer">
+            <a href="#" class="app-footer__link c-secondary">Contact</a>
+            <a href="#" class="app-footer__link c-secondary">Contribute</a>
+            <a href="#" class="app-footer__link c-secondary">API / Docs</a>
+            <a href="#" class="app-footer__link c-secondary">Terms</a>
+          </nav>
+        </div>
+      </footer>
+    <% end %>
 
     <%# email verification nag for legacy accounts (new accounts are
         hard-gated onto the standalone gate by ApplicationController and never

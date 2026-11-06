@@ -5,6 +5,10 @@
     the selected-route popup. The my-map controller owns all data flow — the
     markup below is only skeleton + templates. %>
 <% content_for :full_width, true %>
+<%# The workspace fills the viewport under the sub-bar (layout drops the
+    footer for this page), so the page itself never scrolls — horizontally
+    or otherwise: the stage takes exactly the remaining height. %>
+<% content_for :hide_footer, true %>
 
 <div class="mymap"
      data-controller="my-map"
@@ -92,24 +96,40 @@
 
       <div class="mymap-popup__stats">
         <div class="mymap-popup__stat">
-          <span class="material-symbols-outlined" aria-hidden="true">straighten</span>
-          <span class="mymap-popup__stat-label">Distance</span>
-          <span class="mymap-popup__stat-value" data-my-map-target="popupDistance">&mdash;</span>
+          <div class="mymap-popup__stat-icon">
+            <span class="material-symbols-outlined" aria-hidden="true">straighten</span>
+          </div>
+          <div class="mymap-popup__stat-text">
+            <span class="mymap-popup__stat-label">Distance</span>
+            <span class="mymap-popup__stat-value" data-my-map-target="popupDistance">&mdash;</span>
+          </div>
         </div>
         <div class="mymap-popup__stat">
-          <span class="material-symbols-outlined" aria-hidden="true">moving</span>
-          <span class="mymap-popup__stat-label">Elev gain</span>
-          <span class="mymap-popup__stat-value" data-my-map-target="popupElevation">&mdash;</span>
+          <div class="mymap-popup__stat-icon">
+            <span class="material-symbols-outlined" aria-hidden="true">north_east</span>
+          </div>
+          <div class="mymap-popup__stat-text">
+            <span class="mymap-popup__stat-label">Elev gain</span>
+            <span class="mymap-popup__stat-value" data-my-map-target="popupElevation">&mdash;</span>
+          </div>
         </div>
         <div class="mymap-popup__stat">
-          <span class="material-symbols-outlined" aria-hidden="true">speed</span>
-          <span class="mymap-popup__stat-label">Avg speed</span>
-          <span class="mymap-popup__stat-value" data-my-map-target="popupSpeed">&mdash;</span>
+          <div class="mymap-popup__stat-icon">
+            <span class="material-symbols-outlined" aria-hidden="true">speed</span>
+          </div>
+          <div class="mymap-popup__stat-text">
+            <span class="mymap-popup__stat-label">Avg speed</span>
+            <span class="mymap-popup__stat-value" data-my-map-target="popupSpeed">&mdash;</span>
+          </div>
         </div>
         <div class="mymap-popup__stat">
-          <span class="material-symbols-outlined" aria-hidden="true">schedule</span>
-          <span class="mymap-popup__stat-label">Est. moving</span>
-          <span class="mymap-popup__stat-value" data-my-map-target="popupDuration">&mdash;</span>
+          <div class="mymap-popup__stat-icon">
+            <span class="material-symbols-outlined" aria-hidden="true">schedule</span>
+          </div>
+          <div class="mymap-popup__stat-text">
+            <span class="mymap-popup__stat-label">Est. moving</span>
+            <span class="mymap-popup__stat-value" data-my-map-target="popupDuration">&mdash;</span>
+          </div>
         </div>
       </div>
 
@@ -161,7 +181,7 @@
           <div class="mymap-card__headings">
             <div class="mymap-card__badges">
               <span class="mymap-card__badge" data-card-field="sport"></span>
-              <span class="mymap-card__tier" data-card-field="tier"></span>
+              <span class="c-tertiary t-label-sm" data-card-field="tier"></span>
             </div>
             <h3 class="mymap-card__title" data-card-field="title"></h3>
           </div>

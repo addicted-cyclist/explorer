@@ -9,6 +9,13 @@
 .mymap {
   display: flex;
   flex-direction: column;
+  /* Full app screen: sub-bar + stage fill the viewport under the fixed
+     header exactly (the layout drops the footer for this page), so the page
+     itself never scrolls — and can never show a horizontal scrollbar. clip
+     (not hidden) guards the horizontal axis without creating a scroll
+     container; the vertical axis stays visible for short-window overflow. */
+  height: calc(100dvh - var(--nav-height));
+  overflow-x: clip;
 }
 
 /* --- Sub-bar (breadcrumb chip, scope pills, draw affordance) -------- */
@@ -119,9 +126,10 @@
 
 .mymap__stage {
   position: relative;
-  /* Header (4rem) + sub-bar (~3.5rem); the footer stays reachable by
-     scrolling, matching the reference's calc(100vh - 8.5rem). */
-  height: calc(100dvh - 7.5rem);
+  /* Whatever the sub-bar wraps to, the stage takes exactly the rest of the
+     screen; the 26rem floor keeps the map usable on short windows (the page
+     scrolls again below that). */
+  flex: 1;
   min-height: 26rem;
 }
 
@@ -341,7 +349,7 @@
 .mymap-card__badges {
   display: flex;
   align-items: center;
-  gap: var(--space-2xs);
+  gap: var(--space-xs);
   margin-bottom: var(--space-2xs);
 }
 
@@ -360,13 +368,6 @@
 .mymap-card.is-public .mymap-card__badge {
   background: rgb(16 185 129 / 0.12);
   color: #047857;
-}
-
-.mymap-card__tier {
-  font-size: 0.625rem;
-  line-height: 0.875rem;
-  font-weight: 500;
-  color: var(--color-text-tertiary);
 }
 
 .mymap-card__title {
@@ -457,7 +458,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-xs);
-  margin-bottom: var(--space-sm);
+  margin-bottom: var(--space-2xs);
 }
 
 .mymap-popup__dot {
@@ -510,18 +511,21 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-xs);
-  margin-block: var(--space-md);
+  margin-block: var(--space-sm);
   padding: var(--space-sm);
   background: rgb(244 244 245 / 0.8);
   border: 1px solid rgb(228 228 231 / 0.5);
   border-radius: var(--radius-lg);
 }
 
+/* Stat tile (v0.14: bg-surface-card p-2.5 gap-2.5 rounded-lg shadow-sm) —
+   2rem recessed-canvas icon chip on the left, label-over-value column on the
+   right. 0.625rem is the design's half-step (p-2.5 / gap-2.5). */
 .mymap-popup__stat {
   display: flex;
   align-items: center;
-  gap: var(--space-2xs);
-  padding: var(--space-2xs) var(--space-sm);
+  gap: 0.625rem;
+  padding: 0.625rem;
   background: var(--color-surface-card);
   border: 1px solid rgb(228 228 231 / 0.4);
   border-radius: var(--radius-lg);
@@ -529,16 +533,37 @@
   min-width: 0;
 }
 
-.mymap-popup__stat .material-symbols-outlined {
-  font-size: 1.125rem;
-  color: var(--color-text-secondary);
+.mymap-popup__stat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
   flex-shrink: 0;
+  background: var(--color-surface-canvas);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-secondary);
+}
+
+.mymap-popup__stat-icon .material-symbols-outlined {
+  font-size: 1.125rem;
+}
+
+.mymap-popup__stat-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.mymap-popup__stat-label,
+.mymap-popup__stat-value {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .mymap-popup__stat-label {
-  flex: 1;
-  min-width: 0;
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   line-height: 1rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -546,11 +571,11 @@
 }
 
 .mymap-popup__stat-value {
-  font-size: 0.875rem;
+  font-size: 1rem;
   line-height: 1.25rem;
   font-weight: 600;
+  letter-spacing: -0.01em;
   color: var(--color-text-primary);
-  white-space: nowrap;
 }
 
 .mymap-popup__profile {
