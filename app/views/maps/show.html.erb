@@ -150,7 +150,11 @@
             data-action="my-map#retryPublic" hidden></button>
 
     <%# Drawer card template — cloned per route by the controller; every
-        dynamic value is set via textContent/src, never injected HTML. %>
+        dynamic value is set via textContent/src, never injected HTML.
+        Metrics + thumb reuse the shared card partial, rendered for a blank
+        route (every metric an em dash, thumb the empty fallback) and filled
+        per clone by the controller. linked: false — the card itself is the
+        click target (select the route on the map), so no route link inside. %>
     <template data-my-map-target="cardTemplate">
       <article class="mymap-card" role="button" tabindex="0">
         <div class="mymap-card__head">
@@ -162,24 +166,8 @@
             <h3 class="mymap-card__title" data-card-field="title"></h3>
           </div>
         </div>
-        <div class="mymap-card__metrics">
-          <div class="mymap-card__metric">
-            <span class="mymap-card__metric-label">Dist</span>
-            <span class="mymap-card__metric-value" data-card-field="distance">&mdash;</span>
-          </div>
-          <div class="mymap-card__metric">
-            <span class="mymap-card__metric-label">Elev</span>
-            <span class="mymap-card__metric-value" data-card-field="elevation">&mdash;</span>
-          </div>
-          <div class="mymap-card__metric">
-            <span class="mymap-card__metric-label">Time</span>
-            <span class="mymap-card__metric-value" data-card-field="duration">&mdash;</span>
-          </div>
-        </div>
-        <div class="mymap-card__thumb">
-          <img class="mymap-card__thumb-img" loading="lazy" alt="" hidden>
-          <span class="mymap-card__thumb-fallback material-symbols-outlined" aria-hidden="true">route</span>
-        </div>
+        <%= render "shared/card_metrics_n_thumb",
+                   route: Route.new, class_prefix: "mymap-card", linked: false %>
       </article>
     </template>
   </div>

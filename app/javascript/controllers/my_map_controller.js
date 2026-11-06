@@ -318,13 +318,9 @@ export default class MyMapController extends Controller {
   updateDrawerCardThumb(routeId, thumbUrl) {
     const card = this.cardListTarget.querySelector(`[data-route-id="${routeId}"]`);
     if (!card) return;
-    const img = card.querySelector(".mymap-card__thumb-img");
-    const fallback = card.querySelector(".mymap-card__thumb-fallback");
-    if (!img || !img.hidden) return; // already showing a thumb
+    if (card.querySelector(".mymap-card__route-map")) return; // already showing a thumb
 
-    img.src = thumbUrl;
-    img.hidden = false;
-    if (fallback) fallback.hidden = true;
+    this.showCardThumb(card, thumbUrl);
   }
 
   // Public routes for the current viewport (technote §5.1), delta-loaded:
@@ -765,17 +761,16 @@ export default class MyMapController extends Controller {
     card.querySelector("[data-card-field=sport]").textContent = properties.sport_type || "Ride";
     card.querySelector("[data-card-field=tier]").textContent = properties.tier || "";
     card.querySelector("[data-card-field=title]").textContent = properties.title || "Untitled Route";
-    card.querySelector("[data-card-field=distance]").textContent = this.formatDistance(properties.distance);
-    card.querySelector("[data-card-field=elevation]").textContent = this.formatElevation(properties.elevation_gain);
-    card.querySelector("[data-card-field=duration]").textContent = this.formatDuration(properties.duration);
 
-    const img = card.querySelector(".mymap-card__thumb-img");
-    const fallback = card.querySelector(".mymap-card__thumb-fallback");
-    if (properties.thumb_url) {
-      img.src = properties.thumb_url;
-      img.hidden = false;
-      fallback.hidden = true;
-    }
+    // Metrics + thumb skeleton is the shared card partial rendered for a
+    // blank route: the three __metric-value <dd>s are Dist / Elev / Time in
+    // order, the first two ending in the partial's unit <span> — the fill
+    // rewrites only the leading text node so that span survives.
+    const [dist, elev, time] = card.querySelectorAll(".mymap-card__metric-value");
+    this.fillMetric(dist, this.distanceValue(properties.distance));
+    this.fillMetric(elev, this.elevationValue(properties.elevation_gain));
+    this.fillMetric(time, this.formatDuration(properties.duration));
+    this.showCardThumb(card, properties.thumb_url);
 
     const select = () => {
       this.selectRoute(properties.id);
@@ -795,6 +790,33 @@ export default class MyMapController extends Controller {
       }
     });
     return card;
+  }
+
+  // One card metric <dd> from the shared partial: "<value> <span …__unit>"
+  // (no unit span on Time). Rewrite only the leading text node — the
+  // server-styled unit span must survive the fill.
+  fillMetric(dd, value) {
+    if (dd.querySelector(".mymap-card__unit")) {
+      dd.firstChild.nodeValue = `${value} `;
+    } else {
+      dd.textContent = value;
+    }
+  }
+
+  // Swap the partial's empty-thumb fallback for a real <img>, mirroring the
+  // markup the server renders for routes that have a static map.
+  showCardThumb(card, thumbUrl) {
+    if (!thumbUrl) return;
+    const thumb = card.querySelector(".mymap-card__route-thumb");
+    if (!thumb) return;
+    const img = document.createElement("img");
+    img.className = "mymap-card__route-map";
+    img.loading = "lazy";
+    img.alt = "";
+    img.draggable = false;
+    img.src = thumbUrl;
+    thumb.classList.remove("mymap-card__route-thumb--empty", "c-tertiary");
+    thumb.replaceChildren(img);
   }
 
   // ---- scope pills, counts, status pill ---------------------------------------
@@ -850,15 +872,28 @@ export default class MyMapController extends Controller {
   }
 
   // ---- formatters (client-side mirrors of the library-card helpers) -----------
+  // Popup stats are plain text ("12.3 km"); the drawer card's metric <dd>s
+  // come from the shared card partial, which carries the unit in its own
+  // styled <span> after the value — the card fills use the bare value.
+
+  distanceValue(km) {
+    if (km === null || km === undefined) return "—";
+    return KM_FORMAT.format(km);
+  }
+
+  elevationValue(meters) {
+    if (!meters) return "—";
+    return `+${INT_FORMAT.format(Math.round(meters))}`;
+  }
 
   formatDistance(km) {
     if (km === null || km === undefined) return "—";
-    return `${KM_FORMAT.format(km)} km`;
+    return `${this.distanceValue(km)} km`;
   }
 
   formatElevation(meters) {
     if (!meters) return "—";
-    return `+${INT_FORMAT.format(Math.round(meters))} m`;
+    return `${this.elevationValue(meters)} m`;
   }
 
   formatSpeed(kmh) {
