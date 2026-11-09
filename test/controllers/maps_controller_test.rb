@@ -43,12 +43,26 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "div[data-controller=\"my-map\"]"
     assert_select "nav.app-nav a.app-nav__link--active", text: "My Map"
+    # The most-ridden place ships server-side (own routes load per viewport,
+    # so the client can no longer derive it) — the fixture ride's box here.
+    expected = Map::OwnRoutesHotspot.bounds(@viewer.routes)
+    assert_match "data-my-map-hotspot-bounds-value=\"#{expected.to_json}\"",
+                 response.body
   end
 
-  # ---- own routes (§4.1) ---------------------------------------------------
+  test "the map page ships an empty hotspot when no route is parsed yet" do
+    @viewer.routes.destroy_all
 
-  test "own routes returns every route of the viewer, private included" do
-    get own_map_routes_path, headers: { Accept: "application/json" }
+    get map_path
+
+    assert_response :success
+    assert_match 'data-my-map-hotspot-bounds-value="[]"', response.body
+  end
+
+  # ---- own routes (§4.1/§5.1) ------------------------------------------------
+
+  test "own routes returns the viewer's viewport rides, private included" do
+    get own_map_routes_path, params: viewport, headers: { Accept: "application/json" }
 
     assert_response :success
     payload = JSON.parse(response.body)
@@ -63,7 +77,7 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "own routes never includes anyone else's routes" do
-    get own_map_routes_path, headers: { Accept: "application/json" }
+    get own_map_routes_path, params: viewport, headers: { Accept: "application/json" }
 
     payload = JSON.parse(response.body)
     ids = payload["features"].map { |feature| feature["properties"]["id"] }
@@ -72,12 +86,51 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes ids, @hidden_library_route.id
   end
 
+  test "own routes skips rides outside the requested viewport" do
+    get own_map_routes_path,
+        params: { west: "0.0", south: "10.0", east: "1.0", north: "11.0" },
+        headers: { Accept: "application/json" }
+
+    payload = JSON.parse(response.body)
+    assert_equal "FeatureCollection", payload["type"]
+    assert_empty payload["features"]
+  end
+
+  test "own routes requires sign-in" do
+    sign_out @viewer
+
+    get own_map_routes_path, params: viewport
+    assert_redirected_to new_user_session_path
+  end
+
+  test "own routes answers 400 for malformed bounds" do
+    get own_map_routes_path,
+        params: { west: "not-a-number", south: "47.0", east: "9.0", north: "48.0" },
+        headers: { Accept: "application/json" }
+
+    assert_response :bad_request
+    assert JSON.parse(response.body)["error"].present?
+  end
+
+  test "own routes omits routes the client already loaded (delta loading)" do
+    second = tracked_route(@viewer, "Second own ride")
+
+    get own_map_routes_path,
+        params: viewport.merge(exclude_ids: @own_route.id.to_s),
+        headers: { Accept: "application/json" }
+
+    assert_response :success
+    ids = JSON.parse(response.body)["features"].map { |feature| feature["properties"]["id"] }
+    assert_not_includes ids, @own_route.id
+    assert_includes ids, second.id
+  end
+
   test "own routes flags which of the viewer's rides are publicly scheduled" do
     @viewer.update!(calendar_public: true)
     @viewer.calendar_entries.create!(route: @own_route, scheduled_on: Date.current + 1,
                                      start_time: "08:00", end_time: "10:00")
 
-    get own_map_routes_path, headers: { Accept: "application/json" }
+    get own_map_routes_path, params: viewport, headers: { Accept: "application/json" }
 
     properties = JSON.parse(response.body)["features"].first["properties"]
     assert_equal true, properties["public"]
