@@ -838,8 +838,10 @@ class CalendarsControllerTest < ActionDispatch::IntegrationTest
     # resets the picker state inside mob-week
     assert_select %(form[data-action~="turbo:submit-end->mob-sheet#onSubmitEnd"]), count: 2
     assert_select %(section.mob-wc[data-action~="mob-sheet:closed->mob-week#onSheetClosed"])
-    # Signed-in shell renders the mobile bottom nav (v0.14 adds the Map tab)
-    assert_select "nav.app-nav-mobile a", count: 5
+    # Signed-in shell renders the mobile bottom nav (v0.14 adds the Map tab;
+    # the Account tab was removed — settings stay reachable via the header
+    # avatar chip, which is visible at every breakpoint)
+    assert_select "nav.app-nav-mobile a", count: 4
   end
 
   test "mobile day panel swaps to the swipe slider with dot navigation" do

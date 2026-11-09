@@ -31,7 +31,10 @@
   margin-inline: auto;
   padding: var(--space-xs) var(--gutter-mobile);
   display: flex;
-  flex-wrap: wrap;
+  /* Single line at every width: the actions keep their natural size and the
+     location chip absorbs the squeeze, ellipsizing its label (see
+     .mymap__location-label) — the sub-bar never wraps onto a second line. */
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-sm);
@@ -47,11 +50,14 @@
   display: flex;
   align-items: center;
   gap: var(--space-2xs);
+  /* The chip is the flexible piece of the single-line sub-bar: it shrinks
+     first so the label ellipsizes instead of pushing the actions out. */
   min-width: 0;
 }
 
 .mymap__location-pin {
   font-size: 1rem;
+  flex-shrink: 0;
   color: var(--color-accent-route);
 }
 
@@ -68,6 +74,9 @@
 .mymap__subbar-actions {
   display: flex;
   align-items: center;
+  /* Never squashed on the single-line sub-bar — the location chip does the
+     shrinking; these controls keep their natural width. */
+  flex-shrink: 0;
   gap: var(--space-xs);
 }
 
@@ -126,9 +135,9 @@
 
 .mymap__stage {
   position: relative;
-  /* Whatever the sub-bar wraps to, the stage takes exactly the rest of the
-     screen; the 26rem floor keeps the map usable on short windows (the page
-     scrolls again below that). */
+  /* The sub-bar is a fixed single line, so the stage takes exactly the rest
+     of the screen; the 26rem floor keeps the map usable on short windows
+     (the page scrolls again below that). */
   flex: 1;
   min-height: 26rem;
 }
