@@ -1,7 +1,6 @@
 import { Controller } from "@hotwired/stimulus";
 import maplibregl from "maplibre-gl";
 import { captureRouteThumbs } from "../map/route_thumb_capture";
-import { ownRoutesHotspotBounds } from "../map/own_routes_hotspot";
 
 const KM_FORMAT = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
 const INT_FORMAT = new Intl.NumberFormat("en-US");
@@ -15,11 +14,20 @@ const INT_FORMAT = new Intl.NumberFormat("en-US");
 // whatever style loaded (§7: route rendering is provider-independent).
 //
 // Stage 1 responsibilities:
-//   * draw own routes (all, private included) and other users' public routes
-//   * refresh public routes on viewport change — debounced, in-flight-safe,
-//     and delta-loaded: responses merge by id and only not-yet-loaded routes
-//     are requested, so covered areas never re-download (§5.2)
-//   * scope pills (All / My Routes / Public), routes drawer, status pill
+//   * draw own routes (private included) and other users' public routes,
+//     both loaded per viewport and merged client-side, so previously
+//     fetched areas stay cached (§5.1/§5.2)
+//   * direction chevrons along the SELECTED route show travel direction (the
+//     coordinate order of the stored track) — screen-pixel spacing keeps the
+//     cue sparse zoomed out, and zooming in re-places glyphs so any viewport
+//     stretch of the line keeps an arrow in view; canvas-generated, no
+//     provider sprite (§7: rendering stays provider-independent)
+//   * refresh own + public routes on viewport change — debounced, in-flight-
+//     safe, and delta-loaded: responses merge by id and only not-yet-loaded
+//     routes are requested, so covered areas never re-download
+//   * the "Found Routes" drawer, scope pills (All / My Routes / Public) and
+//     status pill count only routes intersecting the CURRENT viewport; the
+//     map keeps drawing everything already fetched so revisits are instant
 //   * location chip: "City, Region, Country" for the viewport center via
 //     the reverse-geocoder endpoint (Photon server-side), refreshed on
 //     every settled camera move
@@ -29,17 +37,48 @@ const INT_FORMAT = new Intl.NumberFormat("en-US");
 //     browser geolocation → configured default (§3.1)
 export default class MyMapController extends Controller {
   static targets = [
-    "stage", "canvas", "locationLabel", "scopePill", "allCount", "ownCount", "publicCount",
-    "drawer", "drawerToggle", "drawerCount", "cardList", "drawerEmpty",
-    "cardTemplate", "status", "popup", "popupDot", "popupBadge",
-    "popupTitle", "popupDescription", "popupDistance", "popupElevation",
-    "popupSpeed", "popupDuration", "profileBlock", "profileMax",
-    "profileArea", "profileLine", "profileMarker", "profileMid",
-    "profileEnd", "popupLink", "popupDownload",
+    "stage",
+    "canvas",
+    "locationLabel",
+    "scopePill",
+    "allCount",
+    "ownCount",
+    "publicCount",
+    "drawer",
+    "drawerToggle",
+    "drawerCount",
+    "cardList",
+    "drawerEmpty",
+    "cardTemplate",
+    "status",
+    "popup",
+    "popupDot",
+    "popupBadge",
+    "popupTitle",
+    "popupDescription",
+    "popupDistance",
+    "popupElevation",
+    "popupSpeed",
+    "popupDuration",
+    "profileBlock",
+    "profileMax",
+    "profileArea",
+    "profileLine",
+    "profileMarker",
+    "profileMid",
+    "profileEnd",
+    "popupLink",
+    "popupDownload",
   ];
 
   static values = {
     config: Object,
+    // The most-ridden place ([w, s, e, n]) computed server-side from the
+    // full own-routes library (MapsController#show → Map::OwnRoutesHotspot);
+    // [] when no parsed routes. The initial viewport (§3.1) and the heart
+    // control (§3.2) land here — own routes load per viewport now, so the
+    // client can no longer derive the hotspot itself.
+    hotspotBounds: Array,
     ownUrl: String,
     publicUrl: String,
     // GET endpoint for the location chip's reverse-geocoded label
@@ -98,14 +137,23 @@ export default class MyMapController extends Controller {
     this.selectedId = null;
     this.viewportResolved = false;
     this.lastFetchedKey = null;
-    // Key of the request currently in flight (committed synchronously — see
-    // loadPublicRoutes), plus the delta-loading state: merged public
-    // features by id and the padded rectangles already fetched.
+    // Delta-loading state per feed: merged features by id (never evicted —
+    // previously fetched viewports stay cached), the padded rectangles
+    // already fetched, and the request keys (last committed + the one in
+    // flight, committed synchronously — see loadOwnRoutes/loadPublicRoutes).
     this.inFlightKey = null;
     this.publicById = new Map();
     this.coveredBounds = [];
+    this.ownInFlightKey = null;
+    this.ownById = new Map();
+    this.ownCoveredBounds = [];
+    this.ownLastFetchedKey = null;
+    // Bounds of the current (unpadded) viewport: the drawer, the scope
+    // pills and the status pill count only routes intersecting it.
+    this.viewportBounds = null;
     this.refreshTimer = null;
     this.abortController = null;
+    this.ownAbortController = null;
     // True once the map's "load" event ran and the route sources/layers
     // exist. Everything that writes into those sources is gated on it, so a
     // broken or slow base-map style degrades to console warnings instead of
@@ -134,6 +182,7 @@ export default class MyMapController extends Controller {
     // pending fetch or the debounce timer.
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
     if (this.abortController) this.abortController.abort();
+    if (this.ownAbortController) this.ownAbortController.abort();
     if (this.labelAbortController) this.labelAbortController.abort();
     if (this.ro) this.ro.disconnect();
     if (this.map) {
@@ -143,7 +192,7 @@ export default class MyMapController extends Controller {
   }
 
   buildMap() {
-    const center = this.config.defaultCenter || [ 0, 0 ];
+    const center = this.config.defaultCenter || [0, 0];
     this.map = new maplibregl.Map({
       container: this.canvasTarget,
       style: this.config.styleUrl || MyMapController.FALLBACK_STYLE,
@@ -151,27 +200,42 @@ export default class MyMapController extends Controller {
       zoom: this.config.defaultZoom || 12,
       attributionControl: false,
     });
-    this.map.addControl(new maplibregl.NavigationControl({ visualizePitch: false }), "top-right");
+    this.map.addControl(
+      new maplibregl.NavigationControl({ visualizePitch: false }),
+      "top-right",
+    );
     this.map.addControl(this.fitRoutesControl(), "top-right");
-    this.map.addControl(new maplibregl.GeolocateControl({
-      positionOptions: { enableHighAccuracy: false },
-      trackUserLocation: false,
-    }), "top-right");
+    this.map.addControl(
+      new maplibregl.GeolocateControl({
+        positionOptions: { enableHighAccuracy: false },
+        trackUserLocation: false,
+      }),
+      "top-right",
+    );
     // Fullscreen the whole stage (canvas + drawer + popup + status pill),
     // not the bare map canvas — the found-routes drawer and the selected-
     // route popup are stage children and must stay visible in fs mode.
-    this.map.addControl(new maplibregl.FullscreenControl({ container: this.stageTarget }), "top-right");
-    this.map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-right");
     this.map.addControl(
-      new maplibregl.AttributionControl({ customAttribution: this.config.customAttribution || [] }),
-      "bottom-right"
+      new maplibregl.FullscreenControl({ container: this.stageTarget }),
+      "top-right",
+    );
+    this.map.addControl(
+      new maplibregl.ScaleControl({ unit: "metric" }),
+      "bottom-right",
+    );
+    this.map.addControl(
+      new maplibregl.AttributionControl({
+        customAttribution: this.config.customAttribution || [],
+      }),
+      "bottom-right",
     );
 
     this.map.on("load", () => this.onMapLoad());
     this.map.on("moveend", () => this.onMoveEnd());
     this.map.on("error", (event) => {
       // Tile/style/network hiccups must not throw; surface in console only.
-      if (event && event.error) console.warn("Map error:", event.error.message || event.error);
+      if (event && event.error)
+        console.warn("Map error:", event.error.message || event.error);
     });
   }
 
@@ -180,7 +244,10 @@ export default class MyMapController extends Controller {
     this.bindClicks();
 
     // Selection highlight draws above both route sources (§6.1).
-    this.map.addSource("route-highlight", { type: "geojson", data: MyMapController.EMPTY_COLLECTION });
+    this.map.addSource("route-highlight", {
+      type: "geojson",
+      data: MyMapController.EMPTY_COLLECTION,
+    });
     this.map.addLayer({
       id: "highlight-casing",
       type: "line",
@@ -196,8 +263,15 @@ export default class MyMapController extends Controller {
       paint: { "line-color": "#0f172a", "line-width": 5 },
     });
 
+    // Direction chevrons ride the highlight source: they draw only on the
+    // selected route, above its casing/line, and vanish on closePopup.
+    this.addArrowLayer();
+
     this.layersReady = true;
-    this.loadOwnRoutes();
+    // Own routes load per viewport (§5.1), so the initial viewport comes
+    // straight from the server-provided hotspot; the first own+public fetch
+    // rides the fit transition's moveend (see resolveInitialViewport).
+    this.resolveInitialViewport();
     this.updateLocationLabel();
   }
 
@@ -205,14 +279,26 @@ export default class MyMapController extends Controller {
   // rendering is independent of the base-map provider (technote §6/§7: no
   // provider feature ids, source layers or road attributes involved).
   addRouteLayers() {
-    this.map.addSource("own-routes", { type: "geojson", data: MyMapController.EMPTY_COLLECTION });
-    this.map.addSource("public-routes", { type: "geojson", data: MyMapController.EMPTY_COLLECTION });
+    this.map.addSource("own-routes", {
+      type: "geojson",
+      data: MyMapController.EMPTY_COLLECTION,
+    });
+    this.map.addSource("public-routes", {
+      type: "geojson",
+      data: MyMapController.EMPTY_COLLECTION,
+    });
 
     // Public routes under the viewer's own (scarlet #e11d48 vs emerald
     // #10b981 — the two visibility classes the technote asks to distinguish).
-    this.map.addLayer(this.lineLayer("public-casing", "public-routes", "#ffffff", 6.5));
-    this.map.addLayer(this.lineLayer("public-line", "public-routes", "#10b981", 3.5));
-    this.map.addLayer(this.lineLayer("own-casing", "own-routes", "#ffffff", 7.5));
+    this.map.addLayer(
+      this.lineLayer("public-casing", "public-routes", "#ffffff", 6.5),
+    );
+    this.map.addLayer(
+      this.lineLayer("public-line", "public-routes", "#10b981", 3.5),
+    );
+    this.map.addLayer(
+      this.lineLayer("own-casing", "own-routes", "#ffffff", 7.5),
+    );
     this.map.addLayer(this.lineLayer("own-line", "own-routes", "#e11d48", 4.5));
   }
 
@@ -230,8 +316,82 @@ export default class MyMapController extends Controller {
     };
   }
 
+  // Direction chevrons along the SELECTED route only: they ride the
+  // route-highlight source, so selectRoute's setData draws them and
+  // closePopup's EMPTY_COLLECTION removes them — no per-feed arrow layers,
+  // no clutter while browsing unselected routes. Travel direction is the
+  // coordinate order of the stored track (GPX trackpoint order, preserved
+  // by Map::TrackGeometry), and symbol-placement: line rotates every placed
+  // glyph to the path tangent aligning the glyph's local X-AXIS with it
+  // (style spec: icon-rotation-alignment "map" — "aligns icon x-axes with
+  // the line"). So the chevron must be drawn pointing RIGHT in image space
+  // (see arrowImage); an up-pointing glyph renders 90° off the path.
+  // Spacing is in SCREEN pixels and placements are recomputed every frame:
+  // zoomed out the whole route shrinks to just a few glyphs (a direction
+  // cue, not a carpet), while zooming in re-places glyphs every SPACING px
+  // along the line, so any viewport stretch of the route keeps at least one
+  // arrow in view. The glyph is canvas-generated (no sprite dependency on
+  // the base-map provider, §7); any failure degrades to an arrow-less
+  // highlight.
+  addArrowLayer() {
+    try {
+      this.map.addImage("route-arrow", this.arrowImage(), { pixelRatio: 2 });
+    } catch (error) {
+      console.warn("Route direction arrows unavailable:", error);
+      return;
+    }
+    this.map.addLayer({
+      id: "route-arrows",
+      type: "symbol",
+      source: "route-highlight",
+      layout: {
+        "symbol-placement": "line",
+        "symbol-spacing": 200,
+        "icon-image": "route-arrow",
+        "icon-rotation-alignment": "map",
+        "icon-pitch-alignment": "map",
+        "icon-allow-overlap": true,
+        "icon-ignore-placement": true,
+      },
+    });
+  }
+
+  // The glyph: a white chevron pointing RIGHT in image space. MapLibre's
+  // symbol-placement: line rotates each placed symbol so the glyph's local
+  // +x axis follows the path direction (travel order) — an up-pointing
+  // glyph would render 90° counterclockwise off the line, i.e. "random"
+  // perpendicular arrows. A wider under-stroke in the highlight line's
+  // color keeps the white chevron readable where it overhangs the line
+  // onto its white casing. Rendered at 2x and handed to MapLibre with
+  // pixelRatio: 2 so it stays crisp on HiDPI screens.
+  arrowImage() {
+    const scale = 2;
+    const size = 18 * scale;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    ctx.scale(scale, scale);
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    const chevron = () => {
+      ctx.beginPath();
+      ctx.moveTo(5.5, 3.5);
+      ctx.lineTo(12.5, 9);
+      ctx.lineTo(5.5, 14.5);
+      ctx.stroke();
+    };
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = "#0f172a";
+    chevron();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#ffffff";
+    chevron();
+    return ctx.getImageData(0, 0, size, size);
+  }
+
   bindClicks() {
-    const layers = [ "own-line", "public-line", "own-casing", "public-casing" ];
+    const layers = ["own-line", "public-line", "own-casing", "public-casing"];
     this.map.on("click", layers, (event) => {
       const feature = event.features && event.features[0];
       if (feature) this.selectRoute(Number(feature.properties.id));
@@ -252,8 +412,8 @@ export default class MyMapController extends Controller {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "maplibregl-ctrl-icon maplibregl-ctrl-my-routes";
-        button.setAttribute("aria-label", "Show my routes");
-        button.title = "Show my routes";
+        button.setAttribute("aria-label", "Show my fav spot");
+        button.title = "Show my fav spot";
         button.addEventListener("click", () => controller.fitToOwnRoutes(true));
         const group = document.createElement("div");
         group.className = "maplibregl-ctrl maplibregl-ctrl-group";
@@ -266,30 +426,80 @@ export default class MyMapController extends Controller {
 
   // ---- data loading -------------------------------------------------------
 
-  async loadOwnRoutes() {
+  // Own routes for the current viewport (technote §5.1), delta-loaded
+  // exactly like the public feed: debounced via onMoveEnd, aborted when
+  // superseded, never repeated for ground the client already holds, and
+  // responses MERGED by id so previously visited viewports stay cached
+  // ("already loaded routes should be cached and shouldn't be loaded again
+  // after returning to visited viewport"). No min-zoom gate and no cap —
+  // the library is the viewer's own (§4.1).
+  async loadOwnRoutes(bounds) {
+    if (!this.map || !bounds) return;
+
+    const padded = this.padBounds(bounds, MyMapController.BOUNDS_MARGIN_RATIO);
+    if (this.coveredBy(this.ownCoveredBounds, padded)) return;
+
+    const key = this.boundsKey(padded);
+    if (key === this.ownLastFetchedKey || key === this.ownInFlightKey) return;
+
+    if (this.ownAbortController) this.ownAbortController.abort();
+    this.ownAbortController = new AbortController();
+    // Committed synchronously, not after the response lands: with a slow
+    // endpoint every extra moveend must not refire the same viewport.
+    this.ownInFlightKey = key;
+    this.setUpdatingStatus();
+
     try {
-      const response = await fetch(this.ownUrlValue, { headers: { Accept: "application/json" } });
+      const params = new URLSearchParams({
+        west: padded.west,
+        south: padded.south,
+        east: padded.east,
+        north: padded.north,
+      });
+      const excluded = this.excludeIds(this.ownById);
+      if (excluded.length) params.set("exclude_ids", excluded.join(","));
+
+      const response = await fetch(`${this.ownUrlValue}?${params}`, {
+        headers: { Accept: "application/json" },
+        signal: this.ownAbortController.signal,
+      });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const payload = await response.json();
-      this.ownFeatures = payload.features || [];
+
       const source = this.map && this.map.getSource("own-routes");
-      if (source) {
-        source.setData({ type: "FeatureCollection", features: this.ownFeatures });
-      } else {
-        console.warn("Own routes: map route layers are missing — base style may have failed to load.");
+      if (!source) {
+        // Defensive (layers vanished → base style reloaded/failed): surface a
+        // readable status, keep the viewport key uncommitted so the next pan
+        // or the click-to-retry refetches instead of drawing nothing.
+        console.warn(
+          "Own routes: map route layers are missing — base style may have failed to load.",
+        );
+        this.ownInFlightKey = null;
+        this.setStatus("Base map failed to load — click to retry.", "error");
+        return;
       }
-      this.updateCounts();
+      this.mergeOwnFeatures(payload.features || []);
+      source.setData({
+        type: "FeatureCollection",
+        features: this.ownFeatures,
+      });
+      this.ownCoveredBounds.push(padded);
+      if (this.ownCoveredBounds.length > MyMapController.COVERED_BOUNDS_CAP) {
+        this.ownCoveredBounds.shift();
+      }
+      this.ownLastFetchedKey = key;
+      this.ownInFlightKey = null;
       this.renderDrawer();
-      this.resolveInitialViewport();
+      this.updateCounts();
+      this.settleStatus();
       // Step 2 thumbnails: routes the payload shows without a thumb are
       // healed invisibly right after the map data lands.
       this.selfHealThumbs();
     } catch (error) {
-      // Own routes failing (offline, 500) must not kill the page: keep the
-      // default viewport and the public flow alive.
+      if (error.name === "AbortError") return; // superseded by a newer viewport
+      this.ownInFlightKey = null;
       console.warn("Own routes failed to load:", error);
-      this.setStatus("Couldn't load your routes — reload the page to retry.", "error");
-      this.resolveInitialViewport();
+      this.setStatus("Couldn't load your routes — click to retry.", "error");
     }
   }
 
@@ -301,7 +511,9 @@ export default class MyMapController extends Controller {
   // away stops the batch through shouldContinue. Public features are never
   // touched — thumbs are attached by their own owners only.
   selfHealThumbs() {
-    const pending = this.ownFeatures.filter((feature) => !feature.properties.thumb_url);
+    const pending = this.ownFeatures.filter(
+      (feature) => !feature.properties.thumb_url,
+    );
     if (pending.length === 0 || !this.thumbPostUrlTemplateValue) return;
 
     captureRouteThumbs(pending, {
@@ -319,7 +531,9 @@ export default class MyMapController extends Controller {
 
   // Swap one drawer card's fallback icon for the freshly captured thumb.
   updateDrawerCardThumb(routeId, thumbUrl) {
-    const card = this.cardListTarget.querySelector(`[data-route-id="${routeId}"]`);
+    const card = this.cardListTarget.querySelector(
+      `[data-route-id="${routeId}"]`,
+    );
     if (!card) return;
     if (card.querySelector(".mymap-card__route-map")) return; // already showing a thumb
 
@@ -341,19 +555,16 @@ export default class MyMapController extends Controller {
     if (!this.map || !bounds) return;
 
     if (this.map.getZoom() < this.publicMinZoom()) {
-      // Keep whatever is drawn; only settle the pill when it isn't holding
-      // an error the user may still want to click-retry.
-      if (!this.statusTarget.classList.contains("is-error")) {
-        this.setStatus(this.statusCounts(), "");
-      }
+      // Keep whatever is drawn; settle the pill for the new viewport unless
+      // it is holding an error the user may still want to click-retry.
+      this.settleStatus();
       return;
     }
 
     const padded = this.padBounds(bounds, MyMapController.BOUNDS_MARGIN_RATIO);
-    if (this.isCovered(padded)) return;
+    if (this.coveredBy(this.coveredBounds, padded)) return;
 
-    const key = [ padded.west, padded.south, padded.east, padded.north ]
-      .map((value) => value.toFixed(2)).join(",");
+    const key = this.boundsKey(padded);
     if (key === this.lastFetchedKey || key === this.inFlightKey) return;
 
     if (this.abortController) this.abortController.abort();
@@ -362,13 +573,16 @@ export default class MyMapController extends Controller {
     // committed only on completion, so with a slow endpoint every extra
     // moveend aborted and refired the very same viewport endlessly.
     this.inFlightKey = key;
-    this.setStatus("Updating public routes…", "loading");
+    this.setUpdatingStatus();
 
     try {
       const params = new URLSearchParams({
-        west: padded.west, south: padded.south, east: padded.east, north: padded.north,
+        west: padded.west,
+        south: padded.south,
+        east: padded.east,
+        north: padded.north,
       });
-      const excluded = this.publicExcludeIds();
+      const excluded = this.excludeIds(this.publicById);
       if (excluded.length) params.set("exclude_ids", excluded.join(","));
 
       const response = await fetch(`${this.publicUrlValue}?${params}`, {
@@ -383,7 +597,9 @@ export default class MyMapController extends Controller {
         // Defensive (layers vanished → base style reloaded/failed): surface a
         // readable status, keep the viewport key uncommitted so the next pan
         // or the click-to-retry refetches instead of drawing nothing.
-        console.warn("Public routes: map route layers are missing — base style may have failed to load.");
+        console.warn(
+          "Public routes: map route layers are missing — base style may have failed to load.",
+        );
         this.inFlightKey = null;
         this.setStatus("Base map failed to load — click to retry.", "error");
         return;
@@ -391,7 +607,8 @@ export default class MyMapController extends Controller {
       this.mergePublicFeatures(payload.features || []);
       this.publicTruncated = Boolean(payload.truncated);
       source.setData({
-        type: "FeatureCollection", features: this.publicFeatures,
+        type: "FeatureCollection",
+        features: this.publicFeatures,
       });
       this.coveredBounds.push(padded);
       if (this.coveredBounds.length > MyMapController.COVERED_BOUNDS_CAP) {
@@ -399,9 +616,9 @@ export default class MyMapController extends Controller {
       }
       this.lastFetchedKey = key;
       this.inFlightKey = null;
-      this.updateCounts();
       this.renderDrawer();
-      this.setStatus(this.statusCounts(), "");
+      this.updateCounts();
+      this.settleStatus();
     } catch (error) {
       if (error.name === "AbortError") return; // superseded by a newer viewport
       this.inFlightKey = null;
@@ -410,29 +627,46 @@ export default class MyMapController extends Controller {
     }
   }
 
-  retryPublic() {
+  // Click-to-retry on an errored pill: both viewport feeds re-run for the
+  // current viewport (failed rectangles never commit to the covered lists,
+  // so clearing the last-fetched keys is enough to force them).
+  retry() {
     if (!this.statusTarget.classList.contains("is-error")) return;
+    this.ownLastFetchedKey = null;
     this.lastFetchedKey = null;
-    this.loadPublicRoutes(this.map.getBounds());
+    this.refreshViewportData();
   }
 
-  // ---- viewport → fetch cycle (§5.2) ---------------------------------------
+  // ---- viewport → fetch cycle (§5.1/§5.2) ------------------------------------
+
+  // One settled viewport: snapshot the visible bounds (the drawer and every
+  // count consider only routes intersecting them), re-render from the cache,
+  // then load own + public routes for the area. Runs directly for the
+  // initial settle and debounced from onMoveEnd afterwards.
+  refreshViewportData() {
+    if (!this.map) return;
+    this.viewportBounds = this.map.getBounds();
+    this.renderDrawer();
+    this.updateCounts();
+    this.loadOwnRoutes(this.viewportBounds);
+    this.loadPublicRoutes(this.viewportBounds);
+    this.updateLocationLabel();
+    this.settleStatus();
+  }
 
   onMoveEnd() {
     // MapLibre also fires moveend for the initial camera settle, before (or
     // — when the base style fails to load — instead of) "load": a fetch
     // scheduled then would setData into sources that don't exist yet. The
-    // initial-viewport chain (loadOwnRoutes → resolveInitialViewport) seeds
-    // the first public fetch once layers are ready, so skipping here costs
+    // initial-viewport chain (resolveInitialViewport) seeds the first
+    // own+public fetch once layers are ready, so skipping here costs
     // nothing.
     if (!this.layersReady) return;
     this.persistViewport();
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
     this.refreshTimer = setTimeout(() => {
       this.refreshTimer = null;
-      if (!this.map) return;
-      this.loadPublicRoutes(this.map.getBounds());
-      this.updateLocationLabel();
+      this.refreshViewportData();
     }, MyMapController.REFRESH_DEBOUNCE_MS);
   }
 
@@ -453,7 +687,7 @@ export default class MyMapController extends Controller {
     };
   }
 
-  // ---- delta-loading helpers (§5.2) ---------------------------------------
+  // ---- delta-loading helpers (§5.1/§5.2) ------------------------------------
 
   // Zoom threshold from the server config (config/initializers/map.rb →
   // map_frontend_config), with the built-in default as fallback.
@@ -461,35 +695,71 @@ export default class MyMapController extends Controller {
     return this.config.publicMinZoom || MyMapController.PUBLIC_ROUTES_MIN_ZOOM;
   }
 
+  // Stable identity of a padded rectangle — the dedupe/in-flight key.
+  boundsKey(padded) {
+    return [padded.west, padded.south, padded.east, padded.north]
+      .map((value) => value.toFixed(2))
+      .join(",");
+  }
+
   // True when +padded+ sits wholly inside a rectangle fetched before — every
-  // public route intersecting it is already in publicById, so a request
-  // would only re-download data the map already shows.
-  isCovered(padded) {
-    return this.coveredBounds.some((rect) =>
-      padded.west >= rect.west && padded.south >= rect.south &&
-      padded.east <= rect.east && padded.north <= rect.north);
+  // route intersecting it is already merged into that feed's store, so a
+  // request would only re-download data the map already shows.
+  coveredBy(rects, padded) {
+    return rects.some(
+      (rect) =>
+        padded.west >= rect.west &&
+        padded.south >= rect.south &&
+        padded.east <= rect.east &&
+        padded.north <= rect.north,
+    );
   }
 
   // The ids to exclude from the next request: everything already merged,
   // capped to the most recent EXCLUDED_IDS_CAP so the URL stays bounded on
   // far-roaming sessions (Map keys keep insertion order — oldest first,
   // so the tail is what was loaded most recently).
-  publicExcludeIds() {
-    const ids = Array.from(this.publicById.keys());
+  excludeIds(byId) {
+    const ids = Array.from(byId.keys());
     return ids.length > MyMapController.EXCLUDED_IDS_CAP
       ? ids.slice(-MyMapController.EXCLUDED_IDS_CAP)
       : ids;
   }
 
-  // Merge +features+ into the public store by id and rebuild the derived
-  // array consumed by the layers, drawer and counts.
-  mergePublicFeatures(features) {
+  // Merge +features+ into a store by id (never evicting: previously fetched
+  // viewports stay cached) and return the derived array consumed by the
+  // layers, drawer and counts.
+  mergeFeatures(byId, features) {
     features.forEach((feature) => {
       const id = feature.properties && feature.properties.id;
       if (id === null || id === undefined) return;
-      this.publicById.set(id, feature);
+      byId.set(id, feature);
     });
-    this.publicFeatures = Array.from(this.publicById.values());
+    return Array.from(byId.values());
+  }
+
+  mergeOwnFeatures(features) {
+    this.ownFeatures = this.mergeFeatures(this.ownById, features);
+  }
+
+  mergePublicFeatures(features) {
+    this.publicFeatures = this.mergeFeatures(this.publicById, features);
+  }
+
+  // Loading indicator shared by the two viewport fetches; never overwrites
+  // an error the user may still want to click-retry.
+  setUpdatingStatus() {
+    if (this.statusTarget.classList.contains("is-error")) return;
+    this.setStatus("Updating routes…", "loading");
+  }
+
+  // Settle the pill once neither feed is in flight and no error is showing.
+  // Its counts are viewport-filtered, so every settled viewport re-answers
+  // it — fetched or already covered alike.
+  settleStatus() {
+    if (this.ownInFlightKey || this.inFlightKey) return;
+    if (this.statusTarget.classList.contains("is-error")) return;
+    this.setStatus(this.statusCounts(), "");
   }
 
   // ---- initial viewport (technote §3.1) -------------------------------------
@@ -498,37 +768,50 @@ export default class MyMapController extends Controller {
     if (this.viewportResolved) return;
     this.viewportResolved = true;
 
-    const bounds = ownRoutesHotspotBounds(this.ownFeatures);
+    const bounds = this.hotspotBounds();
     if (bounds) {
       // The most-ridden place wins; maxZoom keeps tiny tracks from blowing
       // the map up (§3.1: "avoid excessive zoom levels for very small
       // extents").
-      // The public fetch rides the fit transition's own moveend so it
+      // The own+public fetch rides the fit transition's own moveend so it
       // queries the FINAL bounds — an immediate getBounds() raced the
       // animation and fetched the wrong, pre-fit region on page load.
-      this.map.once("moveend", () => this.loadPublicRoutes(this.map.getBounds()));
+      this.map.once("moveend", () => this.refreshViewportData());
       this.map.fitBounds(bounds, { padding: 64, maxZoom: 14, duration: 800 });
       return;
     }
 
-    // No routes: a persisted viewport beats geolocation beats the default
+    // No hotspot: a persisted viewport beats geolocation beats the default
     // (which the map was initialized with, so failure paths change nothing).
     if (this.restorePersistedViewport()) {
-      this.loadPublicRoutes(this.map.getBounds());
+      this.refreshViewportData();
       return;
     }
     this.requestGeolocation();
-    this.loadPublicRoutes(this.map.getBounds());
+    this.refreshViewportData();
+  }
+
+  // The server-computed most-ridden place ([w, s, e, n], §3.1/§3.2) or null
+  // when the rider has no parsed routes. Own routes load per viewport now,
+  // so this arrives with the page instead of being derived from the payload.
+  hotspotBounds() {
+    const box = this.hotspotBoundsValue;
+    if (!Array.isArray(box) || box.length !== 4) return null;
+    return box.every((value) => Number.isFinite(value)) ? box : null;
   }
 
   // "Return to my routes" control action (technote §3.2): the heart button
-  // dives into the same place the page loads on — the user's most-ridden
-  // own-routes hotspot (see resolveInitialViewport). No routes → configured
-  // default, same as before.
+  // dives into the same place the page loads on — the server-computed
+  // most-ridden own-routes hotspot (see resolveInitialViewport). No hotspot
+  // → configured default, same as before.
   fitToOwnRoutes(fly) {
-    const bounds = ownRoutesHotspotBounds(this.ownFeatures);
+    const bounds = this.hotspotBounds();
     if (bounds) {
-      this.map.fitBounds(bounds, { padding: 64, maxZoom: 14, duration: fly ? 800 : 0 });
+      this.map.fitBounds(bounds, {
+        padding: 64,
+        maxZoom: 14,
+        duration: fly ? 800 : 0,
+      });
     } else {
       this.map.jumpTo({
         center: this.configValue.defaultCenter,
@@ -539,8 +822,11 @@ export default class MyMapController extends Controller {
 
   restorePersistedViewport() {
     try {
-      const saved = JSON.parse(window.localStorage.getItem(MyMapController.VIEW_STORAGE_KEY));
-      if (!saved || !Array.isArray(saved.c) || typeof saved.z !== "number") return false;
+      const saved = JSON.parse(
+        window.localStorage.getItem(MyMapController.VIEW_STORAGE_KEY),
+      );
+      if (!saved || !Array.isArray(saved.c) || typeof saved.z !== "number")
+        return false;
       this.map.jumpTo({ center: saved.c, zoom: saved.z });
       return true;
     } catch (_error) {
@@ -556,7 +842,7 @@ export default class MyMapController extends Controller {
       const center = this.map.getCenter();
       window.localStorage.setItem(
         MyMapController.VIEW_STORAGE_KEY,
-        JSON.stringify({ c: [ center.lng, center.lat ], z: this.map.getZoom() })
+        JSON.stringify({ c: [center.lng, center.lat], z: this.map.getZoom() }),
       );
     } catch (_error) {
       // Private mode / quota: persistence is best-effort only.
@@ -572,13 +858,13 @@ export default class MyMapController extends Controller {
       (position) => {
         if (!this.map) return;
         this.map.flyTo({
-          center: [ position.coords.longitude, position.coords.latitude ],
+          center: [position.coords.longitude, position.coords.latitude],
           zoom: this.configValue.defaultZoom,
           duration: 1200,
         });
       },
       () => {}, // denied / unavailable / timeout → stay on the default
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 },
     );
   }
 
@@ -591,7 +877,8 @@ export default class MyMapController extends Controller {
   // and any failure keeps the current label (the server-rendered default on
   // first paint) instead of blanking the chip.
   async updateLocationLabel() {
-    if (!this.map || !this.placeLabelUrlValue || !this.hasLocationLabelTarget) return;
+    if (!this.map || !this.placeLabelUrlValue || !this.hasLocationLabelTarget)
+      return;
     const center = this.map.getCenter();
     if (this.labelAbortController) this.labelAbortController.abort();
     this.labelAbortController = new AbortController();
@@ -629,7 +916,8 @@ export default class MyMapController extends Controller {
 
     this.selectedId = id;
     const highlight = this.map.getSource("route-highlight");
-    if (highlight) highlight.setData({ type: "FeatureCollection", features: [ feature ] });
+    if (highlight)
+      highlight.setData({ type: "FeatureCollection", features: [feature] });
     this.renderPopup(feature);
     this.renderDrawer(); // re-mark the selected card
   }
@@ -660,10 +948,18 @@ export default class MyMapController extends Controller {
       this.popupDescriptionTarget.hidden = true;
     }
 
-    this.popupDistanceTarget.textContent = this.formatDistance(properties.distance);
-    this.popupElevationTarget.textContent = this.formatElevation(properties.elevation_gain);
-    this.popupSpeedTarget.textContent = this.formatSpeed(properties.avg_speed_kmh);
-    this.popupDurationTarget.textContent = this.formatDuration(properties.duration);
+    this.popupDistanceTarget.textContent = this.formatDistance(
+      properties.distance,
+    );
+    this.popupElevationTarget.textContent = this.formatElevation(
+      properties.elevation_gain,
+    );
+    this.popupSpeedTarget.textContent = this.formatSpeed(
+      properties.avg_speed_kmh,
+    );
+    this.popupDurationTarget.textContent = this.formatDuration(
+      properties.duration,
+    );
 
     this.popupLinkTarget.href = properties.url || "#";
     this.popupDownloadTarget.href = properties.download_url || "#";
@@ -689,7 +985,8 @@ export default class MyMapController extends Controller {
     const maxEle = Math.max(...elevations);
     const span = Math.max(maxEle - minEle, 1);
     const x = (distance) => pad + (distance / maxDistance) * (width - pad * 2);
-    const y = (ele) => height - pad - ((ele - minEle) / span) * (height - pad * 2 - 4);
+    const y = (ele) =>
+      height - pad - ((ele - minEle) / span) * (height - pad * 2 - 4);
 
     let line = `M ${x(distances[0]).toFixed(1)} ${y(elevations[0]).toFixed(1)}`;
     for (let i = 1; i < distances.length; i += 1) {
@@ -698,15 +995,21 @@ export default class MyMapController extends Controller {
     this.profileLineTarget.setAttribute("d", line);
     this.profileAreaTarget.setAttribute(
       "d",
-      `${line} L ${x(maxDistance).toFixed(1)} ${height - pad} L ${pad} ${height - pad} Z`
+      `${line} L ${x(maxDistance).toFixed(1)} ${height - pad} L ${pad} ${height - pad} Z`,
     );
 
     let maxIndex = 0;
     elevations.forEach((ele, index) => {
       if (ele > elevations[maxIndex]) maxIndex = index;
     });
-    this.profileMarkerTarget.setAttribute("cx", x(distances[maxIndex]).toFixed(1));
-    this.profileMarkerTarget.setAttribute("cy", y(elevations[maxIndex]).toFixed(1));
+    this.profileMarkerTarget.setAttribute(
+      "cx",
+      x(distances[maxIndex]).toFixed(1),
+    );
+    this.profileMarkerTarget.setAttribute(
+      "cy",
+      y(elevations[maxIndex]).toFixed(1),
+    );
 
     this.profileMaxTarget.textContent = `${INT_FORMAT.format(maxEle)} m`;
     this.profileMidTarget.textContent = `${KM_FORMAT.format(maxDistance / 2000)} km`;
@@ -719,20 +1022,55 @@ export default class MyMapController extends Controller {
   toggleDrawer() {
     this.drawerTarget.classList.toggle("is-collapsed");
     const collapsed = this.drawerTarget.classList.contains("is-collapsed");
-    this.drawerToggleTarget.setAttribute("aria-label", collapsed ? "Expand routes panel" : "Collapse routes panel");
+    this.drawerToggleTarget.setAttribute(
+      "aria-label",
+      collapsed ? "Expand routes panel" : "Collapse routes panel",
+    );
     this.drawerToggleTarget.setAttribute("aria-expanded", String(!collapsed));
-    this.drawerToggleTarget.querySelector(".material-symbols-outlined").textContent =
-      collapsed ? "menu" : "close";
+    this.drawerToggleTarget.querySelector(
+      ".material-symbols-outlined",
+    ).textContent = collapsed ? "menu" : "close";
   }
 
   collapseDrawer() {
-    if (!this.drawerTarget.classList.contains("is-collapsed")) this.toggleDrawer();
+    if (!this.drawerTarget.classList.contains("is-collapsed"))
+      this.toggleDrawer();
   }
 
+  // Routes the drawer lists for the active scope: everything cached that
+  // intersects the CURRENT viewport ("Found Routes contains only routes on
+  // the current map viewport"). Cached routes from other viewports stay in
+  // the stores (and on the map) — they reappear here the moment the camera
+  // returns, with no refetch.
   visibleFeatures() {
-    if (this.activeScope === "own") return this.ownFeatures;
-    if (this.activeScope === "public") return this.publicFeatures;
-    return this.ownFeatures.concat(this.publicFeatures);
+    if (this.activeScope === "own")
+      return this.featuresInView(this.ownFeatures);
+    if (this.activeScope === "public")
+      return this.featuresInView(this.publicFeatures);
+    return this.featuresInView(this.ownFeatures.concat(this.publicFeatures));
+  }
+
+  // True when the route's stored bounding box intersects the current
+  // viewport — the client-side mirror of the server's intersecting_viewport
+  // scope, antimeridian branch (west > east for wrapped MapLibre bounds)
+  // included.
+  featureInView(feature) {
+    if (!this.viewportBounds) return false;
+    const box = feature.properties && feature.properties.bounds;
+    if (!box) return false;
+    const west = this.viewportBounds.getWest();
+    const south = this.viewportBounds.getSouth();
+    const east = this.viewportBounds.getEast();
+    const north = this.viewportBounds.getNorth();
+    const lonMatch =
+      west > east
+        ? box[2] >= west || box[0] <= east
+        : box[2] >= west && box[0] <= east;
+    return lonMatch && box[3] >= south && box[1] <= north;
+  }
+
+  featuresInView(features) {
+    return features.filter((feature) => this.featureInView(feature));
   }
 
   renderDrawer() {
@@ -740,7 +1078,9 @@ export default class MyMapController extends Controller {
     this.cardListTarget.replaceChildren();
 
     const shown = features.slice(0, MyMapController.DRAWER_MAX_CARDS);
-    shown.forEach((feature) => this.cardListTarget.appendChild(this.buildCard(feature)));
+    shown.forEach((feature) =>
+      this.cardListTarget.appendChild(this.buildCard(feature)),
+    );
 
     if (features.length > shown.length) {
       const note = document.createElement("p");
@@ -755,21 +1095,27 @@ export default class MyMapController extends Controller {
 
   buildCard(feature) {
     const properties = feature.properties;
-    const card = this.cardTemplateTarget.content.firstElementChild.cloneNode(true);
+    const card =
+      this.cardTemplateTarget.content.firstElementChild.cloneNode(true);
 
     card.dataset.routeId = properties.id;
     card.classList.add(properties.own ? "is-own" : "is-public");
     card.classList.toggle("is-selected", properties.id === this.selectedId);
 
-    card.querySelector("[data-card-field=sport]").textContent = properties.sport_type || "Ride";
-    card.querySelector("[data-card-field=tier]").textContent = properties.tier || "";
-    card.querySelector("[data-card-field=title]").textContent = properties.title || "Untitled Route";
+    card.querySelector("[data-card-field=sport]").textContent =
+      properties.sport_type || "Ride";
+    card.querySelector("[data-card-field=tier]").textContent =
+      properties.tier || "";
+    card.querySelector("[data-card-field=title]").textContent =
+      properties.title || "Untitled Route";
 
     // Metrics + thumb skeleton is the shared card partial rendered for a
     // blank route: the three __metric-value <dd>s are Dist / Elev / Time in
     // order, the first two ending in the partial's unit <span> — the fill
     // rewrites only the leading text node so that span survives.
-    const [dist, elev, time] = card.querySelectorAll(".mymap-card__metric-value");
+    const [dist, elev, time] = card.querySelectorAll(
+      ".mymap-card__metric-value",
+    );
     this.fillMetric(dist, this.distanceValue(properties.distance));
     this.fillMetric(elev, this.elevationValue(properties.elevation_gain));
     this.fillMetric(time, this.formatDuration(properties.duration));
@@ -780,8 +1126,11 @@ export default class MyMapController extends Controller {
       const box = properties.bounds;
       if (box) {
         this.map.fitBounds(
-          [ [ box[0], box[1] ], [ box[2], box[3] ] ],
-          { padding: 64, maxZoom: 14, duration: 800 }
+          [
+            [box[0], box[1]],
+            [box[2], box[3]],
+          ],
+          { padding: 64, maxZoom: 14, duration: 800 },
         );
       }
     };
@@ -842,25 +1191,40 @@ export default class MyMapController extends Controller {
     this.map.setLayoutProperty("own-line", "visibility", visibility(true));
     this.map.setLayoutProperty("own-casing", "visibility", visibility(true));
     this.map.setLayoutProperty("public-line", "visibility", visibility(false));
-    this.map.setLayoutProperty("public-casing", "visibility", visibility(false));
+    this.map.setLayoutProperty(
+      "public-casing",
+      "visibility",
+      visibility(false),
+    );
   }
 
+  // Scope-pill counts — the same viewport-filtered population the drawer
+  // lists.
   updateCounts() {
-    const publicCount = this.publicFeatures.length + (this.publicTruncated ? 500 : 0);
-    this.ownCountTarget.textContent = INT_FORMAT.format(this.ownFeatures.length);
-    this.publicCountTarget.textContent = publicCount > 500 ? "500+" : INT_FORMAT.format(publicCount);
-    this.allCountTarget.textContent = INT_FORMAT.format(this.ownFeatures.length + this.publicFeatures.length);
+    const own = this.featuresInView(this.ownFeatures);
+    const pub = this.featuresInView(this.publicFeatures);
+    const publicCount = pub.length + (this.publicTruncated ? 500 : 0);
+    this.ownCountTarget.textContent = INT_FORMAT.format(own.length);
+    this.publicCountTarget.textContent =
+      publicCount > 500 ? "500+" : INT_FORMAT.format(publicCount);
+    this.allCountTarget.textContent = INT_FORMAT.format(
+      own.length + pub.length,
+    );
   }
 
   statusCounts() {
+    const own = this.featuresInView(this.ownFeatures);
+    const pub = this.featuresInView(this.publicFeatures);
     const parts = [
-      `${INT_FORMAT.format(this.ownFeatures.length)} yours`,
-      `${INT_FORMAT.format(this.publicFeatures.length)} public`,
+      `${INT_FORMAT.format(own.length)} yours`,
+      `${INT_FORMAT.format(pub.length)} public`,
     ];
     // Truncation now counts only routes the client hasn't loaded yet
     // (exclude_ids deltas): the honest cue is "zoom in", not "showing 500".
-    const suffix = this.publicTruncated ? " (more public in view — zoom in to load)" : "";
-    return `${INT_FORMAT.format(this.ownFeatures.length + this.publicFeatures.length)} routes in view (${parts.join(", ")})${suffix}`;
+    const suffix = this.publicTruncated
+      ? " (more public in view — zoom in to load)"
+      : "";
+    return `${INT_FORMAT.format(own.length + pub.length)} routes in view (${parts.join(", ")})${suffix}`;
   }
 
   setStatus(text, tone) {

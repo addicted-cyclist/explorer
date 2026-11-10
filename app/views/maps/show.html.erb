@@ -16,7 +16,12 @@
      data-my-map-own-url-value="<%= own_map_routes_path %>"
      data-my-map-public-url-value="<%= public_map_routes_path %>"
      data-my-map-place-label-url-value="<%= map_place_label_path %>"
-     data-my-map-thumb-post-url-template-value="<%= static_map_route_path("__ROUTE_ID__") %>">
+     data-my-map-thumb-post-url-template-value="<%= static_map_route_path("__ROUTE_ID__") %>"
+     <%# The most-ridden place ([w, s, e, n]) computed server-side from the
+         whole own-routes library — own routes load per viewport now, so the
+         client can no longer derive it. "[]" when no parsed routes exist;
+         the controller then falls back to persisted → geolocation → default. %>
+     data-my-map-hotspot-bounds-value="<%= Array(@own_hotspot_bounds).to_json %>">
 
   <div class="mymap__subbar">
     <div class="mymap__subbar-inner">
@@ -167,7 +172,7 @@
     <%# Live data state (design's bottom-left pill): counts plus loading /
         error feedback. Clicking an errored pill retries the viewport fetch. %>
     <button type="button" class="mymap-status t-body-sm" data-my-map-target="status"
-            data-action="my-map#retryPublic" hidden></button>
+            data-action="my-map#retry" hidden></button>
 
     <%# Drawer card template — cloned per route by the controller; every
         dynamic value is set via textContent/src, never injected HTML.

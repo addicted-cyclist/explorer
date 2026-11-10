@@ -20,28 +20,42 @@ class MapsController < ApplicationController
   # so a long-roaming session can't grow the request URL without bound.
   MAX_EXCLUDED_IDS = 1_000
 
-  # Validates west/south/east/north into @bounds before the viewport query
-  # runs; malformed requests are answered with a 400 JSON error.
-  before_action :set_viewport_bounds, only: :public_routes
+  # Validates west/south/east/north into @bounds before the viewport queries
+  # run (own and public alike, §5.1); malformed requests are answered with a
+  # 400 JSON error.
+  before_action :set_viewport_bounds, only: %i[own_routes public_routes]
   # Delta loading: ids the client already merged (comma-separated in
   # exclude_ids) never need to ship again — validated with the same
-  # 400-on-garbage contract as the bounds.
-  before_action :set_excluded_route_ids, only: :public_routes
+  # 400-on-garbage contract as the bounds. Shared by both feeds: the client
+  # caches each by id and re-requests only what it is still missing.
+  before_action :set_excluded_route_ids, only: %i[own_routes public_routes]
 
   def show
-    # The sub-bar's "My Routes" pill seeds server-side; the public count
-    # arrives with the first viewport fetch (client-side).
+    # The sub-bar's "My Routes" pill seeds server-side; the map counts
+    # arrive with the viewport fetches (client-side).
     @own_route_count = current_user.routes.count
+    # The most-ridden place (§3.1/§3.2) must be computed here: own routes
+    # load per viewport now, so the browser never holds the full library a
+    # client-side hotspot scan would need.
+    @own_hotspot_bounds = Map::OwnRoutesHotspot.bounds(current_user.routes)
   end
 
-  # GET /map/routes/own — every route of the current user, viewport-
-  # independent so own tracks stay visible even outside the current view
-  # (§5.1). Both attachments preload: the cache key needs the GPX blob and
-  # the drawer thumb needs the static-map blob (one SELECT per table).
+  # GET /map/routes/own?west=&south=&east=&north= — routes of the current
+  # user whose bounding box intersects the viewport (§5.1), delta-loaded like
+  # the public feed: exclude_ids keeps already-merged routes from shipping
+  # again, and the client skips viewports it has already fetched. No cap and
+  # no min zoom — the library is the viewer's own (§4.1). Both attachments
+  # preload: the cache key needs the GPX blob and the drawer thumb needs the
+  # static-map blob (one SELECT per table).
   def own_routes
-    routes = current_user.routes
-                          .includes(gpx_file_attachment: :blob, static_map_attachment: :blob)
-    render json: Map::RouteFeature.collection(routes, own: true, public_ids: own_public_route_ids(routes))
+    scope = current_user.routes
+                         .with_track
+                         .intersecting_viewport(*@bounds)
+                         .includes(gpx_file_attachment: :blob, static_map_attachment: :blob)
+                         .order(updated_at: :desc)
+    scope = scope.where.not(id: @excluded_ids) if @excluded_ids.any?
+
+    render json: Map::RouteFeature.collection(scope, own: true, public_ids: own_public_route_ids(scope))
   end
 
   # GET /map/routes/public?west=&south=&east=&north= — other users' public
@@ -123,8 +137,8 @@ class MapsController < ApplicationController
            status: :bad_request
   end
 
-  # Delta loading (§5.2: "avoid duplicate requests"): the map client merges
-  # every public response by id and re-sends what it already holds as
+  # Delta loading (§5.1/§5.2: "avoid duplicate requests"): the map client
+  # merges every response by id and re-sends what it already holds as
   # comma-separated exclude_ids, so the viewport payload ships only routes
   # the client doesn't have. Unknown ids simply match no rows; anything
   # non-numeric answers 400 exactly like malformed bounds.

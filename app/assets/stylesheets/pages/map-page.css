@@ -13,7 +13,9 @@
      header exactly (the layout drops the footer for this page), so the page
      itself never scrolls — and can never show a horizontal scrollbar. clip
      (not hidden) guards the horizontal axis without creating a scroll
-     container; the vertical axis stays visible for short-window overflow. */
+     container; vertically the stage flexes to whatever height is left (no
+     floor), so the document never overflows — not on phone landscape,
+     split view, font-scaled phones or short desktop windows. */
   height: calc(100dvh - var(--nav-height));
   overflow-x: clip;
 }
@@ -31,7 +33,10 @@
   margin-inline: auto;
   padding: var(--space-xs) var(--gutter-mobile);
   display: flex;
-  flex-wrap: wrap;
+  /* Single line at every width: the actions keep their natural size and the
+     location chip absorbs the squeeze, ellipsizing its label (see
+     .mymap__location-label) — the sub-bar never wraps onto a second line. */
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-sm);
@@ -47,11 +52,14 @@
   display: flex;
   align-items: center;
   gap: var(--space-2xs);
+  /* The chip is the flexible piece of the single-line sub-bar: it shrinks
+     first so the label ellipsizes instead of pushing the actions out. */
   min-width: 0;
 }
 
 .mymap__location-pin {
   font-size: 1rem;
+  flex-shrink: 0;
   color: var(--color-accent-route);
 }
 
@@ -68,6 +76,9 @@
 .mymap__subbar-actions {
   display: flex;
   align-items: center;
+  /* Never squashed on the single-line sub-bar — the location chip does the
+     shrinking; these controls keep their natural width. */
+  flex-shrink: 0;
   gap: var(--space-xs);
 }
 
@@ -126,11 +137,13 @@
 
 .mymap__stage {
   position: relative;
-  /* Whatever the sub-bar wraps to, the stage takes exactly the rest of the
-     screen; the 26rem floor keeps the map usable on short windows (the page
-     scrolls again below that). */
+  /* The sub-bar is a fixed single line and the stage flexes to exactly the
+     viewport height that is left — deliberately no min-height floor: a floor
+     overflows the workspace and turns the page into a scrolling document on
+     phone landscape, split view and font-scaled phones, fighting MapLibre's
+     own touch gestures. The overlays adapt instead: drawer/popup/status are
+     absolute and the drawer list scrolls internally. */
   flex: 1;
-  min-height: 26rem;
 }
 
 .mymap__canvas {
@@ -145,9 +158,8 @@
 
 /* Fullscreen: the control fullscreens the stage (not the bare canvas), so
    the drawer, popup and status pill ride along. Covers native fullscreen
-   and MapLibre's fixed-position pseudo fallback (iPhone Safari) — its class
-   sets position/width/height but not min-height, which would fight the
-   stage's 26rem floor on small viewports. */
+   and MapLibre's fixed-position pseudo fallback (iPhone Safari); the
+   explicit 100% height + 0 min-height pin the stage to the fullscreen box. */
 .mymap__stage:fullscreen,
 .mymap__stage.maplibregl-pseudo-fullscreen {
   width: 100%;

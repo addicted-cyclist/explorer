@@ -123,11 +123,10 @@
           <span class="material-symbols-outlined" aria-hidden="true">route</span>
           <span class="t-label-sm">My Routes</span>
         <% end %>
-        <%# Map (My Map page, v0.14) — fifth thumb-reach item; the grid bar
-            flows the links evenly. %>
+        <%# Map (My Map page, v0.14); the grid bar flows the links evenly. %>
         <%= link_to map_path, class: class_names("app-nav-mobile__link", "c-secondary", "is-active" => controller_name == "maps") do %>
           <span class="material-symbols-outlined" aria-hidden="true">map</span>
-          <span class="t-label-sm">Map</span>
+          <span class="t-label-sm">My Map</span>
         <% end %>
         <%= link_to calendar_path, class: class_names("app-nav-mobile__link", "c-secondary", "is-active" => controller_name == "calendars" && !friends_calendar) do %>
           <span class="material-symbols-outlined" aria-hidden="true">calendar_today</span>
@@ -136,10 +135,6 @@
         <%= link_to friends_path, class: class_names("app-nav-mobile__link", "c-secondary", "is-active" => controller_name == "friends" || friends_calendar || friends_route) do %>
           <span class="material-symbols-outlined" aria-hidden="true">group</span>
           <span class="t-label-sm">Friends</span>
-        <% end %>
-        <%= link_to account_path, class: class_names("app-nav-mobile__link", "c-secondary", "is-active" => controller_name == "accounts") do %>
-          <span class="material-symbols-outlined" aria-hidden="true">manage_accounts</span>
-          <span class="t-label-sm">Account</span>
         <% end %>
       </nav>
     <% end %>
