@@ -47,6 +47,8 @@ export default class MyMapController extends Controller {
     "drawer",
     "drawerToggle",
     "drawerCount",
+    "drawerCountNote",
+    "filterChips",
     "cardList",
     "drawerEmpty",
     "cardTemplate",
@@ -81,6 +83,9 @@ export default class MyMapController extends Controller {
     hotspotBounds: Array,
     ownUrl: String,
     publicUrl: String,
+    // GET endpoint for the "Find new routes" matches (maps/show.html.erb
+    // renders it from the recommendations_map_routes route).
+    recommendationsUrl: String,
     // GET endpoint for the location chip's reverse-geocoded label
     // (maps/show.html.erb renders it from the map_place_label route).
     placeLabelUrl: String,
@@ -163,6 +168,22 @@ export default class MyMapController extends Controller {
     // older in-flight label request, same contract as the public fetch.
     this.labelAbortController = null;
 
+    // "Find new routes" (design-refs/stitch_explorer_v0.14): null = normal
+    // viewport drawer; a filters object = match mode. matchIds carries the
+    // matched route ids in the server's order (own routes first, then
+    // public — the user decision for the drawer) so the list keeps that
+    // order after the features merge into the stores.
+    this.findFilters = null;
+    this.matchIds = null;
+    this.matchTruncated = false;
+    this.matchLoading = false;
+    this.findAbortController = null;
+    this.boundApplyFindFilters = this.applyFindFilters.bind(this);
+    this.element.addEventListener(
+      "find-routes:apply",
+      this.boundApplyFindFilters,
+    );
+
     this.buildMap();
     this.ro = new ResizeObserver(() => {
       // MapLibre needs an explicit resize when its container changes size
@@ -184,6 +205,11 @@ export default class MyMapController extends Controller {
     if (this.abortController) this.abortController.abort();
     if (this.ownAbortController) this.ownAbortController.abort();
     if (this.labelAbortController) this.labelAbortController.abort();
+    if (this.findAbortController) this.findAbortController.abort();
+    this.element.removeEventListener(
+      "find-routes:apply",
+      this.boundApplyFindFilters,
+    );
     if (this.ro) this.ro.disconnect();
     if (this.map) {
       this.map.remove();
@@ -479,9 +505,10 @@ export default class MyMapController extends Controller {
         return;
       }
       this.mergeOwnFeatures(payload.features || []);
+      // drawnFeatures: in match mode only the matched routes stay visible.
       source.setData({
         type: "FeatureCollection",
-        features: this.ownFeatures,
+        features: this.drawnFeatures(this.ownFeatures),
       });
       this.ownCoveredBounds.push(padded);
       if (this.ownCoveredBounds.length > MyMapController.COVERED_BOUNDS_CAP) {
@@ -606,9 +633,10 @@ export default class MyMapController extends Controller {
       }
       this.mergePublicFeatures(payload.features || []);
       this.publicTruncated = Boolean(payload.truncated);
+      // drawnFeatures: in match mode only the matched routes stay visible.
       source.setData({
         type: "FeatureCollection",
-        features: this.publicFeatures,
+        features: this.drawnFeatures(this.publicFeatures),
       });
       this.coveredBounds.push(padded);
       if (this.coveredBounds.length > MyMapController.COVERED_BOUNDS_CAP) {
@@ -635,6 +663,9 @@ export default class MyMapController extends Controller {
     this.ownLastFetchedKey = null;
     this.lastFetchedKey = null;
     this.refreshViewportData();
+    // A failed first Find surfaces the error pill; retry re-runs it too
+    // (failures of later, silent refetches keep the previous match list).
+    if (this.findFilters) this.fetchRecommendations(this.viewportBounds);
   }
 
   // ---- viewport → fetch cycle (§5.1/§5.2) ------------------------------------
@@ -650,6 +681,10 @@ export default class MyMapController extends Controller {
     this.updateCounts();
     this.loadOwnRoutes(this.viewportBounds);
     this.loadPublicRoutes(this.viewportBounds);
+    // Match mode (find new routes): silently refetch the matches for the
+    // moved camera, re-applying the current filters — no Find re-press and
+    // no status churn (the camera movement IS the search here).
+    if (this.findFilters) this.fetchRecommendations(this.viewportBounds);
     this.updateLocationLabel();
     this.settleStatus();
   }
@@ -744,6 +779,38 @@ export default class MyMapController extends Controller {
 
   mergePublicFeatures(features) {
     this.publicFeatures = this.mergeFeatures(this.publicById, features);
+  }
+
+  // The features a route source should currently draw: everything merged
+  // in normal mode; in match mode ONLY the matched routes (routes not
+  // matching the active filters hide from the map until the filters are
+  // cleared). Selection, popup and download keep working — a hidden route
+  // simply cannot be clicked, and its data stays cached for the return to
+  // the normal drawer.
+  drawnFeatures(features) {
+    if (!this.findFilters) return features;
+    const ids = new Set(this.matchIds || []);
+    return features.filter((feature) => ids.has(feature.properties.id));
+  }
+
+  // Push both stores into the map sources through the drawn-set filter —
+  // runs when a match set lands and when the filters are cleared (which
+  // brings every cached route back).
+  redrawRouteSources() {
+    const ownSource = this.map && this.map.getSource("own-routes");
+    if (ownSource) {
+      ownSource.setData({
+        type: "FeatureCollection",
+        features: this.drawnFeatures(this.ownFeatures),
+      });
+    }
+    const publicSource = this.map && this.map.getSource("public-routes");
+    if (publicSource) {
+      publicSource.setData({
+        type: "FeatureCollection",
+        features: this.drawnFeatures(this.publicFeatures),
+      });
+    }
   }
 
   // Loading indicator shared by the two viewport fetches; never overwrites
@@ -1074,6 +1141,12 @@ export default class MyMapController extends Controller {
   }
 
   renderDrawer() {
+    // Match mode (find new routes): the drawer lists the matched routes.
+    if (this.findFilters) {
+      this.renderMatchDrawer();
+      return;
+    }
+
     const features = this.visibleFeatures();
     this.cardListTarget.replaceChildren();
 
@@ -1090,6 +1163,12 @@ export default class MyMapController extends Controller {
     }
 
     this.drawerCountTarget.textContent = INT_FORMAT.format(features.length);
+    this.drawerCountNoteTarget.textContent = "routes on the map";
+    // The empty copy lives here (not only in the markup) because match mode
+    // swaps it for its own states; the normal drawer must always restore it.
+    this.drawerEmptyTarget.textContent =
+      "No routes to show yet. Upload GPX files in My Routes, or pan the map " +
+      "to discover public routes from other riders.";
     this.drawerEmptyTarget.hidden = features.length !== 0;
   }
 
@@ -1171,6 +1250,255 @@ export default class MyMapController extends Controller {
     thumb.replaceChildren(img);
   }
 
+  // ---- find new routes (design-refs/stitch_explorer_v0.14) -------------------
+
+  // Sub-bar Find button / drawer Edit chip: broadcast the active filter set
+  // to the modal's find-routes controller (it restores its inputs), then let
+  // the generic overlay open — both fire from the same click (the open is
+  // declarative via data-modal-open on the trigger).
+  openFindRoutes() {
+    this.element.dispatchEvent(
+      new CustomEvent("find-routes:open", {
+        detail: { filters: this.findFilters },
+        bubbles: true,
+      }),
+    );
+  }
+
+  // Find submitted in the modal (find-routes:apply bubbles up here): enter
+  // match mode with the semantic filter set and fetch the matches for the
+  // current viewport.
+  applyFindFilters(event) {
+    this.findFilters = event.detail.filters || {};
+    this.matchIds = null;
+    this.fetchRecommendations(this.viewportBounds);
+    this.renderFindChips();
+    this.renderDrawer();
+  }
+
+  // Clear affordance on the chips row: drop the filters and return to the
+  // normal viewport drawer. Drawn routes stay on the map — fetched data is
+  // never evicted (the same policy as the viewport feeds).
+  clearFindFilters() {
+    this.findFilters = null;
+    this.matchIds = null;
+    this.matchTruncated = false;
+    this.matchLoading = false;
+    if (this.findAbortController) this.findAbortController.abort();
+    // Back to the normal map: every cached route becomes visible again.
+    this.redrawRouteSources();
+    this.renderFindChips();
+    this.renderDrawer();
+    this.updateCounts();
+    this.settleStatus();
+  }
+
+  // Matches for the active filters within the current viewport (EXACT
+  // bounds — the drawer promises "match current filters" for what is in
+  // view, so no padding margin here). Re-runs silently on every settled
+  // camera move in match mode (the user decision: no Find re-press needed),
+  // aborts the previous request, and keeps the last match list on failure —
+  // only a failed FIRST apply surfaces the error pill (click retries).
+  async fetchRecommendations(bounds) {
+    if (!this.hasRecommendationsUrlValue) return;
+    if (!bounds) {
+      this.matchLoading = false;
+      return;
+    }
+
+    if (this.findAbortController) this.findAbortController.abort();
+    this.findAbortController = new AbortController();
+    const signal = this.findAbortController.signal;
+    this.matchLoading = true;
+
+    const params = new URLSearchParams({
+      west: bounds.getWest(),
+      south: bounds.getSouth(),
+      east: bounds.getEast(),
+      north: bounds.getNorth(),
+    });
+    Object.entries(this.findFilters || {}).forEach(([key, value]) => {
+      params.append(key, String(value));
+    });
+
+    try {
+      const response = await fetch(
+        `${this.recommendationsUrlValue}?${params}`,
+        { headers: { Accept: "application/json" }, signal },
+      );
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = await response.json();
+      if (signal.aborted) return; // superseded by a newer viewport/filters
+
+      this.matchLoading = false;
+      this.matchTruncated = Boolean(payload.truncated);
+      this.mergeFindResults(payload.features || []);
+      this.renderFindChips();
+      this.renderDrawer();
+      // The pills and the status line answer with the same match set.
+      this.updateCounts();
+      this.settleStatus();
+    } catch (error) {
+      if (error.name === "AbortError") return;
+      this.matchLoading = false;
+      console.warn("Find routes failed:", error);
+      if (this.matchIds === null) {
+        this.setStatus("Couldn't search routes — click to retry.", "error");
+      }
+    }
+  }
+
+  // Match features merge into the same stores the viewport feeds use (so
+  // selection, popup and download ride the existing code paths), and the
+  // matched ids are remembered in the server's order — own routes first,
+  // then other users' public ones — for the drawer. The route sources are
+  // pushed here directly: a match outside every fetched rectangle must
+  // still appear on the map immediately.
+  mergeFindResults(features) {
+    const usable = features.filter(
+      (feature) => feature.properties && feature.properties.id !== undefined,
+    );
+    this.ownFeatures = this.mergeFeatures(
+      this.ownById,
+      usable.filter((feature) => feature.properties.own),
+    );
+    this.publicFeatures = this.mergeFeatures(
+      this.publicById,
+      usable.filter((feature) => !feature.properties.own),
+    );
+    this.matchIds = usable.map((feature) => feature.properties.id);
+
+    // A selected route that fell out of the match set loses its highlight —
+    // its line is hidden from the map now.
+    if (
+      this.selectedId !== null &&
+      this.selectedId !== undefined &&
+      !this.matchIds.includes(this.selectedId)
+    ) {
+      this.closePopup();
+    }
+
+    // Match mode draws ONLY the matches: routes outside the filter result
+    // hide from the map until the filters are cleared (their data stays
+    // cached in the stores).
+    this.redrawRouteSources();
+  }
+
+  // Match mode drawer: the matched routes (own first, then public — the
+  // server concatenates the collections in that order and matchIds keeps
+  // it), the "N routes match current filters" count line and the match-mode
+  // empty/loading states. Scope pills keep their normal meaning: they count
+  // what is on the map, not the matches.
+  renderMatchDrawer() {
+    const matches = (this.matchIds || [])
+      .map((id) => this.findFeature(id))
+      .filter(Boolean);
+
+    this.cardListTarget.replaceChildren();
+    const shown = matches.slice(0, MyMapController.DRAWER_MAX_CARDS);
+    shown.forEach((feature) =>
+      this.cardListTarget.appendChild(this.buildCard(feature)),
+    );
+
+    if (matches.length > shown.length) {
+      const note = document.createElement("p");
+      note.className = "mymap-drawer__more t-code-sm c-tertiary";
+      note.textContent = `…and ${INT_FORMAT.format(matches.length - shown.length)} more matches on the map`;
+      this.cardListTarget.appendChild(note);
+    }
+
+    const suffix = this.matchTruncated ? " (zoom in to load more)" : "";
+    this.drawerCountTarget.textContent = INT_FORMAT.format(matches.length);
+    this.drawerCountNoteTarget.textContent =
+      `routes match current filters${suffix}`;
+    this.drawerEmptyTarget.textContent = this.matchLoading
+      ? "Searching routes…"
+      : "No routes match — widen your filters and search again.";
+    this.drawerEmptyTarget.hidden = this.matchLoading
+      ? false
+      : matches.length !== 0;
+  }
+
+  // Chips row between the drawer head and the card list (match mode only):
+  // one chip per active filter, an Edit shortcut back into the modal and
+  // the Clear × back to the normal drawer. Built from text nodes only — no
+  // injected HTML. Listeners bind directly (Stimulus actions don't bind to
+  // elements added after connect); the modal trigger still works because
+  // the overlay controller listens for [data-modal-open] on the document.
+  renderFindChips() {
+    const row = this.filterChipsTarget;
+    row.replaceChildren();
+    row.hidden = !this.findFilters;
+    if (!this.findFilters) return;
+
+    this.findFilterChips().forEach((label) => {
+      const chip = document.createElement("span");
+      chip.className = "mymap-chip";
+      chip.textContent = label;
+      row.appendChild(chip);
+    });
+
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "mymap-chip-action";
+    edit.textContent = "Edit";
+    edit.title = "Adjust filters";
+    edit.setAttribute("data-modal-open", "find-routes");
+    edit.addEventListener("click", () => this.openFindRoutes());
+    row.appendChild(edit);
+
+    const clear = document.createElement("button");
+    clear.type = "button";
+    clear.className = "mymap-chip-action mymap-chip-action--clear";
+    clear.title = "Clear filters";
+    clear.setAttribute("aria-label", "Clear filters");
+    const icon = document.createElement("span");
+    icon.className = "material-symbols-outlined";
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = "close";
+    clear.appendChild(icon);
+    clear.addEventListener("click", () => this.clearFindFilters());
+    row.appendChild(clear);
+  }
+
+  // Human labels for the active filter set (the design's chip row: sport,
+  // distance window, elevation cap, duration window).
+  findFilterChips() {
+    const filters = this.findFilters || {};
+    const chips = [];
+
+    const SPORT_LABELS = { road: "Road cycling", gravel: "Gravel", mtb: "MTB" };
+    if (SPORT_LABELS[filters.sport_type]) {
+      chips.push(SPORT_LABELS[filters.sport_type]);
+    }
+
+    const min = filters.distance_min;
+    const max = filters.distance_max;
+    if (min !== undefined && max !== undefined) {
+      chips.push(`${INT_FORMAT.format(min)} – ${INT_FORMAT.format(max)} km`);
+    } else if (min !== undefined) {
+      chips.push(`${INT_FORMAT.format(min)}+ km`);
+    } else if (max !== undefined) {
+      chips.push(`≤ ${INT_FORMAT.format(max)} km`);
+    }
+
+    if (filters.elevation_max !== undefined) {
+      chips.push(`≤ ${INT_FORMAT.format(filters.elevation_max)} m`);
+    }
+
+    const durationMin = filters.duration_min;
+    const durationMax = filters.duration_max;
+    if (durationMin !== undefined && durationMax !== undefined) {
+      chips.push(`${durationMin / 3600}–${durationMax / 3600} h`);
+    } else if (durationMin !== undefined) {
+      chips.push(`${durationMin / 3600} h+`);
+    } else if (durationMax !== undefined) {
+      chips.push(durationMax === 3600 ? "< 1 h" : `≤ ${durationMax / 3600} h`);
+    }
+
+    return chips;
+  }
+
   // ---- scope pills, counts, status pill ---------------------------------------
 
   setScope(event) {
@@ -1199,11 +1527,16 @@ export default class MyMapController extends Controller {
   }
 
   // Scope-pill counts — the same viewport-filtered population the drawer
-  // lists.
+  // lists. In match mode that population is the matched routes only (the
+  // map draws only matches), so the pills show the actual own/public
+  // counts of what is drawn in the current viewport.
   updateCounts() {
-    const own = this.featuresInView(this.ownFeatures);
-    const pub = this.featuresInView(this.publicFeatures);
-    const publicCount = pub.length + (this.publicTruncated ? 500 : 0);
+    const own = this.featuresInView(this.drawnFeatures(this.ownFeatures));
+    const pub = this.featuresInView(this.drawnFeatures(this.publicFeatures));
+    const truncated = this.findFilters
+      ? this.matchTruncated
+      : this.publicTruncated;
+    const publicCount = pub.length + (truncated ? 500 : 0);
     this.ownCountTarget.textContent = INT_FORMAT.format(own.length);
     this.publicCountTarget.textContent =
       publicCount > 500 ? "500+" : INT_FORMAT.format(publicCount);
@@ -1213,16 +1546,19 @@ export default class MyMapController extends Controller {
   }
 
   statusCounts() {
-    const own = this.featuresInView(this.ownFeatures);
-    const pub = this.featuresInView(this.publicFeatures);
+    const own = this.featuresInView(this.drawnFeatures(this.ownFeatures));
+    const pub = this.featuresInView(this.drawnFeatures(this.publicFeatures));
     const parts = [
       `${INT_FORMAT.format(own.length)} yours`,
       `${INT_FORMAT.format(pub.length)} public`,
     ];
     // Truncation now counts only routes the client hasn't loaded yet
     // (exclude_ids deltas): the honest cue is "zoom in", not "showing 500".
-    const suffix = this.publicTruncated
-      ? " (more public in view — zoom in to load)"
+    const truncated = this.findFilters
+      ? this.matchTruncated
+      : this.publicTruncated;
+    const suffix = truncated
+      ? ` (more ${this.findFilters ? "matches" : "public"} in view — zoom in to load)`
       : "";
     return `${INT_FORMAT.format(own.length + pub.length)} routes in view (${parts.join(", ")})${suffix}`;
   }

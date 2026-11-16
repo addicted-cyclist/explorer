@@ -15,6 +15,7 @@
      data-my-map-config-value="<%= map_frontend_config.to_json %>"
      data-my-map-own-url-value="<%= own_map_routes_path %>"
      data-my-map-public-url-value="<%= public_map_routes_path %>"
+     data-my-map-recommendations-url-value="<%= recommendations_map_routes_path %>"
      data-my-map-place-label-url-value="<%= map_place_label_path %>"
      data-my-map-thumb-post-url-template-value="<%= static_map_route_path("__ROUTE_ID__") %>"
      <%# The most-ridden place ([w, s, e, n]) computed server-side from the
@@ -51,6 +52,17 @@
           <span class="material-symbols-outlined" aria-hidden="true">gesture</span>
           <span class="mymap__draw-label">Draw new route</span>
         </button>
+        <%# "Find new routes" (design-refs/stitch_explorer_v0.14): opens the
+            filter modal below. Two hooks share the click — my-map#openFindRoutes
+            syncs the modal inputs to the active filters, the generic overlay
+            controller opens via data-modal-open. %>
+        <button type="button" class="mymap__find btn btn--primary"
+                title="Find new routes nearby"
+                data-action="my-map#openFindRoutes"
+                data-modal-open="find-routes">
+          <span class="material-symbols-outlined" aria-hidden="true">explore</span>
+          <span class="mymap__find-label">Find new routes</span>
+        </button>
       </div>
     </div>
   </div>
@@ -66,7 +78,7 @@
         </div>
         <div class="mymap-drawer__titles">
           <h2 class="mymap-drawer__title">Found Routes</h2>
-          <p class="mymap-drawer__count"><span data-my-map-target="drawerCount">0</span> routes on the map</p>
+          <p class="mymap-drawer__count"><span data-my-map-target="drawerCount">0</span> <span data-my-map-target="drawerCountNote">routes on the map</span></p>
         </div>
         <button type="button" class="mymap-drawer__toggle"
                 data-my-map-target="drawerToggle"
@@ -75,6 +87,10 @@
           <span class="material-symbols-outlined" aria-hidden="true">close</span>
         </button>
       </header>
+      <%# Active-filter chips row (find-routes match mode only; hidden in the
+          normal viewport drawer). The my-map controller builds the chips, the
+          Edit shortcut and the Clear × from text nodes. %>
+      <div class="mymap-drawer__filters" data-my-map-target="filterChips" hidden></div>
       <div class="mymap-drawer__list" data-my-map-target="cardList"></div>
       <p class="mymap-drawer__empty t-body-sm c-secondary" data-my-map-target="drawerEmpty" hidden>
         No routes to show yet. Upload GPX files in My Routes, or pan the map
@@ -196,4 +212,117 @@
       </article>
     </template>
   </div>
+
+  <%# Find-new-routes filter modal (design-refs/stitch_explorer_v0.14):
+      segmented route type, dual-thumb distance range (two overlaid native
+      sliders), elevation "up to" slider and duration radio cards. The
+      generic modal overlay controller owns open/close (opened from the
+      sub-bar button and the drawer chips' Edit via data-modal-open); the
+      find-routes controller owns the control state and hands the semantic
+      filter set to my-map on Find (find-routes:apply bubbles to the
+      my-map root — the modal must stay inside it). %>
+  <div class="modal" id="find-routes-modal"
+       data-controller="modal find-routes" data-modal-id="find-routes" aria-hidden="true">
+    <div class="modal__backdrop" data-action="click->modal#close" aria-hidden="true"></div>
+    <div class="modal__card modal__card--find-routes" role="dialog" aria-modal="true" aria-labelledby="find-routes-title">
+      <header class="modal__head">
+        <div>
+          <h2 class="t-headline-sm c-primary" id="find-routes-title">Find new routes</h2>
+          <p class="t-body-sm c-secondary">Discover popular tracks and segments nearby</p>
+        </div>
+        <button type="button" class="icon-btn" data-action="modal#close" aria-label="Close dialog">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </header>
+
+      <form data-action="submit->find-routes#apply">
+        <div class="find-routes__field">
+          <span class="find-routes__label">Route type</span>
+          <div class="find-routes__segment" role="group" aria-label="Route type">
+            <button type="button" class="find-routes__segment-btn is-active" data-sport="all" data-action="find-routes#pickSport">All</button>
+            <button type="button" class="find-routes__segment-btn" data-sport="road" data-action="find-routes#pickSport">Road</button>
+            <button type="button" class="find-routes__segment-btn" data-sport="gravel" data-action="find-routes#pickSport">Gravel</button>
+            <button type="button" class="find-routes__segment-btn" data-sport="mtb" data-action="find-routes#pickSport">MTB</button>
+          </div>
+        </div>
+
+        <div class="find-routes__field">
+          <div class="find-routes__label-row">
+            <span class="find-routes__label">Route distance</span>
+            <span class="find-routes__value" data-find-routes-target="distanceLabel">20 &ndash; 98 km</span>
+          </div>
+          <div class="find-routes__slider">
+            <div class="find-routes__slider-fill" data-find-routes-target="distanceFill"></div>
+            <input type="range" class="find-routes__range" min="5" max="180" step="1" value="20"
+                   autocomplete="off"
+                   aria-label="Minimum distance in kilometers"
+                   data-find-routes-target="distanceMin" data-action="input->find-routes#distanceChanged">
+            <input type="range" class="find-routes__range" min="5" max="180" step="1" value="98"
+                   autocomplete="off"
+                   aria-label="Maximum distance in kilometers"
+                   data-find-routes-target="distanceMax" data-action="input->find-routes#distanceChanged">
+          </div>
+          <div class="find-routes__scale t-code-sm c-tertiary">
+            <span>5 km</span><span>50 km</span><span>100 km</span><span>180+ km</span>
+          </div>
+        </div>
+
+        <div class="find-routes__field">
+          <div class="find-routes__label-row">
+            <span class="find-routes__label">Elevation gain</span>
+            <span class="find-routes__value" data-find-routes-target="elevationLabel">&le; 1,500 m</span>
+          </div>
+          <div class="find-routes__slider">
+            <div class="find-routes__slider-fill" data-find-routes-target="elevationFill"></div>
+            <input type="range" class="find-routes__range" min="200" max="3000" step="100" value="1500"
+                   autocomplete="off"
+                   aria-label="Maximum elevation gain in meters"
+                   data-find-routes-target="elevation" data-action="input->find-routes#elevationChanged">
+          </div>
+          <div class="find-routes__scale t-code-sm c-tertiary">
+            <span>200 m</span><span>1,600 m</span><span>3,000+ m</span>
+          </div>
+        </div>
+
+        <div class="find-routes__field">
+          <span class="find-routes__label">Duration</span>
+          <div class="find-routes__duration" role="radiogroup" aria-label="Duration">
+            <label class="find-routes__duration-card">
+              <input type="radio" name="find-routes-duration" value="under-1h"
+                     data-find-routes-target="durationOption" data-action="change->find-routes#durationChanged">
+              <span class="find-routes__duration-title">Under 1 h</span>
+              <span class="find-routes__duration-hint t-code-sm">up to 60 min</span>
+            </label>
+            <label class="find-routes__duration-card is-active">
+              <input type="radio" name="find-routes-duration" value="1-4h" checked
+                     data-find-routes-target="durationOption" data-action="change->find-routes#durationChanged">
+              <span class="find-routes__duration-title">1&ndash;4 h</span>
+              <span class="find-routes__duration-hint t-code-sm">60 min &ndash; 4 h</span>
+            </label>
+            <label class="find-routes__duration-card">
+              <input type="radio" name="find-routes-duration" value="4-6h"
+                     data-find-routes-target="durationOption" data-action="change->find-routes#durationChanged">
+              <span class="find-routes__duration-title">4&ndash;6 h</span>
+              <span class="find-routes__duration-hint t-code-sm">4 h &ndash; 6 h</span>
+            </label>
+            <label class="find-routes__duration-card">
+              <input type="radio" name="find-routes-duration" value="6h-plus"
+                     data-find-routes-target="durationOption" data-action="change->find-routes#durationChanged">
+              <span class="find-routes__duration-title">6 h+</span>
+              <span class="find-routes__duration-hint t-code-sm">6 h and up</span>
+            </label>
+          </div>
+        </div>
+
+        <footer class="modal__actions">
+          <button type="button" class="btn btn--secondary" data-action="modal#close">Cancel</button>
+          <button type="submit" class="btn btn--primary">
+            <span class="material-symbols-outlined" aria-hidden="true">search</span>
+            <span>Find</span>
+          </button>
+        </footer>
+      </form>
+    </div>
+  </div>
+</div>
 </div>

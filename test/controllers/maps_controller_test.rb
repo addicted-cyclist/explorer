@@ -238,6 +238,111 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert JSON.parse(response.body)["error"].present?
   end
 
+  # ---- recommendations (find new routes) --------------------------------------
+
+  test "recommendations requires sign-in" do
+    sign_out @viewer
+
+    get recommendations_map_routes_path, params: viewport
+    assert_redirected_to new_user_session_path
+  end
+
+  test "recommendations lists the viewer's routes first, then public routes" do
+    get recommendations_map_routes_path, params: viewport, headers: { Accept: "application/json" }
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal "FeatureCollection", payload["type"]
+    ids = payload["features"].map { |feature| feature["properties"]["id"] }
+    # Own first (private included), other users' public routes after.
+    assert_equal [ @own_route.id, @public_route.id ], ids
+    assert_equal true, payload["features"].first["properties"]["own"]
+    assert_equal false, payload["features"].second["properties"]["own"]
+  end
+
+  test "recommendations keeps other users' private and unscheduled routes out" do
+    get recommendations_map_routes_path, params: viewport, headers: { Accept: "application/json" }
+
+    ids = JSON.parse(response.body)["features"].map { |feature| feature["properties"]["id"] }
+    assert_not_includes ids, @hidden_library_route.id
+    assert_not_includes ids, @private_route.id
+  end
+
+  test "recommendations applies the sport category filter" do
+    @own_route.update!(sport_type: "Mountain biking")
+    @public_route.update!(sport_type: "Road Cycling")
+
+    get recommendations_map_routes_path,
+        params: viewport.merge(sport_type: "road"), headers: { Accept: "application/json" }
+
+    ids = JSON.parse(response.body)["features"].map { |feature| feature["properties"]["id"] }
+    assert_equal [ @public_route.id ], ids
+  end
+
+  test "recommendations applies distance bounds and drops unmeasured routes" do
+    @own_route.update!(distance: 48.4)
+    @public_route.update!(distance: 92.0)
+
+    get recommendations_map_routes_path,
+        params: viewport.merge(distance_min: "50", distance_max: "100"),
+        headers: { Accept: "application/json" }
+
+    ids = JSON.parse(response.body)["features"].map { |feature| feature["properties"]["id"] }
+    assert_equal [ @public_route.id ], ids
+  end
+
+  test "recommendations applies the elevation gain cap" do
+    @own_route.update!(elevation_gain: 820.0)
+    @public_route.update!(elevation_gain: 1500.0)
+
+    get recommendations_map_routes_path,
+        params: viewport.merge(elevation_max: "1000"),
+        headers: { Accept: "application/json" }
+
+    ids = JSON.parse(response.body)["features"].map { |feature| feature["properties"]["id"] }
+    assert_equal [ @own_route.id ], ids
+  end
+
+  test "recommendations applies the duration range in seconds" do
+    @own_route.update!(duration: 7200)
+    @public_route.update!(duration: 14_400)
+
+    get recommendations_map_routes_path,
+        params: viewport.merge(duration_min: "3600", duration_max: "10800"),
+        headers: { Accept: "application/json" }
+
+    ids = JSON.parse(response.body)["features"].map { |feature| feature["properties"]["id"] }
+    assert_equal [ @own_route.id ], ids
+  end
+
+  test "recommendations answers 400 for malformed filters" do
+    get recommendations_map_routes_path,
+        params: viewport.merge(distance_min: "soon"), headers: { Accept: "application/json" }
+    assert_response :bad_request
+    assert JSON.parse(response.body)["error"].present?
+
+    get recommendations_map_routes_path,
+        params: viewport.merge(sport_type: "underwater"), headers: { Accept: "application/json" }
+    assert_response :bad_request
+
+    get recommendations_map_routes_path,
+        params: viewport.merge(distance_min: "100", distance_max: "10"),
+        headers: { Accept: "application/json" }
+    assert_response :bad_request
+
+    get recommendations_map_routes_path,
+        params: viewport.merge(duration_min: "-5"), headers: { Accept: "application/json" }
+    assert_response :bad_request
+  end
+
+  test "recommendations answers 400 for malformed viewport bounds" do
+    get recommendations_map_routes_path,
+        params: viewport.merge(north: "not-a-number"), headers: { Accept: "application/json" }
+
+    assert_response :bad_request
+    assert JSON.parse(response.body)["error"].present?
+  end
+
   # ---- place label (location chip) -------------------------------------------
 
   test "place label requires sign-in" do
