@@ -984,6 +984,11 @@
   gap: var(--space-2xs);
 }
 
+/* The open-ended "Any duration" card leads the group and spans the row. */
+.find-routes__duration-card--any {
+  grid-column: span 2;
+}
+
 .find-routes__duration-card {
   position: relative;
   display: flex;

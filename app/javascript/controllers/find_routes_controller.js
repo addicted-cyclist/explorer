@@ -8,9 +8,11 @@ const DISTANCE_MAX = 180;
 const ELEVATION_MIN = 200;
 const ELEVATION_MAX = 3000;
 
-// Duration radio cards → semantic second ranges. The design has no "any
-// duration" card, so every Find carries a duration filter.
+// Duration radio cards → semantic second ranges. "any" carries no bounds:
+// both duration params are omitted, so the server applies no duration
+// constraint and routes with unspecified (NULL) duration match too.
 const DURATION_RANGES = {
+  any: {},
   "under-1h": { max: 3600 },
   "1-4h": { min: 3600, max: 14400 },
   "4-6h": { min: 14400, max: 21600 },

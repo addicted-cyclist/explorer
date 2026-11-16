@@ -228,7 +228,7 @@
       <header class="modal__head">
         <div>
           <h2 class="t-headline-sm c-primary" id="find-routes-title">Find new routes</h2>
-          <p class="t-body-sm c-secondary">Discover popular tracks and segments nearby</p>
+          <p class="t-body-sm c-secondary">Your next adventure</p>
         </div>
         <button type="button" class="icon-btn" data-action="modal#close" aria-label="Close dialog">
           <span class="material-symbols-outlined">close</span>
@@ -287,6 +287,12 @@
         <div class="find-routes__field">
           <span class="find-routes__label">Duration</span>
           <div class="find-routes__duration" role="radiogroup" aria-label="Duration">
+            <label class="find-routes__duration-card find-routes__duration-card--any">
+              <input type="radio" name="find-routes-duration" value="any"
+                     data-find-routes-target="durationOption" data-action="change->find-routes#durationChanged">
+              <span class="find-routes__duration-title">Any duration</span>
+              <span class="find-routes__duration-hint t-code-sm">no limit</span>
+            </label>
             <label class="find-routes__duration-card">
               <input type="radio" name="find-routes-duration" value="under-1h"
                      data-find-routes-target="durationOption" data-action="change->find-routes#durationChanged">
