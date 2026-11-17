@@ -989,6 +989,11 @@
   grid-column: span 2;
 }
 
+/* Reset sits apart, left of the Cancel/Find pair. */
+.find-routes__reset {
+  margin-right: auto;
+}
+
 .find-routes__duration-card {
   position: relative;
   display: flex;

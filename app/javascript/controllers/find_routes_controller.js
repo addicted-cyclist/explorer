@@ -3,7 +3,7 @@ import { Controller } from "@hotwired/stimulus";
 // Slider bounds — the design's ticks (design-refs/stitch_explorer_v0.14).
 // A thumb parked on a bound means "open-ended": that bound is NOT sent, so
 // the server filters nothing on that side ("180+ km", "3,000+ m").
-const DISTANCE_MIN = 5;
+const DISTANCE_MIN = 0;
 const DISTANCE_MAX = 180;
 const ELEVATION_MIN = 200;
 const ELEVATION_MAX = 3000;
@@ -19,13 +19,14 @@ const DURATION_RANGES = {
   "6h-plus": { min: 21600 },
 };
 
-// First-open state — the prototype's demo values (code.html).
+// First-open and Reset state — the prototype's demo values, with the
+// open-ended duration card as the default (no silent duration constraint).
 const DEFAULTS = {
   sport: "all",
-  distanceMin: 20,
+  distanceMin: 5,
   distanceMax: 98,
   elevation: 1500,
-  duration: "1-4h",
+  duration: "any",
 };
 
 const INT_FORMAT = new Intl.NumberFormat("en-US");
@@ -93,6 +94,13 @@ export default class extends Controller {
   durationChanged(event) {
     this.duration = event.currentTarget.value;
     this.paintDuration();
+  }
+
+  // Reset: restore the default control state. Nothing is applied or
+  // persisted until Find is pressed — Cancel discards a reset exactly like
+  // it discards manual edits (the next open re-syncs from my-map).
+  reset() {
+    this.restore(null);
   }
 
   // Find (form submit): hand the semantic filter set to my-map — open ends
@@ -189,18 +197,19 @@ export default class extends Controller {
     const span = DISTANCE_MAX - DISTANCE_MIN;
     this.distanceFillTarget.style.left = `${((min - DISTANCE_MIN) / span) * 100}%`;
     this.distanceFillTarget.style.right = `${((DISTANCE_MAX - max) / span) * 100}%`;
-    this.distanceLabelTarget.textContent = max >= DISTANCE_MAX
-      ? `${INT_FORMAT.format(min)}+ km`
-      : `${INT_FORMAT.format(min)} – ${INT_FORMAT.format(max)} km`;
+    this.distanceLabelTarget.textContent =
+      max >= DISTANCE_MAX
+        ? `${INT_FORMAT.format(min)}+ km`
+        : `${INT_FORMAT.format(min)} – ${INT_FORMAT.format(max)} km`;
   }
 
   paintElevation(value) {
     this.elevationFillTarget.style.left = "0";
-    this.elevationFillTarget.style.right =
-      `${((ELEVATION_MAX - value) / (ELEVATION_MAX - ELEVATION_MIN)) * 100}%`;
-    this.elevationLabelTarget.textContent = value >= ELEVATION_MAX
-      ? `${INT_FORMAT.format(ELEVATION_MAX)}+ m`
-      : `≤ ${INT_FORMAT.format(value)} m`;
+    this.elevationFillTarget.style.right = `${((ELEVATION_MAX - value) / (ELEVATION_MAX - ELEVATION_MIN)) * 100}%`;
+    this.elevationLabelTarget.textContent =
+      value >= ELEVATION_MAX
+        ? `${INT_FORMAT.format(ELEVATION_MAX)}+ m`
+        : `≤ ${INT_FORMAT.format(value)} m`;
   }
 
   paintDuration() {

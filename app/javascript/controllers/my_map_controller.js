@@ -115,6 +115,9 @@ export default class MyMapController extends Controller {
   // first 200 and says so, keeping DOM rebuilds cheap on every refresh.
   static DRAWER_MAX_CARDS = 200;
   static VIEW_STORAGE_KEY = "explorer:map-view";
+  // Chosen "Find new routes" filters survive reloads (localStorage, next to
+  // the persisted viewport); Clear removes the entry.
+  static FIND_FILTERS_STORAGE_KEY = "explorer:map-find-filters";
 
   static EMPTY_COLLECTION = { type: "FeatureCollection", features: [] };
 
@@ -172,17 +175,24 @@ export default class MyMapController extends Controller {
     // viewport drawer; a filters object = match mode. matchIds carries the
     // matched route ids in the server's order (own routes first, then
     // public — the user decision for the drawer) so the list keeps that
-    // order after the features merge into the stores.
-    this.findFilters = null;
+    // order after the features merge into the stores. Chosen filters
+    // persist across reloads: a restored set re-enters match mode right
+    // away (chips + "Searching routes…" until the first viewport settle
+    // refetches the matches for it).
+    this.findFilters = this.restoreFindFilters();
     this.matchIds = null;
     this.matchTruncated = false;
-    this.matchLoading = false;
+    this.matchLoading = this.findFilters !== null;
     this.findAbortController = null;
     this.boundApplyFindFilters = this.applyFindFilters.bind(this);
     this.element.addEventListener(
       "find-routes:apply",
       this.boundApplyFindFilters,
     );
+    if (this.findFilters) {
+      this.renderFindChips();
+      this.renderDrawer();
+    }
 
     this.buildMap();
     this.ro = new ResizeObserver(() => {
@@ -1267,10 +1277,11 @@ export default class MyMapController extends Controller {
 
   // Find submitted in the modal (find-routes:apply bubbles up here): enter
   // match mode with the semantic filter set and fetch the matches for the
-  // current viewport.
+  // current viewport. The set persists, so a reload re-enters this mode.
   applyFindFilters(event) {
     this.findFilters = event.detail.filters || {};
     this.matchIds = null;
+    this.persistFindFilters();
     this.fetchRecommendations(this.viewportBounds);
     this.renderFindChips();
     this.renderDrawer();
@@ -1285,12 +1296,69 @@ export default class MyMapController extends Controller {
     this.matchTruncated = false;
     this.matchLoading = false;
     if (this.findAbortController) this.findAbortController.abort();
+    this.clearPersistedFindFilters();
     // Back to the normal map: every cached route becomes visible again.
     this.redrawRouteSources();
     this.renderFindChips();
     this.renderDrawer();
     this.updateCounts();
     this.settleStatus();
+  }
+
+  // Chosen filters survive reloads (localStorage, next to the persisted
+  // viewport). Best-effort like the viewport persistence: private mode or
+  // quota errors change nothing.
+  persistFindFilters() {
+    try {
+      window.localStorage.setItem(
+        MyMapController.FIND_FILTERS_STORAGE_KEY,
+        JSON.stringify(this.findFilters),
+      );
+    } catch (_error) {
+      // Private mode / quota: persistence is best-effort only.
+    }
+  }
+
+  restoreFindFilters() {
+    try {
+      const raw = JSON.parse(
+        window.localStorage.getItem(MyMapController.FIND_FILTERS_STORAGE_KEY),
+      );
+      return this.sanitizeFindFilters(raw);
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  // A stale or hand-edited entry must never reach the query string as
+  // junk: keep only known keys with primitive values (the server still
+  // validates and 400s garbage). An empty object means no filters at all.
+  sanitizeFindFilters(raw) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+    const KNOWN_KEYS = [
+      "sport_type",
+      "distance_min",
+      "distance_max",
+      "elevation_max",
+      "duration_min",
+      "duration_max",
+    ];
+    const filters = {};
+    KNOWN_KEYS.forEach((key) => {
+      const value = raw[key];
+      if (typeof value === "string" || typeof value === "number") {
+        filters[key] = value;
+      }
+    });
+    return Object.keys(filters).length ? filters : null;
+  }
+
+  clearPersistedFindFilters() {
+    try {
+      window.localStorage.removeItem(MyMapController.FIND_FILTERS_STORAGE_KEY);
+    } catch (_error) {
+      // Best-effort only.
+    }
   }
 
   // Matches for the active filters within the current viewport (EXACT

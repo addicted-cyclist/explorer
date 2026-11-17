@@ -253,17 +253,17 @@
           </div>
           <div class="find-routes__slider">
             <div class="find-routes__slider-fill" data-find-routes-target="distanceFill"></div>
-            <input type="range" class="find-routes__range" min="5" max="180" step="1" value="20"
+            <input type="range" class="find-routes__range" min="0" max="180" step="1" value="0"
                    autocomplete="off"
                    aria-label="Minimum distance in kilometers"
                    data-find-routes-target="distanceMin" data-action="input->find-routes#distanceChanged">
-            <input type="range" class="find-routes__range" min="5" max="180" step="1" value="98"
+            <input type="range" class="find-routes__range" min="0" max="180" step="1" value="98"
                    autocomplete="off"
                    aria-label="Maximum distance in kilometers"
                    data-find-routes-target="distanceMax" data-action="input->find-routes#distanceChanged">
           </div>
           <div class="find-routes__scale t-code-sm c-tertiary">
-            <span>5 km</span><span>50 km</span><span>100 km</span><span>180+ km</span>
+            <span>0 km</span><span>50 km</span><span>100 km</span><span>180+ km</span>
           </div>
         </div>
 
@@ -287,8 +287,8 @@
         <div class="find-routes__field">
           <span class="find-routes__label">Duration</span>
           <div class="find-routes__duration" role="radiogroup" aria-label="Duration">
-            <label class="find-routes__duration-card find-routes__duration-card--any">
-              <input type="radio" name="find-routes-duration" value="any"
+            <label class="find-routes__duration-card find-routes__duration-card--any is-active">
+              <input type="radio" name="find-routes-duration" value="any" checked
                      data-find-routes-target="durationOption" data-action="change->find-routes#durationChanged">
               <span class="find-routes__duration-title">Any duration</span>
               <span class="find-routes__duration-hint t-code-sm">no limit</span>
@@ -299,8 +299,8 @@
               <span class="find-routes__duration-title">Under 1 h</span>
               <span class="find-routes__duration-hint t-code-sm">up to 60 min</span>
             </label>
-            <label class="find-routes__duration-card is-active">
-              <input type="radio" name="find-routes-duration" value="1-4h" checked
+            <label class="find-routes__duration-card">
+              <input type="radio" name="find-routes-duration" value="1-4h"
                      data-find-routes-target="durationOption" data-action="change->find-routes#durationChanged">
               <span class="find-routes__duration-title">1&ndash;4 h</span>
               <span class="find-routes__duration-hint t-code-sm">60 min &ndash; 4 h</span>
@@ -321,6 +321,10 @@
         </div>
 
         <footer class="modal__actions">
+          <button type="button" class="btn btn--ghost find-routes__reset" data-action="find-routes#reset">
+            <span class="material-symbols-outlined" aria-hidden="true">restart_alt</span>
+            <span>Reset</span>
+          </button>
           <button type="button" class="btn btn--secondary" data-action="modal#close">Cancel</button>
           <button type="submit" class="btn btn--primary">
             <span class="material-symbols-outlined" aria-hidden="true">search</span>
