@@ -16,7 +16,7 @@
      container; vertically the stage flexes to whatever height is left (no
      floor), so the document never overflows — not on phone landscape,
      split view, font-scaled phones or short desktop windows. */
-  height: calc(100dvh - var(--nav-height));
+  height: calc(100dvh - var(--nav-height) - var(--mymap-subbar-height));
   overflow-x: clip;
 }
 
