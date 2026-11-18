@@ -1218,7 +1218,7 @@ export default class MyMapController extends Controller {
     card.classList.toggle("is-selected", properties.id === this.selectedId);
 
     card.querySelector("[data-card-field=sport]").textContent =
-      properties.sport_type || "Ride";
+      properties.sport_type || "Road bike";
     card.querySelector("[data-card-field=tier]").textContent =
       properties.tier || "";
     card.querySelector("[data-card-field=title]").textContent =
@@ -1509,8 +1509,7 @@ export default class MyMapController extends Controller {
 
     const suffix = this.matchTruncated ? " (zoom in to load more)" : "";
     this.drawerCountTarget.textContent = INT_FORMAT.format(matches.length);
-    this.drawerCountNoteTarget.textContent =
-      `routes match current filters${suffix}`;
+    this.drawerCountNoteTarget.textContent = `routes match current filters${suffix}`;
     this.drawerEmptyTarget.textContent = this.matchLoading
       ? "Searching routes…"
       : "No routes match — widen your filters and search again.";
