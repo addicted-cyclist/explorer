@@ -96,3 +96,9 @@ application.register("map-fullscreen", MapFullscreenController);
 // upload-return flow and any older routes missing a thumb).
 import LibraryThumbsController from "./library_thumbs_controller";
 application.register("library-thumbs", LibraryThumbsController);
+
+// Find new routes (design-refs/stitch_explorer_v0.14): the filter modal's
+// control state — segmented route type, dual-thumb distance range,
+// elevation cap, duration cards — dispatched as semantic filters to my-map.
+import FindRoutesController from "./find_routes_controller";
+application.register("find-routes", FindRoutesController);

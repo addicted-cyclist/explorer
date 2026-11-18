@@ -48,6 +48,13 @@
   --color-surface-card: #ffffff; /* raised structural cards */
   --color-surface-canvas: #f4f4f5; /* recessed wells: inputs, telemetry */
   --color-surface-variant: #e2e2e2;
+  /* Translucent recessed fills — the same canvas tone at reduced opacity, so
+     panels that sit over a map keep it faintly visible without hardcoding
+     rgb() at each call site (and stay themeable). */
+  --color-surface-canvas-strong: rgb(244 244 245 / 0.9);
+  --color-surface-canvas-medium: rgb(244 244 245 / 0.8);
+  --color-surface-canvas-soft: rgb(244 244 245 / 0.6);
+  --color-border-canvas-soft: rgb(228 228 231 / 0.5);
 
   /* Content */
   --color-on-surface: #1a1c1c;
@@ -90,6 +97,7 @@
   --gutter-desktop: 1.5rem;
   --container-max: 80rem; /* 1280px, buffered by gutters */
   --nav-height: 4rem;
+  --mymap-subbar-height: 52px;
 
   /* Shapes — soft roundedness (DESIGN.md §Shapes) */
   --radius-sm: 0.125rem;

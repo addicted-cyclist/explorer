@@ -36,7 +36,7 @@ module RoutesHelper
   end
 
   def sport_type_label(route)
-    route.sport_type.presence || "Ride"
+    route.sport_type.presence || "Road bike"
   end
 
   # 30.0 -> "30", 27.5 -> "27.5"; nil/0 -> an em dash (design: plain km/h)

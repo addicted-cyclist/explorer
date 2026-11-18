@@ -20,15 +20,29 @@ class MapsController < ApplicationController
   # so a long-roaming session can't grow the request URL without bound.
   MAX_EXCLUDED_IDS = 1_000
 
+  # 400 copy for a rejected filter set. Built from the category keys so the
+  # accepted values can never drift from the validator below.
+  INVALID_FILTERS_ERROR = "Invalid filters: sport_type must be one of " \
+                          "#{Map::RouteFinder::SPORT_PATTERNS.keys.join(', ')} " \
+                          "or all; distance/elevation/duration bounds must be " \
+                          "non-negative numbers with min <= max.".freeze
+
   # Validates west/south/east/north into @bounds before the viewport queries
   # run (own and public alike, §5.1); malformed requests are answered with a
-  # 400 JSON error.
-  before_action :set_viewport_bounds, only: %i[own_routes public_routes]
+  # 400 JSON error. The explicit `return false` after rendering halts the
+  # before_action chain rather than relying on the implicit render-halts
+  # semantics (two validators run for #recommendations, and a silent
+  # continuation would run the action with @bounds == nil).
+  before_action :set_viewport_bounds, only: %i[own_routes public_routes recommendations]
   # Delta loading: ids the client already merged (comma-separated in
   # exclude_ids) never need to ship again — validated with the same
   # 400-on-garbage contract as the bounds. Shared by both feeds: the client
   # caches each by id and re-requests only what it is still missing.
   before_action :set_excluded_route_ids, only: %i[own_routes public_routes]
+  # "Find new routes" filters (sport category, distance/elevation/duration
+  # bounds): whitelisted and numerically validated before the recommendation
+  # queries run — garbage answers 400 JSON exactly like malformed bounds.
+  before_action :set_recommendation_filters, only: %i[recommendations]
 
   def show
     # The sub-bar's "My Routes" pill seeds server-side; the map counts
@@ -48,11 +62,7 @@ class MapsController < ApplicationController
   # preload: the cache key needs the GPX blob and the drawer thumb needs the
   # static-map blob (one SELECT per table).
   def own_routes
-    scope = current_user.routes
-                         .with_track
-                         .intersecting_viewport(*@bounds)
-                         .includes(gpx_file_attachment: :blob, static_map_attachment: :blob)
-                         .order(updated_at: :desc)
+    scope = viewport_scope(current_user.routes)
     scope = scope.where.not(id: @excluded_ids) if @excluded_ids.any?
 
     render json: Map::RouteFeature.collection(scope, own: true, public_ids: own_public_route_ids(scope))
@@ -63,12 +73,7 @@ class MapsController < ApplicationController
   # excluded: they are already fully loaded via #own_routes and must never
   # be double-drawn. Most-recently-touched routes win the limit.
   def public_routes
-    scope = Route.publicly_visible
-                 .where.not(user_id: current_user.id)
-                 .with_track
-                 .intersecting_viewport(*@bounds)
-                 .includes(gpx_file_attachment: :blob, static_map_attachment: :blob)
-                 .order(updated_at: :desc)
+    scope = viewport_scope(Route.publicly_visible.where.not(user_id: current_user.id))
     # Delta loading: routes the client already merged never ship again —
     # the response carries only what the map is still missing.
     scope = scope.where.not(id: @excluded_ids) if @excluded_ids.any?
@@ -80,6 +85,37 @@ class MapsController < ApplicationController
     # pill answers it with "zoom in to load more".
     payload["truncated"] = routes.size > VIEWPORT_LIMIT
     render json: payload
+  end
+
+  # GET /map/routes/recommendations?west=&south=&east=&north=&sport_type=&
+  # distance_min=&distance_max=&elevation_max=&duration_min=&duration_max= —
+  # "Find new routes" (design-refs/stitch_explorer_v0.14): routes matching
+  # the active filters inside the viewport. The viewer's own routes ship
+  # FIRST (private included, §4.1 — the drawer lists them before the public
+  # matches), then other users' public routes under the Phase 9 SQL
+  # contract, capped at VIEWPORT_LIMIT with a truncated flag. No
+  # exclude_ids delta here: the match set changes with every filter change,
+  # so the client always needs the honest, complete list (drawer count +
+  # filter chips must agree with what is drawn).
+  def recommendations
+    public_routes = filtered_viewport_routes(
+      Route.publicly_visible.where.not(user_id: current_user.id),
+    ).limit(VIEWPORT_LIMIT + 1).to_a
+
+    own_scope = filtered_viewport_routes(current_user.routes)
+    features =
+      Map::RouteFeature.collection(
+        own_scope, own: true, public_ids: own_public_route_ids(own_scope)
+      )["features"] +
+      Map::RouteFeature.collection(
+        public_routes.first(VIEWPORT_LIMIT), own: false
+      )["features"]
+
+    render json: {
+      type: "FeatureCollection",
+      features: features,
+      truncated: public_routes.size > VIEWPORT_LIMIT
+    }
   end
 
   # GET /map/place_label?lon=&lat= — reverse-geocoded "City, Region, Country"
@@ -116,6 +152,81 @@ class MapsController < ApplicationController
                 .distinct.pluck(:route_id)
   end
 
+  # One filtered viewport query for the finder: bounding-box intersection
+  # (§5.1), the attachment preloads the feature builder shares with the
+  # other two feeds, most-recently-touched first, and the active find
+  # filters applied by Map::RouteFinder (filter semantics live in exactly
+  # one place so counts and chips agree with the drawn lines).
+  def filtered_viewport_routes(scope)
+    Map::RouteFinder.call(viewport_scope(scope), filters: @recommendation_filters)
+  end
+
+  # The shared viewport read for all three GeoJSON feeds (#10): only routes
+  # the map can draw (with_track), intersecting the requested rect (§5.1),
+  # with both attachments preloaded — the cache key needs the GPX blob and
+  # the drawer thumb needs the static-map blob (one SELECT per table) — and
+  # most-recently-touched first. Keeping this in one place means the feeds
+  # cannot drift apart in eager-loading or ordering.
+  def viewport_scope(scope)
+    scope.with_track
+         .intersecting_viewport(*@bounds)
+         .includes(gpx_file_attachment: :blob, static_map_attachment: :blob)
+         .order(updated_at: :desc)
+  end
+
+
+  # Whitelist + validate the "Find new routes" filter params before
+  # #recommendations runs: unknown sport categories and non-numeric or
+  # nonsensical bounds answer 400 exactly like malformed viewport bounds
+  # (§9). Absent params mean "open" — the client omits the value at slider
+  # ends ("180+ km", "3,000+ m") and for an all-passing sport ("all").
+  # Validated values land in @recommendation_filters for Map::RouteFinder.
+  def set_recommendation_filters
+    sport = params[:sport_type]
+    if sport.present? && sport != "all" &&
+       !Map::RouteFinder::SPORT_PATTERNS.key?(sport)
+      raise ArgumentError, "unknown sport_type"
+    end
+
+    distance_min = non_negative_number(params[:distance_min])
+    distance_max = non_negative_number(params[:distance_max])
+    if distance_min && distance_max && distance_min > distance_max
+      raise ArgumentError, "distance_min above distance_max"
+    end
+
+    duration_min = non_negative_number(params[:duration_min])
+    duration_max = non_negative_number(params[:duration_max])
+    if duration_min && duration_max && duration_min > duration_max
+      raise ArgumentError, "duration_min above duration_max"
+    end
+
+    sport_type = sport.presence if sport != "all"
+
+    @recommendation_filters = {
+      sport_type: sport_type,
+      distance_min: distance_min,
+      distance_max: distance_max,
+      elevation_max: non_negative_number(params[:elevation_max]),
+      duration_min: duration_min,
+      duration_max: duration_max
+    }.compact
+  rescue ArgumentError, TypeError
+    render json: { error: INVALID_FILTERS_ERROR }, status: :bad_request
+    false
+  end
+
+  # A validated float ≥ 0, or nil for absent/blank params. Garbage raises
+  # ArgumentError (caught by the caller → 400), exactly like Float() on the
+  # viewport bounds above.
+  def non_negative_number(raw)
+    return if raw.blank?
+
+    value = Float(raw)
+    raise ArgumentError, "not a non-negative number" unless value.finite? && value >= 0
+
+    value
+  end
+
   # Parse + validate the viewport params before #public_routes runs (§9:
   # handle invalid bounds). Lons are accepted in [-360, 360] because
   # MapLibre may hand back wrap-normalized values past ±180; anything else
@@ -135,6 +246,7 @@ class MapsController < ApplicationController
   rescue ArgumentError, TypeError
     render json: { error: "Invalid viewport: expected numeric west, south, east, north with south < north." },
            status: :bad_request
+    false
   end
 
   # Delta loading (§5.1/§5.2: "avoid duplicate requests"): the map client
@@ -150,5 +262,6 @@ class MapsController < ApplicationController
   rescue ArgumentError, TypeError
     render json: { error: "Invalid exclude_ids: expected comma-separated numeric route ids." },
            status: :bad_request
+    false
   end
 end

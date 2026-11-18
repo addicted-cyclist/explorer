@@ -59,6 +59,36 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert_match 'data-my-map-hotspot-bounds-value="[]"', response.body
   end
 
+  # The sport categories have exactly one definition (Map::RouteFinder::
+  # SPORT_CATEGORIES). These tests pin the three consumers to it, so adding a
+  # category server-side cannot silently leave the modal or the chips behind.
+  test "the find modal's sport buttons come from SPORT_CATEGORIES" do
+    get map_path
+
+    assert_response :success
+    # "all" is the leading UI-only button; the rest are the real categories.
+    rendered = css_select(".find-routes__segment-btn").map { |node| node["data-sport"] }
+    assert_equal [ "all", *Map::RouteFinder::SPORT_PATTERNS.keys ], rendered
+  end
+
+  test "the find modal's sport buttons carry the SPORT_CATEGORIES labels" do
+    get map_path
+
+    Map::RouteFinder::SPORT_CATEGORIES.each do |key, category|
+      assert_select ".find-routes__segment-btn[data-sport='#{key}']", text: category[:label]
+    end
+  end
+
+  test "the drawer chips receive the sport categories as a Stimulus value" do
+    get map_path
+
+    expected = Map::RouteFinder::SPORT_CATEGORIES.map do |key, category|
+      { key: key, label: category[:label] }
+    end
+    assert_match "data-my-map-sports-value=\"#{ERB::Util.html_escape(expected.to_json)}\"",
+                 response.body
+  end
+
   # ---- own routes (§4.1/§5.1) ------------------------------------------------
 
   test "own routes returns the viewer's viewport rides, private included" do
@@ -233,6 +263,184 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     get public_map_routes_path,
         params: viewport.merge(exclude_ids: "1,not-an-id"),
         headers: { Accept: "application/json" }
+
+    assert_response :bad_request
+    assert JSON.parse(response.body)["error"].present?
+  end
+
+  # ---- recommendations (find new routes) --------------------------------------
+
+  test "recommendations requires sign-in" do
+    sign_out @viewer
+
+    get recommendations_map_routes_path, params: viewport
+    assert_redirected_to new_user_session_path
+  end
+
+  test "recommendations lists the viewer's routes first, then public routes" do
+    get recommendations_map_routes_path, params: viewport, headers: { Accept: "application/json" }
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal "FeatureCollection", payload["type"]
+    ids = payload["features"].map { |feature| feature["properties"]["id"] }
+    # Own first (private included), other users' public routes after.
+    assert_equal [ @own_route.id, @public_route.id ], ids
+    assert_equal true, payload["features"].first["properties"]["own"]
+    assert_equal false, payload["features"].second["properties"]["own"]
+  end
+
+  test "recommendations keeps other users' private and unscheduled routes out" do
+    get recommendations_map_routes_path, params: viewport, headers: { Accept: "application/json" }
+
+    ids = JSON.parse(response.body)["features"].map { |feature| feature["properties"]["id"] }
+    assert_not_includes ids, @hidden_library_route.id
+    assert_not_includes ids, @private_route.id
+  end
+
+  test "recommendations applies the sport category filter" do
+    @own_route.update!(sport_type: "Mountain biking")
+    @public_route.update!(sport_type: "Road Cycling")
+
+    get recommendations_map_routes_path,
+        params: viewport.merge(sport_type: "road"), headers: { Accept: "application/json" }
+
+    ids = JSON.parse(response.body)["features"].map { |feature| feature["properties"]["id"] }
+    assert_equal [ @public_route.id ], ids
+  end
+
+  # End-to-end regression for the reported mismatch: routes whose sport_type
+  # is blank display as "Road bike" everywhere in the UI, so the Road filter
+  # must return them instead of hiding them behind a badge that claims
+  # otherwise.
+  test "recommendations treats blank sport_type as a road match, like its badge" do
+    @own_route.update!(sport_type: nil)
+    @public_route.update!(sport_type: "")
+    other = @public_owner.routes.create!(source: "upload", title: "Gravel loop",
+                                        sport_type: "Gravel")
+    attach_track(other)
+    @public_owner.calendar_entries.create!(route: other, scheduled_on: Date.current + 2,
+                                           start_time: "08:00", end_time: "10:00")
+
+    get recommendations_map_routes_path,
+        params: viewport.merge(sport_type: "road"), headers: { Accept: "application/json" }
+
+    ids = JSON.parse(response.body)["features"].map { |feature| feature["properties"]["id"] }
+    assert_includes ids, @own_route.id
+    assert_includes ids, @public_route.id
+    assert_not_includes ids, other.id
+  end
+
+  test "recommendations applies distance bounds and drops unmeasured routes" do
+    @own_route.update!(distance: 48.4)
+    @public_route.update!(distance: 92.0)
+
+    get recommendations_map_routes_path,
+        params: viewport.merge(distance_min: "50", distance_max: "100"),
+        headers: { Accept: "application/json" }
+
+    ids = JSON.parse(response.body)["features"].map { |feature| feature["properties"]["id"] }
+    assert_equal [ @public_route.id ], ids
+  end
+
+  test "recommendations applies the elevation gain cap" do
+    @own_route.update!(elevation_gain: 820.0)
+    @public_route.update!(elevation_gain: 1500.0)
+
+    get recommendations_map_routes_path,
+        params: viewport.merge(elevation_max: "1000"),
+        headers: { Accept: "application/json" }
+
+    ids = JSON.parse(response.body)["features"].map { |feature| feature["properties"]["id"] }
+    assert_equal [ @own_route.id ], ids
+  end
+
+  test "recommendations applies the duration range in seconds" do
+    @own_route.update!(duration: 7200)
+    @public_route.update!(duration: 14_400)
+
+    get recommendations_map_routes_path,
+        params: viewport.merge(duration_min: "3600", duration_max: "10800"),
+        headers: { Accept: "application/json" }
+
+    ids = JSON.parse(response.body)["features"].map { |feature| feature["properties"]["id"] }
+    assert_equal [ @own_route.id ], ids
+  end
+
+  # #7: the truncation flag is what tells the drawer "zoom in to load more",
+  # so it must flip only when more matches exist than the cap ships.
+  test "recommendations flags truncation when matches exceed the cap" do
+    # Every route must be publicly visible (Phase 9: live share + scheduled on
+    # the owner's own calendar) or it never enters the public match set.
+    (MapsController::VIEWPORT_LIMIT + 1).times do |i|
+      route = @public_owner.routes.create!(source: "upload", title: "Public #{i}")
+      attach_track(route)
+      @public_owner.calendar_entries.create!(route: route, scheduled_on: Date.current + 3,
+                                             start_time: "08:00", end_time: "10:00")
+    end
+
+    get recommendations_map_routes_path, params: viewport, headers: { Accept: "application/json" }
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal true, payload["truncated"]
+    assert_equal MapsController::VIEWPORT_LIMIT,
+                 payload["features"].count { |feature| !feature["properties"]["own"] }
+  end
+
+  # #7: an own route that is publicly viewable must keep its public flag when
+  # it arrives through the FILTERED relation (own_public_route_ids runs on the
+  # filtered scope, not the whole library).
+  test "recommendations marks own publicly viewable matches as public" do
+    @viewer.update!(calendar_public: true)
+    @viewer.calendar_entries.create!(route: @own_route, scheduled_on: Date.current + 1,
+                                     start_time: "08:00", end_time: "10:00")
+
+    get recommendations_map_routes_path,
+        params: viewport.merge(sport_type: "road"), headers: { Accept: "application/json" }
+
+    feature = JSON.parse(response.body)["features"].find { |f| f["properties"]["own"] }
+    assert feature, "expected the viewer's own route to match the road filter"
+    assert_equal true, feature["properties"]["public"]
+  end
+
+  # #7: "all" is the client's way of saying "no sport constraint"; the
+  # controller accepts it explicitly and it must behave like an absent param.
+  test "recommendations treats sport_type=all as no sport constraint" do
+    @own_route.update!(sport_type: "Mountain biking")
+    @public_route.update!(sport_type: "Gravel")
+
+    get recommendations_map_routes_path,
+        params: viewport.merge(sport_type: "all"), headers: { Accept: "application/json" }
+
+    ids = JSON.parse(response.body)["features"].map { |f| f["properties"]["id"] }
+    assert_includes ids, @own_route.id
+    assert_includes ids, @public_route.id
+  end
+
+  test "recommendations answers 400 for malformed filters" do
+    get recommendations_map_routes_path,
+        params: viewport.merge(distance_min: "soon"), headers: { Accept: "application/json" }
+    assert_response :bad_request
+    assert JSON.parse(response.body)["error"].present?
+
+    get recommendations_map_routes_path,
+        params: viewport.merge(sport_type: "underwater"), headers: { Accept: "application/json" }
+    assert_response :bad_request
+
+    get recommendations_map_routes_path,
+        params: viewport.merge(distance_min: "100", distance_max: "10"),
+        headers: { Accept: "application/json" }
+    assert_response :bad_request
+
+    get recommendations_map_routes_path,
+        params: viewport.merge(duration_min: "-5"), headers: { Accept: "application/json" }
+    assert_response :bad_request
+  end
+
+  test "recommendations answers 400 for malformed viewport bounds" do
+    get recommendations_map_routes_path,
+        params: viewport.merge(north: "not-a-number"), headers: { Accept: "application/json" }
 
     assert_response :bad_request
     assert JSON.parse(response.body)["error"].present?

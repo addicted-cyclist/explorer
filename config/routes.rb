@@ -47,6 +47,7 @@ Rails.application.routes.draw do
   get "map", to: "maps#show", as: :map
   get "map/routes/own", to: "maps#own_routes", as: :own_map_routes
   get "map/routes/public", to: "maps#public_routes", as: :public_map_routes
+  get "map/routes/recommendations", to: "maps#recommendations", as: :recommendations_map_routes
   get "map/place_label", to: "maps#place_label", as: :map_place_label
 
   # Public, tokenized GPX streaming for the gpx.studio embed. The signed_id
