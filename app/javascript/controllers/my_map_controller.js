@@ -5,6 +5,15 @@ import { captureRouteThumbs } from "../map/route_thumb_capture";
 const KM_FORMAT = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
 const INT_FORMAT = new Intl.NumberFormat("en-US");
 
+// Chip copy per active sport category (drawer filter chips). Module-scoped so
+// the chip row costs nothing to rebuild on a camera move, and so the mapping
+// lives next to the state it describes instead of being re-created per call.
+const FIND_SPORT_LABELS = {
+  road: "Road cycling",
+  gravel: "Gravel",
+  mtb: "MTB",
+};
+
 // My Map page (technote.MYMAP-FEATURE.md): MapLibre rendering, route data
 // loading and interaction. Rails (MapsController + Map::RouteFeature) owns
 // authentication, authorization and the GeoJSON payloads; this controller
@@ -189,16 +198,21 @@ export default class MyMapController extends Controller {
     // (fetchRecommendations called without bounds): the first
     // refreshViewportData consumes it.
     this.matchPending = false;
+    // Fingerprint of the chip row currently in the DOM (renderFindChips
+    // short-circuits on a match). undefined — never null — so the first
+    // call renders even when the restored filter set is empty.
+    this.findChipsRenderedKey = undefined;
     this.findAbortController = null;
     this.boundApplyFindFilters = this.applyFindFilters.bind(this);
     this.element.addEventListener(
       "find-routes:apply",
       this.boundApplyFindFilters,
     );
-    if (this.findFilters) {
-      this.renderFindChips();
-      this.renderDrawer();
-    }
+    // Always run the chip render once: with no filters it just keeps the row
+    // hidden (markup default) while recording the empty fingerprint, so later
+    // renderFindChips calls stay no-ops until the filter set actually changes.
+    this.renderFindChips();
+    if (this.findFilters) this.renderDrawer();
 
     // Turbo caches/restores the page DOM (back/forward). A popup left open
     // at navigation time would ride the snapshot and reappear while the
@@ -1319,15 +1333,20 @@ export default class MyMapController extends Controller {
   // The previous match list is dropped first and the loading state raised
   // before the fetch: the drawer must read "Searching routes…" from this
   // click on, never the stale list or a premature "no routes match".
+  //
+  // The chips row is NOT rebuilt here: fetchRecommendations renders it once
+  // the response lands, and its fingerprint turns every unchanged call into
+  // a no-op. The red dot updates immediately so the button already reflects
+  // the new state while the request is in flight.
   applyFindFilters(event) {
     this.findFilters = event.detail.filters || {};
     this.matchIds = null;
     this.matchTruncated = false;
     this.matchLoading = true;
     this.persistFindFilters();
-    this.fetchRecommendations(this.viewportBounds);
-    this.renderFindChips();
+    this.toggleFindButtonState();
     this.renderDrawer();
+    this.fetchRecommendations(this.viewportBounds);
   }
 
   // Clear affordance on the chips row: drop the filters and return to the
@@ -1545,16 +1564,21 @@ export default class MyMapController extends Controller {
   // injected HTML. Listeners bind directly (Stimulus actions don't bind to
   // elements added after connect); the modal trigger still works because
   // the overlay controller listens for [data-modal-open] on the document.
+  //
+  // Filters are the ONLY input here, so a camera move must not rebuild the
+  // row: the chip fingerprint short-circuits every call whose filter set
+  // already rendered (re-creating the nodes would also drop the focused
+  // Edit/Clear button under the pointer). findButtonState() covers the red
+  // dot separately for callers that only need that.
   renderFindChips() {
+    const key = this.findChipsKey();
+    if (key === this.findChipsRenderedKey) return;
+    this.findChipsRenderedKey = key;
+
     const row = this.filterChipsTarget;
     row.replaceChildren();
     row.hidden = !this.findFilters;
-    // The Find button carries a red dot while any filters are active — the
-    // same condition as the chips row (and restored on reload with them).
-    this.findButtonTarget.classList.toggle(
-      "is-filtered",
-      Boolean(this.findFilters),
-    );
+    this.toggleFindButtonState();
     if (!this.findFilters) return;
 
     this.findFilterChips().forEach((label) => {
@@ -1587,15 +1611,32 @@ export default class MyMapController extends Controller {
     row.appendChild(clear);
   }
 
+  // The Find button carries a red dot while any filters are active — the
+  // same condition as the chips row (and restored on reload with them).
+  // Cheap enough to call on every filter change; never touches the chips.
+  toggleFindButtonState() {
+    this.findButtonTarget.classList.toggle(
+      "is-filtered",
+      Boolean(this.findFilters),
+    );
+  }
+
+  // Stable fingerprint of the active chip row: no filters, or the exact
+  // label sequence. Any filter change yields a new key, an unchanged set
+  // yields the same one — that is what makes renderFindChips idempotent.
+  findChipsKey() {
+    if (!this.findFilters) return "";
+    return this.findFilterChips().join("\u0000");
+  }
+
   // Human labels for the active filter set (the design's chip row: sport,
   // distance window, elevation cap, duration window).
   findFilterChips() {
     const filters = this.findFilters || {};
     const chips = [];
 
-    const SPORT_LABELS = { road: "Road cycling", gravel: "Gravel", mtb: "MTB" };
-    if (SPORT_LABELS[filters.sport_type]) {
-      chips.push(SPORT_LABELS[filters.sport_type]);
+    if (FIND_SPORT_LABELS[filters.sport_type]) {
+      chips.push(FIND_SPORT_LABELS[filters.sport_type]);
     }
 
     const min = filters.distance_min;
