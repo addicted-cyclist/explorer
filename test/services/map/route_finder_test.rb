@@ -29,9 +29,50 @@ class Map::RouteFinderTest < ActiveSupport::TestCase
   end
 
   test "sport categories match their free-text values case-insensitively" do
-    assert_equal [ @road.id ], matching_ids(sport_type: "road")
+    # @unmeasured has a blank sport_type, which the UI labels "Road bike" —
+    # so it IS a road match now (see the blank-sport_type tests below).
+    assert_equal [ @road.id, @unmeasured.id ], matching_ids(sport_type: "road")
     assert_equal [ @gravel.id ], matching_ids(sport_type: "gravel")
     assert_equal [ @mtb.id, @mtb_abbrev.id ].sort, matching_ids(sport_type: "mtb")
+  end
+
+  # Regression: a route with a BLANK sport_type renders as "Road bike" in the
+  # UI (RoutesHelper#sport_type_label / map drawer fallback). Before this
+  # contract the badge and the filter disagreed — only the handful of routes
+  # literally containing "road" matched, so the map showed 27 routes badged
+  # "Road bike" but returned 9 under the Road filter.
+  test "blank sport_type matches the default category, like its badge says" do
+    blank = @user.routes.create!(source: "upload", title: "No sport", sport_type: "")
+    nil_sport = @user.routes.create!(source: "upload", title: "Nil sport")
+
+    road = matching_ids(sport_type: "road")
+    assert_includes road, blank.id
+    assert_includes road, nil_sport.id
+    assert_includes road, @unmeasured.id
+  end
+
+  test "blank sport_type does not leak into non-default categories" do
+    blank = @user.routes.create!(source: "upload", title: "No sport", sport_type: "")
+
+    assert_not_includes matching_ids(sport_type: "gravel"), blank.id
+    assert_not_includes matching_ids(sport_type: "gravel"), @unmeasured.id
+    assert_not_includes matching_ids(sport_type: "mtb"), @unmeasured.id
+  end
+
+  test "the default category is declared exactly once in SPORT_CATEGORIES" do
+    defaults = Map::RouteFinder::SPORT_CATEGORIES.select { |_, c| c[:default] }.keys
+
+    assert_equal 1, defaults.size
+    assert_equal "road", Map::RouteFinder::SPORT_DEFAULT_CATEGORY
+  end
+
+  test "a hybrid sport_type matches every category it names" do
+    hybrid = @user.routes.create!(source: "upload", title: "Hybrid",
+                                  sport_type: "Road/Gravel")
+
+    assert_includes matching_ids(sport_type: "road"), hybrid.id
+    assert_includes matching_ids(sport_type: "gravel"), hybrid.id
+    assert_not_includes matching_ids(sport_type: "mtb"), hybrid.id
   end
 
   test "unrelated sports fall out of a category filter" do

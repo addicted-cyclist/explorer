@@ -309,6 +309,28 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ @public_route.id ], ids
   end
 
+  # End-to-end regression for the reported mismatch: routes whose sport_type
+  # is blank display as "Road bike" everywhere in the UI, so the Road filter
+  # must return them instead of hiding them behind a badge that claims
+  # otherwise.
+  test "recommendations treats blank sport_type as a road match, like its badge" do
+    @own_route.update!(sport_type: nil)
+    @public_route.update!(sport_type: "")
+    other = @public_owner.routes.create!(source: "upload", title: "Gravel loop",
+                                        sport_type: "Gravel")
+    attach_track(other)
+    @public_owner.calendar_entries.create!(route: other, scheduled_on: Date.current + 2,
+                                           start_time: "08:00", end_time: "10:00")
+
+    get recommendations_map_routes_path,
+        params: viewport.merge(sport_type: "road"), headers: { Accept: "application/json" }
+
+    ids = JSON.parse(response.body)["features"].map { |feature| feature["properties"]["id"] }
+    assert_includes ids, @own_route.id
+    assert_includes ids, @public_route.id
+    assert_not_includes ids, other.id
+  end
+
   test "recommendations applies distance bounds and drops unmeasured routes" do
     @own_route.update!(distance: 48.4)
     @public_route.update!(distance: 92.0)
