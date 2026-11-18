@@ -185,6 +185,10 @@ export default class MyMapController extends Controller {
     this.matchIds = null;
     this.matchTruncated = false;
     this.matchLoading = this.findFilters !== null;
+    // True while a match fetch is waiting for the first viewport settle
+    // (fetchRecommendations called without bounds): the first
+    // refreshViewportData consumes it.
+    this.matchPending = false;
     this.findAbortController = null;
     this.boundApplyFindFilters = this.applyFindFilters.bind(this);
     this.element.addEventListener(
@@ -704,7 +708,9 @@ export default class MyMapController extends Controller {
     this.loadPublicRoutes(this.viewportBounds);
     // Match mode (find new routes): silently refetch the matches for the
     // moved camera, re-applying the current filters — no Find re-press and
-    // no status churn (the camera movement IS the search here).
+    // no status churn (the camera movement IS the search here). This also
+    // consumes a pending match (a Find applied before the first settle):
+    // viewportBounds is set on the line above, so the request can go out now.
     if (this.findFilters) this.fetchRecommendations(this.viewportBounds);
     this.updateLocationLabel();
     this.settleStatus();
@@ -1310,9 +1316,14 @@ export default class MyMapController extends Controller {
   // Find submitted in the modal (find-routes:apply bubbles up here): enter
   // match mode with the semantic filter set and fetch the matches for the
   // current viewport. The set persists, so a reload re-enters this mode.
+  // The previous match list is dropped first and the loading state raised
+  // before the fetch: the drawer must read "Searching routes…" from this
+  // click on, never the stale list or a premature "no routes match".
   applyFindFilters(event) {
     this.findFilters = event.detail.filters || {};
     this.matchIds = null;
+    this.matchTruncated = false;
+    this.matchLoading = true;
     this.persistFindFilters();
     this.fetchRecommendations(this.viewportBounds);
     this.renderFindChips();
@@ -1327,6 +1338,7 @@ export default class MyMapController extends Controller {
     this.matchIds = null;
     this.matchTruncated = false;
     this.matchLoading = false;
+    this.matchPending = false;
     if (this.findAbortController) this.findAbortController.abort();
     this.clearPersistedFindFilters();
     // Back to the normal map: every cached route becomes visible again.
@@ -1399,12 +1411,21 @@ export default class MyMapController extends Controller {
   // camera move in match mode (the user decision: no Find re-press needed),
   // aborts the previous request, and keeps the last match list on failure —
   // only a failed FIRST apply surfaces the error pill (click retries).
+  //
+  // No bounds yet (Find pressed, or filters restored from localStorage,
+  // before the first viewport settle — a slow/failing base style delays
+  // it): stay in the loading state instead of flipping it off. The first
+  // refreshViewportData then fires the request, so match mode never gets
+  // stuck on a stale list with no way to retry.
   async fetchRecommendations(bounds) {
     if (!this.hasRecommendationsUrlValue) return;
     if (!bounds) {
-      this.matchLoading = false;
+      this.matchPending = true;
+      this.matchLoading = true;
+      this.renderDrawer();
       return;
     }
+    this.matchPending = false;
 
     if (this.findAbortController) this.findAbortController.abort();
     this.findAbortController = new AbortController();
