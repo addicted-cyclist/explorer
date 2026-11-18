@@ -1564,8 +1564,8 @@ export default class MyMapController extends Controller {
   // Filters are the ONLY input here, so a camera move must not rebuild the
   // row: the chip fingerprint short-circuits every call whose filter set
   // already rendered (re-creating the nodes would also drop the focused
-  // Edit/Clear button under the pointer). findButtonState() covers the red
-  // dot separately for callers that only need that.
+  // Edit/Clear button under the pointer). toggleFindButtonState() covers the
+  // red dot separately for callers that only need that.
   renderFindChips() {
     const key = this.findChipsKey();
     if (key === this.findChipsRenderedKey) return;

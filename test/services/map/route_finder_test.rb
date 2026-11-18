@@ -31,9 +31,9 @@ class Map::RouteFinderTest < ActiveSupport::TestCase
   test "sport categories match their free-text values case-insensitively" do
     # @unmeasured has a blank sport_type, which the UI labels "Road bike" —
     # so it IS a road match now (see the blank-sport_type tests below).
-    assert_equal [ @road.id, @unmeasured.id ], matching_ids(sport_type: "road")
-    assert_equal [ @gravel.id ], matching_ids(sport_type: "gravel")
-    assert_equal [ @mtb.id, @mtb_abbrev.id ].sort, matching_ids(sport_type: "mtb")
+    assert_equal ids(@road, @unmeasured), matching_ids(sport_type: "road")
+    assert_equal ids(@gravel), matching_ids(sport_type: "gravel")
+    assert_equal ids(@mtb, @mtb_abbrev), matching_ids(sport_type: "mtb")
   end
 
   # Regression: a route with a BLANK sport_type renders as "Road bike" in the
@@ -81,26 +81,22 @@ class Map::RouteFinderTest < ActiveSupport::TestCase
   end
 
   test "distance range keeps routes inside the window and drops unmeasured ones" do
-    assert_equal [ @gravel.id ], matching_ids(distance_min: 50)
-    assert_equal [ @road.id, @mtb.id, @mtb_abbrev.id, @hike.id ].sort,
-                 matching_ids(distance_max: 50)
-    assert_equal [ @road.id, @mtb.id, @mtb_abbrev.id ].sort,
+    assert_equal ids(@gravel), matching_ids(distance_min: 50)
+    assert_equal ids(@road, @mtb, @mtb_abbrev, @hike), matching_ids(distance_max: 50)
+    assert_equal ids(@road, @mtb, @mtb_abbrev),
                  matching_ids(distance_min: 20, distance_max: 50)
   end
 
   test "elevation cap is inclusive" do
-    assert_equal [ @mtb.id, @mtb_abbrev.id, @hike.id ].sort,
-                 matching_ids(elevation_max: 700)
-    assert_equal [ @road.id, @gravel.id, @mtb.id, @mtb_abbrev.id, @hike.id ].sort,
+    assert_equal ids(@mtb, @mtb_abbrev, @hike), matching_ids(elevation_max: 700)
+    assert_equal ids(@road, @gravel, @mtb, @mtb_abbrev, @hike),
                  matching_ids(elevation_max: 1500)
   end
 
   test "duration range filters in seconds, bounds inclusive" do
-    assert_equal [ @road.id, @gravel.id, @hike.id ].sort,
-                 matching_ids(duration_min: 7000)
-    assert_equal [ @mtb.id, @mtb_abbrev.id ].sort,
-                 matching_ids(duration_max: 7000)
-    assert_equal [ @mtb.id, @mtb_abbrev.id ].sort,
+    assert_equal ids(@road, @gravel, @hike), matching_ids(duration_min: 7000)
+    assert_equal ids(@mtb, @mtb_abbrev), matching_ids(duration_max: 7000)
+    assert_equal ids(@mtb, @mtb_abbrev),
                  matching_ids(duration_min: 5000, duration_max: 7000)
   end
 
@@ -108,15 +104,37 @@ class Map::RouteFinderTest < ActiveSupport::TestCase
     assert_equal 6, Map::RouteFinder.call(@user.routes, filters: {}).count
   end
 
-  test "unknown filter keys are ignored" do
-    assert_equal 6, Map::RouteFinder.call(
-      @user.routes, filters: { user_id: 99_999, tier: "Hard" }
-    ).count
+  # #6: the safety property is "unknown keys never reach the query", proven by
+  # inspecting the SQL AND by a real filter still applying — not merely "the
+  # count didn't move".
+  test "unknown filter keys are rejected, never silently applied" do
+    assert_raises(ArgumentError) do
+      Map::RouteFinder.call(@user.routes, filters: { user_id: 99_999 })
+    end
+  end
+
+  test "a real filter still applies alongside a rejected key" do
+    # The base scope (@user.routes) legitimately carries its own user_id
+    # ownership clause — what must never appear is a user_id constraint
+    # smuggled in from the FILTERS. Assert the distance bound landed and that
+    # the filter hash rejected the extra key before touching the query.
+    assert_raises(ArgumentError) do
+      Map::RouteFinder.call(@user.routes, filters: { distance_min: 50, user_id: 1 })
+    end
+    assert_equal ids(@gravel), matching_ids(distance_min: 50)
   end
 
   private
 
   def matching_ids(filters)
     Map::RouteFinder.call(@user.routes, filters: filters).order(:id).pluck(:id)
+  end
+
+  # Expected ids for +routes+, in the SAME order matching_ids returns them
+  # (creation order == id order for these fixtures). Keeps assertions free of
+  # scattered `.sort` calls — the ordering under test is the query's, not the
+  # expectation's.
+  def ids(*routes)
+    routes.map(&:id)
   end
 end

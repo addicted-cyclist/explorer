@@ -45,7 +45,6 @@ module Map
       "mtb" => { label: "MTB", patterns: [ "%mtb%", "%mountain%", "%cross%" ] }
     }.freeze
 
-
     # Derived from SPORT_CATEGORIES — the matching code and the controller's
     # validation both read the patterns through this name.
     SPORT_PATTERNS = SPORT_CATEGORIES.transform_values { |category| category[:patterns] }.freeze
@@ -54,19 +53,29 @@ module Map
     # such routes with). Nil only if no category declares default: true.
     SPORT_DEFAULT_CATEGORY = SPORT_CATEGORIES.find { |_, category| category[:default] }&.first
 
-    # Keys the finder understands; anything else is dropped, so a stale or
-    # hostile client can never smuggle arbitrary column filters through.
+    # Keys the finder understands; anything else is REJECTED (see .call), so a
+    # stale or hostile client can never smuggle arbitrary column filters
+    # through — and a caller cannot silently lose a constraint it thought it
+    # set.
     FILTER_KEYS = %i[
       sport_type distance_min distance_max
       elevation_max duration_min duration_max
     ].freeze
 
     class << self
-      # Filtered relation. +filters+ is a symbol-keyed, already-validated
-      # hash (MapsController#set_recommendation_filters); unknown keys are
-      # ignored and absent bounds mean "open".
+      # Filtered relation. +filters+ is a symbol-keyed hash; unknown keys are
+      # rejected rather than ignored, so a caller can never believe it applied
+      # a constraint that silently vanished (the "unknown key" case is only
+      # ever reachable from a programming mistake, never from the controller —
+      # MapsController#set_recommendation_filters whitelists before calling).
+      # Absent bounds mean "open".
       def call(scope, filters:)
-        filters = filters.slice(*FILTER_KEYS).compact
+        unknown = filters.keys - FILTER_KEYS
+        if unknown.any?
+          raise ArgumentError, "unknown filter keys: #{unknown.map(&:inspect).join(', ')}"
+        end
+
+        filters = filters.compact
         scope = filter_sport(scope, filters[:sport_type])
         scope = filter_range(scope, :distance, filters[:distance_min],
                              filters[:distance_max])
@@ -75,6 +84,7 @@ module Map
         filter_range(scope, :duration, filters[:duration_min],
                      filters[:duration_max])
       end
+
 
       private
 

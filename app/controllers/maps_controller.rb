@@ -20,9 +20,19 @@ class MapsController < ApplicationController
   # so a long-roaming session can't grow the request URL without bound.
   MAX_EXCLUDED_IDS = 1_000
 
+  # 400 copy for a rejected filter set. Built from the category keys so the
+  # accepted values can never drift from the validator below.
+  INVALID_FILTERS_ERROR = "Invalid filters: sport_type must be one of " \
+                          "#{Map::RouteFinder::SPORT_PATTERNS.keys.join(', ')} " \
+                          "or all; distance/elevation/duration bounds must be " \
+                          "non-negative numbers with min <= max.".freeze
+
   # Validates west/south/east/north into @bounds before the viewport queries
   # run (own and public alike, §5.1); malformed requests are answered with a
-  # 400 JSON error.
+  # 400 JSON error. The explicit `return false` after rendering halts the
+  # before_action chain rather than relying on the implicit render-halts
+  # semantics (two validators run for #recommendations, and a silent
+  # continuation would run the action with @bounds == nil).
   before_action :set_viewport_bounds, only: %i[own_routes public_routes recommendations]
   # Delta loading: ids the client already merged (comma-separated in
   # exclude_ids) never need to ship again — validated with the same
@@ -52,11 +62,7 @@ class MapsController < ApplicationController
   # preload: the cache key needs the GPX blob and the drawer thumb needs the
   # static-map blob (one SELECT per table).
   def own_routes
-    scope = current_user.routes
-                         .with_track
-                         .intersecting_viewport(*@bounds)
-                         .includes(gpx_file_attachment: :blob, static_map_attachment: :blob)
-                         .order(updated_at: :desc)
+    scope = viewport_scope(current_user.routes)
     scope = scope.where.not(id: @excluded_ids) if @excluded_ids.any?
 
     render json: Map::RouteFeature.collection(scope, own: true, public_ids: own_public_route_ids(scope))
@@ -67,12 +73,7 @@ class MapsController < ApplicationController
   # excluded: they are already fully loaded via #own_routes and must never
   # be double-drawn. Most-recently-touched routes win the limit.
   def public_routes
-    scope = Route.publicly_visible
-                 .where.not(user_id: current_user.id)
-                 .with_track
-                 .intersecting_viewport(*@bounds)
-                 .includes(gpx_file_attachment: :blob, static_map_attachment: :blob)
-                 .order(updated_at: :desc)
+    scope = viewport_scope(Route.publicly_visible.where.not(user_id: current_user.id))
     # Delta loading: routes the client already merged never ship again —
     # the response carries only what the map is still missing.
     scope = scope.where.not(id: @excluded_ids) if @excluded_ids.any?
@@ -157,14 +158,22 @@ class MapsController < ApplicationController
   # filters applied by Map::RouteFinder (filter semantics live in exactly
   # one place so counts and chips agree with the drawn lines).
   def filtered_viewport_routes(scope)
-    Map::RouteFinder.call(
-      scope.with_track
-           .intersecting_viewport(*@bounds)
-           .includes(gpx_file_attachment: :blob, static_map_attachment: :blob)
-           .order(updated_at: :desc),
-      filters: @recommendation_filters
-    )
+    Map::RouteFinder.call(viewport_scope(scope), filters: @recommendation_filters)
   end
+
+  # The shared viewport read for all three GeoJSON feeds (#10): only routes
+  # the map can draw (with_track), intersecting the requested rect (§5.1),
+  # with both attachments preloaded — the cache key needs the GPX blob and
+  # the drawer thumb needs the static-map blob (one SELECT per table) — and
+  # most-recently-touched first. Keeping this in one place means the feeds
+  # cannot drift apart in eager-loading or ordering.
+  def viewport_scope(scope)
+    scope.with_track
+         .intersecting_viewport(*@bounds)
+         .includes(gpx_file_attachment: :blob, static_map_attachment: :blob)
+         .order(updated_at: :desc)
+  end
+
 
   # Whitelist + validate the "Find new routes" filter params before
   # #recommendations runs: unknown sport categories and non-numeric or
@@ -202,11 +211,8 @@ class MapsController < ApplicationController
       duration_max: duration_max
     }.compact
   rescue ArgumentError, TypeError
-    render json: { error: "Invalid filters: sport_type must be one of " \
-                          "#{Map::RouteFinder::SPORT_PATTERNS.keys.join(', ')} " \
-                          "or all; distance/elevation/duration bounds must be " \
-                          "non-negative numbers with min <= max." },
-           status: :bad_request
+    render json: { error: INVALID_FILTERS_ERROR }, status: :bad_request
+    false
   end
 
   # A validated float ≥ 0, or nil for absent/blank params. Garbage raises
@@ -240,6 +246,7 @@ class MapsController < ApplicationController
   rescue ArgumentError, TypeError
     render json: { error: "Invalid viewport: expected numeric west, south, east, north with south < north." },
            status: :bad_request
+    false
   end
 
   # Delta loading (§5.1/§5.2: "avoid duplicate requests"): the map client
@@ -255,5 +262,6 @@ class MapsController < ApplicationController
   rescue ArgumentError, TypeError
     render json: { error: "Invalid exclude_ids: expected comma-separated numeric route ids." },
            status: :bad_request
+    false
   end
 end

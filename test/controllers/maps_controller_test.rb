@@ -367,6 +367,57 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ @own_route.id ], ids
   end
 
+  # #7: the truncation flag is what tells the drawer "zoom in to load more",
+  # so it must flip only when more matches exist than the cap ships.
+  test "recommendations flags truncation when matches exceed the cap" do
+    # Every route must be publicly visible (Phase 9: live share + scheduled on
+    # the owner's own calendar) or it never enters the public match set.
+    (MapsController::VIEWPORT_LIMIT + 1).times do |i|
+      route = @public_owner.routes.create!(source: "upload", title: "Public #{i}")
+      attach_track(route)
+      @public_owner.calendar_entries.create!(route: route, scheduled_on: Date.current + 3,
+                                             start_time: "08:00", end_time: "10:00")
+    end
+
+    get recommendations_map_routes_path, params: viewport, headers: { Accept: "application/json" }
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal true, payload["truncated"]
+    assert_equal MapsController::VIEWPORT_LIMIT,
+                 payload["features"].count { |feature| !feature["properties"]["own"] }
+  end
+
+  # #7: an own route that is publicly viewable must keep its public flag when
+  # it arrives through the FILTERED relation (own_public_route_ids runs on the
+  # filtered scope, not the whole library).
+  test "recommendations marks own publicly viewable matches as public" do
+    @viewer.update!(calendar_public: true)
+    @viewer.calendar_entries.create!(route: @own_route, scheduled_on: Date.current + 1,
+                                     start_time: "08:00", end_time: "10:00")
+
+    get recommendations_map_routes_path,
+        params: viewport.merge(sport_type: "road"), headers: { Accept: "application/json" }
+
+    feature = JSON.parse(response.body)["features"].find { |f| f["properties"]["own"] }
+    assert feature, "expected the viewer's own route to match the road filter"
+    assert_equal true, feature["properties"]["public"]
+  end
+
+  # #7: "all" is the client's way of saying "no sport constraint"; the
+  # controller accepts it explicitly and it must behave like an absent param.
+  test "recommendations treats sport_type=all as no sport constraint" do
+    @own_route.update!(sport_type: "Mountain biking")
+    @public_route.update!(sport_type: "Gravel")
+
+    get recommendations_map_routes_path,
+        params: viewport.merge(sport_type: "all"), headers: { Accept: "application/json" }
+
+    ids = JSON.parse(response.body)["features"].map { |f| f["properties"]["id"] }
+    assert_includes ids, @own_route.id
+    assert_includes ids, @public_route.id
+  end
+
   test "recommendations answers 400 for malformed filters" do
     get recommendations_map_routes_path,
         params: viewport.merge(distance_min: "soon"), headers: { Accept: "application/json" }
