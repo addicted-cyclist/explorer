@@ -49,6 +49,7 @@ export default class MyMapController extends Controller {
     "drawerCount",
     "drawerCountNote",
     "filterChips",
+    "findButton",
     "cardList",
     "drawerEmpty",
     "cardTemplate",
@@ -71,6 +72,7 @@ export default class MyMapController extends Controller {
     "profileEnd",
     "popupLink",
     "popupDownload",
+    "popupMobileLink",
   ];
 
   static values = {
@@ -194,6 +196,14 @@ export default class MyMapController extends Controller {
       this.renderDrawer();
     }
 
+    // Turbo caches/restores the page DOM (back/forward). A popup left open
+    // at navigation time would ride the snapshot and reappear while the
+    // fresh controller starts with nothing selected — drop it from the
+    // snapshot, and start clean on a restore for good measure.
+    this.boundBeforeCache = this.hideTransientUi.bind(this);
+    document.addEventListener("turbo:before-cache", this.boundBeforeCache);
+    this.hideTransientUi();
+
     this.buildMap();
     this.ro = new ResizeObserver(() => {
       // MapLibre needs an explicit resize when its container changes size
@@ -220,6 +230,7 @@ export default class MyMapController extends Controller {
       "find-routes:apply",
       this.boundApplyFindFilters,
     );
+    document.removeEventListener("turbo:before-cache", this.boundBeforeCache);
     if (this.ro) this.ro.disconnect();
     if (this.map) {
       this.map.remove();
@@ -1007,6 +1018,18 @@ export default class MyMapController extends Controller {
     this.renderDrawer();
   }
 
+  // Turbo's page cache must never capture transient overlay state: a popup
+  // left open would reappear on back/forward while the restored controller
+  // starts with nothing selected (and the first viewport settle re-answers
+  // the status pill anyway).
+  hideTransientUi() {
+    if (this.hasPopupTarget) this.popupTarget.hidden = true;
+    if (this.hasStatusTarget) {
+      this.statusTarget.hidden = true;
+      this.statusTarget.classList.remove("is-loading", "is-error");
+    }
+  }
+
   renderPopup(feature) {
     const properties = feature.properties;
     const own = Boolean(properties.own);
@@ -1040,6 +1063,9 @@ export default class MyMapController extends Controller {
 
     this.popupLinkTarget.href = properties.url || "#";
     this.popupDownloadTarget.href = properties.download_url || "#";
+    // Touch layout: the card collapses to the floating details pill; its
+    // link rides the same property.
+    this.popupMobileLinkTarget.href = properties.url || "#";
 
     this.renderProfile(properties.elevation_profile);
     this.popupTarget.hidden = false;
@@ -1212,6 +1238,12 @@ export default class MyMapController extends Controller {
 
     const select = () => {
       this.selectRoute(properties.id);
+      // Touch layout: selecting from the drawer hides it — the freed space
+      // goes to the map (the collapsed chip stays reachable; phones get the
+      // compact details pill instead of the full card).
+      if (window.matchMedia("(max-width: 1023px)").matches) {
+        this.collapseDrawer();
+      }
       const box = properties.bounds;
       if (box) {
         this.map.fitBounds(
@@ -1497,6 +1529,12 @@ export default class MyMapController extends Controller {
     const row = this.filterChipsTarget;
     row.replaceChildren();
     row.hidden = !this.findFilters;
+    // The Find button carries a red dot while any filters are active — the
+    // same condition as the chips row (and restored on reload with them).
+    this.findButtonTarget.classList.toggle(
+      "is-filtered",
+      Boolean(this.findFilters),
+    );
     if (!this.findFilters) return;
 
     this.findFilterChips().forEach((label) => {

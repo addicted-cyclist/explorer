@@ -59,7 +59,8 @@
         <button type="button" class="mymap__find btn btn--primary"
                 title="Find new routes nearby"
                 data-action="my-map#openFindRoutes"
-                data-modal-open="find-routes">
+                data-modal-open="find-routes"
+                data-my-map-target="findButton">
           <span class="material-symbols-outlined" aria-hidden="true">filter_arrow_right</span>
           <span class="mymap__find-label">Find new routes</span>
         </button>
@@ -182,6 +183,22 @@
                     aria: { label: "Download GPX" }, data: { my_map_target: "popupDownload" } do %>
           <span class="material-symbols-outlined" aria-hidden="true">download</span>
         <% end %>
+      </div>
+
+      <%# Touch layout (phones): the card above collapses to this floating
+          bar — a small rounded black "Route details" jump plus a deselect ×.
+          The rich card stays in the DOM for desktop/tablet; CSS swaps the
+          two presentations at the popup's mobile breakpoint. %>
+      <div class="mymap-popup__mobile-bar">
+        <%= link_to "#", class: "mymap-popup__mobile-cta",
+                    data: { my_map_target: "popupMobileLink" } do %>
+          <span>Route details</span>
+          <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span>
+        <% end %>
+        <button type="button" class="mymap-popup__mobile-close" data-action="my-map#closePopup"
+                aria-label="Close route preview">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+        </button>
       </div>
     </aside>
 

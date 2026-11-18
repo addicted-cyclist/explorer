@@ -16,8 +16,14 @@
      container; vertically the stage flexes to whatever height is left (no
      floor), so the document never overflows — not on phone landscape,
      split view, font-scaled phones or short desktop windows. */
-  height: calc(100dvh - var(--nav-height) - var(--mymap-subbar-height));
+  height: calc(100dvh - var(--nav-height));
   overflow-x: clip;
+}
+
+@media (max-width: 768px) {
+  .mymap {
+    height: calc(100dvh - var(--nav-height) - var(--mymap-subbar-height));
+  }
 }
 
 /* --- Sub-bar (breadcrumb chip, scope pills, draw affordance) -------- */
@@ -700,21 +706,88 @@
   color: var(--color-text-primary);
 }
 
+/* Touch-layout pill bar (phones): hidden on the desktop card; the mobile
+   media query below swaps the whole popup over to it. */
+.mymap-popup__mobile-bar {
+  display: none;
+}
+
 /* --- Responsive ------------------------------------------------------ */
 
 @media (max-width: 767px) {
   .mymap-popup {
-    /* Bottom sheet on phones: clear of the mobile nav + status pill. */
+    /* Phones: the card collapses to a floating "Route details" pill bar —
+       centered in its own row above the status pill, clear of the mobile
+       bottom nav. The rich card stays for desktop/tablet. */
     top: auto;
-    right: var(--space-sm);
-    bottom: calc(4.5rem + var(--space-md));
-    left: var(--space-sm);
-    width: auto;
-    max-height: 55%;
+    right: auto;
+    bottom: calc(5rem + 3rem);
+    left: 50%;
+    width: max-content;
+    max-width: calc(100vw - 2rem);
+    max-height: none;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    overflow: visible;
+    transform: translateX(-50%);
+  }
+
+  /* The card's rich content hides; only the pill bar below shows. */
+  .mymap-popup__badge-row,
+  .mymap-popup__title,
+  .mymap-popup__description,
+  .mymap-popup__stats,
+  .mymap-popup__profile,
+  .mymap-popup__actions {
+    display: none;
+  }
+
+  .mymap-popup__mobile-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2xs);
+  }
+
+  .mymap-popup__mobile-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2xs);
+    padding: var(--space-sm) var(--space-sm);
+    border-radius: var(--radius-full);
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+    font-size: 0.8125rem;
+    line-height: 1rem;
+    font-weight: 600;
+    box-shadow: var(--shadow-lg);
+  }
+
+  .mymap-popup__mobile-cta .material-symbols-outlined {
+    font-size: 1rem;
+  }
+
+  .mymap-popup__mobile-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border: 0;
+    border-radius: var(--radius-full);
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .mymap-popup__mobile-close .material-symbols-outlined {
+    font-size: 1rem;
   }
 
   .mymap-status {
-    bottom: 5rem;
+    bottom: var(--space-md);
   }
 }
 
@@ -754,6 +827,24 @@
   .mymap__find .mymap__find-label {
     display: inline;
   }
+}
+
+/* Red dot while find filters are active: anchors to the button's corner,
+   ringed with the sub-bar surface so it reads on the black button. */
+.mymap__find {
+  position: relative;
+}
+
+.mymap__find.is-filtered::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--radius-full);
+  background: var(--color-accent-route);
+  box-shadow: 0 0 0 2px var(--color-surface-card);
 }
 
 /* Drawer chips row (match mode): one chip per active filter + Edit + Clear. */
