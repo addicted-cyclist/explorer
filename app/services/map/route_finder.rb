@@ -10,7 +10,8 @@ module Map
   # Semantics:
   #   * sport_type is free text on the route ("Road Cycling", "Gravel 50k",
   #     "MTB", "Mountain biking", "Ride", ...), so categories match through
-  #     case-insensitive ILIKE patterns instead of exact values.
+  #     case-insensitive ILIKE patterns instead of exact values — see
+  #     SPORT_CATEGORIES, the single definition of the categories themselves.
   #   * Open-ended bounds are simply absent keys — the client omits the
   #     param when a slider thumb parks on its end ("180+ km", "3,000+ m").
   #   * Routes with NULL stats drop out of an active comparison on their own
@@ -21,12 +22,26 @@ module Map
   # Every condition is parameterized (bound arrays / where hashes) — request
   # data never reaches the SQL text.
   class RouteFinder
-    # Sport category → ILIKE patterns over routes.sport_type.
-    SPORT_PATTERNS = {
-      "road" => [ "%road%" ],
-      "gravel" => [ "%gravel%" ],
-      "mtb" => [ "%mtb%", "%mountain%", "%cross%" ]
+    # Sport categories — the SINGLE SOURCE OF TRUTH for the whole "Find new
+    # routes" flow. The modal's segment buttons (maps/show.html.erb via
+    # MapsHelper#find_sport_categories), the drawer's chip copy (shipped to
+    # the my-map controller as a Stimulus value) and the SQL matching below
+    # all read from this hash, so adding a category is a one-line change.
+    #
+    # label:    UI copy ("Road cycling", "Gravel", "MTB").
+    # patterns: ILIKE patterns over routes.sport_type, which is FREE TEXT on
+    #           the route ("Road Cycling", "Gravel 50k", "MTB",
+    #           "Mountain biking", "Ride", ...), so categories match through
+    #           case-insensitive patterns instead of exact values.
+    SPORT_CATEGORIES = {
+      "road" => { label: "Road cycling", patterns: [ "%road%" ] },
+      "gravel" => { label: "Gravel", patterns: [ "%gravel%" ] },
+      "mtb" => { label: "MTB", patterns: [ "%mtb%", "%mountain%", "%cross%" ] }
     }.freeze
+
+    # Derived from SPORT_CATEGORIES — the matching code and the controller's
+    # validation both read the patterns through this name.
+    SPORT_PATTERNS = SPORT_CATEGORIES.transform_values { |category| category[:patterns] }.freeze
 
     # Keys the finder understands; anything else is dropped, so a stale or
     # hostile client can never smuggle arbitrary column filters through.

@@ -59,6 +59,36 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert_match 'data-my-map-hotspot-bounds-value="[]"', response.body
   end
 
+  # The sport categories have exactly one definition (Map::RouteFinder::
+  # SPORT_CATEGORIES). These tests pin the three consumers to it, so adding a
+  # category server-side cannot silently leave the modal or the chips behind.
+  test "the find modal's sport buttons come from SPORT_CATEGORIES" do
+    get map_path
+
+    assert_response :success
+    # "all" is the leading UI-only button; the rest are the real categories.
+    rendered = css_select(".find-routes__segment-btn").map { |node| node["data-sport"] }
+    assert_equal [ "all", *Map::RouteFinder::SPORT_PATTERNS.keys ], rendered
+  end
+
+  test "the find modal's sport buttons carry the SPORT_CATEGORIES labels" do
+    get map_path
+
+    Map::RouteFinder::SPORT_CATEGORIES.each do |key, category|
+      assert_select ".find-routes__segment-btn[data-sport='#{key}']", text: category[:label]
+    end
+  end
+
+  test "the drawer chips receive the sport categories as a Stimulus value" do
+    get map_path
+
+    expected = Map::RouteFinder::SPORT_CATEGORIES.map do |key, category|
+      { key: key, label: category[:label] }
+    end
+    assert_match "data-my-map-sports-value=\"#{ERB::Util.html_escape(expected.to_json)}\"",
+                 response.body
+  end
+
   # ---- own routes (§4.1/§5.1) ------------------------------------------------
 
   test "own routes returns the viewer's viewport rides, private included" do

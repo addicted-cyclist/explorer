@@ -14,4 +14,18 @@ module MapsHelper
       defaultPlaceLabel: config[:default_place_label]
     }
   end
+
+  # "Find new routes" sport categories for the filter modal — read from
+  # Map::RouteFinder::SPORT_CATEGORIES, the single definition of the
+  # categories (labels + SQL patterns). The modal's segment buttons and the
+  # drawer's chip copy both consume this list, so a new category server-side
+  # appears in the UI without touching ERB or JS.
+  #
+  # [{ key: "road", label: "Road cycling" }, ...] — "all" is added by the
+  # view's own leading button since it is a UI concept, not a category.
+  def find_sport_categories
+    Map::RouteFinder::SPORT_CATEGORIES.map do |key, category|
+      { key: key, label: category[:label] }
+    end
+  end
 end

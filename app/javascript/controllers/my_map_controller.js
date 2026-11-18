@@ -5,15 +5,6 @@ import { captureRouteThumbs } from "../map/route_thumb_capture";
 const KM_FORMAT = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
 const INT_FORMAT = new Intl.NumberFormat("en-US");
 
-// Chip copy per active sport category (drawer filter chips). Module-scoped so
-// the chip row costs nothing to rebuild on a camera move, and so the mapping
-// lives next to the state it describes instead of being re-created per call.
-const FIND_SPORT_LABELS = {
-  road: "Road cycling",
-  gravel: "Gravel",
-  mtb: "MTB",
-};
-
 // My Map page (technote.MYMAP-FEATURE.md): MapLibre rendering, route data
 // loading and interaction. Rails (MapsController + Map::RouteFeature) owns
 // authentication, authorization and the GeoJSON payloads; this controller
@@ -97,6 +88,11 @@ export default class MyMapController extends Controller {
     // GET endpoint for the "Find new routes" matches (maps/show.html.erb
     // renders it from the recommendations_map_routes route).
     recommendationsUrl: String,
+    // "Find new routes" sport categories as [{ key, label }, ...], shipped
+    // from Map::RouteFinder::SPORT_CATEGORIES — the same list that drives the
+    // modal's segment buttons and the SQL matching, so the chips can never
+    // drift from what the server actually filters on.
+    sports: Array,
     // GET endpoint for the location chip's reverse-geocoded label
     // (maps/show.html.erb renders it from the map_place_label route).
     placeLabelUrl: String,
@@ -1635,8 +1631,11 @@ export default class MyMapController extends Controller {
     const filters = this.findFilters || {};
     const chips = [];
 
-    if (FIND_SPORT_LABELS[filters.sport_type]) {
-      chips.push(FIND_SPORT_LABELS[filters.sport_type]);
+    if (this.hasSportsValue && this.sportsValue.length) {
+      const category = this.sportsValue.find(
+        (entry) => entry.key === filters.sport_type,
+      );
+      if (category) chips.push(category.label);
     }
 
     const min = filters.distance_min;

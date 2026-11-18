@@ -18,6 +18,10 @@
      data-my-map-recommendations-url-value="<%= recommendations_map_routes_path %>"
      data-my-map-place-label-url-value="<%= map_place_label_path %>"
      data-my-map-thumb-post-url-template-value="<%= static_map_route_path("__ROUTE_ID__") %>"
+     <%# "Find new routes" sport categories (key + label) straight from
+         Map::RouteFinder::SPORT_CATEGORIES — the drawer's filter chips label
+         themselves from this list instead of a duplicated JS map. %>
+     data-my-map-sports-value="<%= find_sport_categories.to_json %>"
      <%# The most-ridden place ([w, s, e, n]) computed server-side from the
          whole own-routes library — own routes load per viewport now, so the
          client can no longer derive it. "[]" when no parsed routes exist;
@@ -256,10 +260,16 @@
         <div class="find-routes__field">
           <span class="find-routes__label">Route type</span>
           <div class="find-routes__segment" role="group" aria-label="Route type">
+            <%# Leading "All" is a UI concept (no sport constraint), not a
+                category — the categories themselves come from
+                Map::RouteFinder::SPORT_CATEGORIES via find_sport_categories,
+                the single source of truth shared with the SQL matching and
+                the drawer chips. %>
             <button type="button" class="find-routes__segment-btn is-active" data-sport="all" data-action="find-routes#pickSport">All</button>
-            <button type="button" class="find-routes__segment-btn" data-sport="road" data-action="find-routes#pickSport">Road</button>
-            <button type="button" class="find-routes__segment-btn" data-sport="gravel" data-action="find-routes#pickSport">Gravel</button>
-            <button type="button" class="find-routes__segment-btn" data-sport="mtb" data-action="find-routes#pickSport">MTB</button>
+            <% find_sport_categories.each do |category| %>
+              <button type="button" class="find-routes__segment-btn"
+                      data-sport="<%= category[:key] %>" data-action="find-routes#pickSport"><%= category[:label] %></button>
+            <% end %>
           </div>
         </div>
 
