@@ -1,6 +1,7 @@
 import { Controller } from "@hotwired/stimulus";
 import maplibregl from "maplibre-gl";
 import { captureRouteThumbs } from "../map/route_thumb_capture";
+import { RoutePlanner } from "../map/route_planner";
 
 const KM_FORMAT = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
 const INT_FORMAT = new Intl.NumberFormat("en-US");
@@ -71,8 +72,14 @@ export default class MyMapController extends Controller {
     "profileMid",
     "profileEnd",
     "popupLink",
+    "popupEdit",
     "popupDownload",
     "popupMobileLink",
+    // Route Planner (technote.ROUTE-DRAW.md): the editor panel lives inside
+    // the map stage; the sub-bar swaps pills for the drawing chip + Exit.
+    "plannerPanel",
+    "drawingChip",
+    "exitButton",
   ];
 
   static values = {
@@ -100,6 +107,16 @@ export default class MyMapController extends Controller {
     // "__ROUTE_ID__" placeholder (maps/show.html.erb renders it from the
     // static_map member route).
     thumbPostUrlTemplate: String,
+    // Route Planner (technote.ROUTE-DRAW.md): the three POST doors
+    // (segment calculate, editor save, POI image upload) plus the edit-link
+    // template for the popup's "Edit route in the planner" affordance.
+    plannerCalculateUrl: String,
+    plannerSaveUrl: String,
+    plannerPoiImageUrl: String,
+    popupEditUrlTemplate: String,
+    // §2.2: server-rendered editor state when the page opened via
+    // /map?edit=ID — the controller boots the planner with it on map load.
+    editState: Object,
   };
 
   // Debounce for viewport-driven public fetches (§5.2).
@@ -240,6 +257,11 @@ export default class MyMapController extends Controller {
     if (this.ownAbortController) this.ownAbortController.abort();
     if (this.labelAbortController) this.labelAbortController.abort();
     if (this.findAbortController) this.findAbortController.abort();
+    // The planner removes its markers, DOM listeners and map handlers.
+    if (this.planner) {
+      this.planner.teardown();
+      this.planner = null;
+    }
     this.element.removeEventListener(
       "find-routes:apply",
       this.boundApplyFindFilters,
@@ -303,6 +325,17 @@ export default class MyMapController extends Controller {
   onMapLoad() {
     this.addRouteLayers();
     this.bindClicks();
+
+    // Route Planner edit entry (§2.2): /map?edit=ID ships the editor state;
+    // boot the planner as soon as the style is ready. A user who clicked
+    // "Draw new route" while the style was still loading retries here too.
+    if (this.pendingPlannerState) {
+      const state = this.pendingPlannerState;
+      this.pendingPlannerState = null;
+      this.startPlanner(state);
+    } else {
+      this.enterPlannerFromEditState();
+    }
 
     // Selection highlight draws above both route sources (§6.1).
     this.map.addSource("route-highlight", {
@@ -454,15 +487,88 @@ export default class MyMapController extends Controller {
   bindClicks() {
     const layers = ["own-line", "public-line", "own-casing", "public-casing"];
     this.map.on("click", layers, (event) => {
+      // While the Route Planner is open, map clicks belong to it (§5.1:
+      // click = place waypoint) — browsing selection stays inert.
+      if (this.planner) return;
       const feature = event.features && event.features[0];
       if (feature) this.selectRoute(Number(feature.properties.id));
     });
     this.map.on("mouseenter", layers, () => {
+      if (this.planner) return;
       this.map.getCanvas().style.cursor = "pointer";
     });
     this.map.on("mouseleave", layers, () => {
       this.map.getCanvas().style.cursor = "";
     });
+  }
+
+  // ---- Route Planner (technote.ROUTE-DRAW.md) ---------------------------------
+
+  // §2.1 "Draw New Route": enter planning mode with an empty session.
+  enterPlanner() {
+    if (this.planner) return;
+    this.startPlanner({});
+  }
+
+  // §2.2 "Edit Existing Route": boot from the server-rendered state (page
+  // loaded via /map?edit=ID).
+  enterPlannerFromEditState() {
+    const state = this.editStateValue || {};
+    if (!state.route_id && !(state.waypoints || []).length) return;
+    this.startPlanner(state);
+  }
+
+  startPlanner(initialState) {
+    if (!this.map || !this.map.isStyleLoaded()) {
+      // The style may still be loading on first paint; retry on load.
+      this.pendingPlannerState = initialState;
+      return;
+    }
+    this.closePopup();
+    this.planner = new RoutePlanner({
+      map: this.map,
+      panel: this.plannerPanelTarget,
+      urls: {
+        calculate: this.plannerCalculateUrlValue,
+        save: this.plannerSaveUrlValue,
+        poiImage: this.plannerPoiImageUrlValue,
+      },
+      initialState,
+      onExit: () => this.leavePlannerMode(),
+      onSaved: (payload) => this.afterPlannerSave(payload),
+      onToast: (message) => this.setStatus(message, "error"),
+    });
+    this.plannerPanelTarget.hidden = false;
+    // Planning mode chrome: the drawer/pills/find button yield to the
+    // editor panel; the sub-bar swaps in the drawing chip + Exit.
+    this.element.classList.add("mymap--planning");
+    this.drawingChipTarget.hidden = false;
+    this.exitButtonTarget.hidden = false;
+    this.collapseDrawer();
+  }
+
+  exitPlanner() {
+    if (!this.planner) return;
+    this.planner.requestExit();
+  }
+
+  leavePlannerMode() {
+    this.planner = null;
+    this.element.classList.remove("mymap--planning");
+    if (this.hasDrawingChipTarget) this.drawingChipTarget.hidden = true;
+    if (this.hasExitButtonTarget) this.exitButtonTarget.hidden = true;
+  }
+
+  // §6.1: after a successful save the route is a first-class library member —
+  // refresh own routes so it appears on the map and in the drawer.
+  afterPlannerSave(payload) {
+    this.leavePlannerMode();
+    this.ownById = new Map();
+    this.ownCoveredBounds = [];
+    this.ownLastFetchedKey = null;
+    this.refreshViewportData();
+    this.setStatus(`Route saved — it is now in My Routes.`, "ok");
+    if (payload && payload.id) this.selectRoute(payload.id);
   }
 
   // "Return to my routes" button (technote §3.2) as a small custom control.
@@ -1044,6 +1150,11 @@ export default class MyMapController extends Controller {
       this.statusTarget.hidden = true;
       this.statusTarget.classList.remove("is-loading", "is-error");
     }
+    // The planner panel is session state too — a back/forward restore must
+    // not resurrect a half-drawn route's editor.
+    if (this.hasPlannerPanelTarget) this.plannerPanelTarget.hidden = true;
+    if (this.hasDrawingChipTarget) this.drawingChipTarget.hidden = true;
+    if (this.hasExitButtonTarget) this.exitButtonTarget.hidden = true;
   }
 
   renderPopup(feature) {
@@ -1082,6 +1193,15 @@ export default class MyMapController extends Controller {
     // Touch layout: the card collapses to the floating details pill; its
     // link rides the same property.
     this.popupMobileLinkTarget.href = properties.url || "#";
+    // Route Planner entry (§2.2): own routes only — the edit affordance
+    // opens the planner on My Map with this route loaded.
+    if (this.hasPopupEditTarget && this.popupEditUrlTemplateValue) {
+      this.popupEditTarget.hidden = !own;
+      this.popupEditTarget.href = this.popupEditUrlTemplateValue.replace(
+        "__ROUTE_ID__",
+        encodeURIComponent(properties.id),
+      );
+    }
 
     this.renderProfile(properties.elevation_profile);
     this.popupTarget.hidden = false;

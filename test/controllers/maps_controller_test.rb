@@ -528,4 +528,150 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     route.gpx_file.attach(gpx_fixture_upload("exploration.gpx"))
     route.parse_gpx!
   end
+
+  # ---- Route Planner edit entry (technote.ROUTE-DRAW.md §2.2) ----------------
+
+  test "map?edit=ID boots the planner with the route's server-rendered state" do
+    route = tracked_route(@viewer, "Editable gravel loop")
+    route.update!(routing_profile: "gravel", planner_geometry: {
+      "loop" => true,
+      "segments" => [ { "points" => [ [ 8.0, 47.0, 100.0 ], [ 8.01, 47.01, 110.0 ], [ 8.0, 47.0, 100.0 ] ] } ]
+    })
+    route.routing_waypoints.create!(position: 0, lat: 47.0, lon: 8.0)
+    route.routing_waypoints.create!(position: 1, lat: 47.01, lon: 8.01)
+
+    get map_path(edit: route.id)
+
+    assert_response :success
+    root = css_select('div[data-controller="my-map"]').first
+    state = JSON.parse(root["data-my-map-edit-state-value"])
+    assert_equal route.id, state["route_id"]
+    assert_equal "Editable gravel loop", state["title"]
+    assert_equal "gravel", state["profile"]
+    assert state["loop"]
+    assert_equal 2, state["waypoints"].size
+    assert_equal 1, state["segments"].size
+  end
+
+  test "map without edit ships an empty planner state" do
+    get map_path
+
+    assert_response :success
+    root = css_select('div[data-controller="my-map"]').first
+    assert_equal({}, JSON.parse(root["data-my-map-edit-state-value"]))
+  end
+
+  test "another user's route never opens in the editor (even a public one)" do
+    get map_path(edit: @public_route.id)
+
+    assert_redirected_to map_path
+  end
+
+  test "a bogus edit id redirects back to the plain map" do
+    get map_path(edit: "99999999")
+
+    assert_redirected_to map_path
+  end
+
+  test "the draw button is live and the planner panel ships with the page" do
+    get map_path
+
+    assert_response :success
+    assert_select "button[data-action=\"my-map#enterPlanner\"]"
+    assert_select "aside[data-my-map-target=\"plannerPanel\"]"
+    assert_select "form[data-planner=\"poi-form\"]"
+    assert_select "[data-my-map-planner-calculate-url-value]"
+    assert_select "[data-my-map-planner-save-url-value]"
+    assert_select "[data-my-map-planner-poi-image-url-value]"
+  end
+
+  # The route_planner module binds to data-planner hooks by key; a renamed or
+  # missing hook in the ERB makes entering the planner throw inside the click
+  # action (undefined.addEventListener). This test derives the required hooks
+  # FROM the module source, so the view/JS contract cannot silently drift.
+  test "the page ships every DOM hook the route_planner module binds to" do
+    get map_path
+
+    assert_response :success
+    source = Rails.root.join("app/javascript/map/route_planner.js").read
+
+    kebab_hooks = source.scan(/this\.dom\[["']([a-z-]+)["']\]/).flatten
+    camel_hooks = source.scan(/this\.dom\.([a-zA-Z]+)/).flatten
+                        .map { |name| name.gsub(/([a-z\d])([A-Z])/) { "#{Regexp.last_match(1)}-#{Regexp.last_match(2).downcase}" } }
+                        # "profiles" is a synthetic collectDom key (the profile
+                        # button group), not a data-planner attribute.
+                        .reject { |key| key == "profiles" }
+
+    hooks = (kebab_hooks + camel_hooks).uniq.sort
+    assert hooks.include?("waypoint-list"), "the scanner must find the module's hook accesses"
+    hooks.each do |hook|
+      assert_includes response.body, %(data-planner="#{hook}"),
+                      "the planner module binds to data-planner=\"#{hook}\" but the page does not ship it"
+    end
+  end
+
+  # Re-entering the planner (Exit → "Draw new route") must not stack handlers
+  # or re-add sources: MapLibre throws "Source already exists" and a single
+  # segment drag would fire one recalculation per stacked listener. Sources
+  # survive teardown, so addMapLayers is idempotent and every this.map.on
+  # (plus the document keydown) is matched by a detach in teardown().
+  test "the planner module detaches every handler and re-adds its map layers safely" do
+    source = Rails.root.join("app/javascript/map/route_planner.js").read
+    setup_body = source[/addMapLayers\(\) \{.*?\n  \}/m].to_s
+    teardown_body = source[/teardown\(\) \{.*?\n  \}/m].to_s
+    assert_not_empty setup_body, "could not locate addMapLayers()"
+    assert_not_empty teardown_body, "could not locate teardown()"
+
+    assert_includes setup_body, 'getSource("planner-route")',
+                    "addMapLayers must not re-add an existing source (re-entry throws __map.addSource: Source already exists)"
+    assert_includes setup_body, "getLayer(definition.id)",
+                    "addMapLayers must not re-add an existing layer"
+
+    events = setup_body.scan(/this\.map\.on\(\s*["'](\w+)["']/).flatten
+    assert_includes events, "mousedown", "the scanner must find the layer-scoped mousedown binding"
+    assert_includes events, "click"
+    events.uniq.each do |event|
+      assert_includes teardown_body, "map.off(\"#{event}\"",
+                      "teardown() never detaches the map's #{event} handler — re-entry stacks a second one"
+    end
+    # A handler bound inline (anonymous arrow) can never be detached: teardown
+    # would need its identity. Every planner map handler must be stored on the
+    # instance (`this.xxxHandler = ...`) and passed by that name to map.off.
+    stored = setup_body.scan(/this\.(\w+Handler) = /).flatten
+    assert_includes stored, "hitDownHandler", "the layer-scoped mousedown handler must be stored for teardown"
+    assert_includes stored, "hitEnterHandler"
+    assert_includes stored, "hitLeaveHandler"
+    stored.each do |handler|
+      assert_includes teardown_body, "this.#{handler}",
+                      "teardown() does not detach #{handler} — it is bound but never removed"
+    end
+    assert_nil setup_body[/this\.map\.on\(\s*["'](?:mousedown|mouseenter|mouseleave)["'][^\n]*\(\)\s*=>/],
+               "layer-scoped planner handlers must be named on the instance, not bound inline"
+
+    assert_includes source[/bindDom\(\) \{.*?\n  \}/m].to_s, "document.addEventListener"
+    assert_includes teardown_body, "document.removeEventListener"
+  end
+
+  # Regression: pumpCalcQueue guards on `this.inFlightCount < MAX_INFLIGHT`.
+  # While the counter was only initialised lazily (`(this.inFlightCount || 0)
+  # + 1` inside requestSegment), `undefined < 2` was false, the queue never
+  # drained and clicking the map produced NO /planner/calculate request at
+  # all. The pipeline state must be initialised in the constructor.
+  test "the planner initialises its recalculation queue state before any request" do
+    source = Rails.root.join("app/javascript/map/route_planner.js").read
+    constructor_body = source[/constructor\([^)]*\) \{.*?\n  \}/m].to_s
+    assert_not_empty constructor_body, "could not locate the RoutePlanner constructor"
+
+    assert_includes constructor_body, "this.inFlightCount = 0",
+                    "inFlightCount must be initialised to 0 in the constructor — " \
+                    "otherwise pumpCalcQueue's `inFlightCount < MAX_INFLIGHT` guard is " \
+                    "always false and no segment calculation is ever sent"
+    assert_includes constructor_body, "this.queuedSegments = new Set()",
+                    "queuedSegments must be initialised in the constructor"
+    assert_includes constructor_body, "this.calcTimer = null"
+
+    pump_body = source[/pumpCalcQueue\(\) \{.*?\n  \}/m].to_s
+    guard = pump_body[/while \((.*?)&&/, 1].to_s
+    assert_includes guard, "inFlightCount", "pumpCalcQueue must bound concurrency on inFlightCount"
+  end
 end

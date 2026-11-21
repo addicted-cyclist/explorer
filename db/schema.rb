@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_11_05_000000) do
+ActiveRecord::Schema[7.2].define(version: 2026_11_19_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -71,6 +71,20 @@ ActiveRecord::Schema[7.2].define(version: 2026_11_05_000000) do
     t.check_constraint "user_id <> friend_id", name: "friendships_not_self"
   end
 
+  create_table "route_pois", force: :cascade do |t|
+    t.bigint "route_id", null: false
+    t.bigint "routing_waypoint_id"
+    t.float "lat", null: false
+    t.float "lon", null: false
+    t.string "title"
+    t.text "description"
+    t.string "external_url"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["route_id"], name: "index_route_pois_on_route_id"
+    t.index ["routing_waypoint_id"], name: "index_route_pois_on_routing_waypoint_id"
+  end
+
   create_table "routes", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.string "title"
@@ -93,7 +107,32 @@ ActiveRecord::Schema[7.2].define(version: 2026_11_05_000000) do
     t.float "min_lat"
     t.float "max_lat"
     t.jsonb "map_geometry"
+    t.string "routing_profile"
+    t.jsonb "planner_geometry"
     t.index ["user_id"], name: "index_routes_on_user_id"
+  end
+
+  create_table "routing_waypoints", force: :cascade do |t|
+    t.bigint "route_id", null: false
+    t.integer "position", null: false
+    t.float "lat", null: false
+    t.float "lon", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["route_id", "position"], name: "index_routing_waypoints_on_route_id_and_position", unique: true
+    t.index ["route_id"], name: "index_routing_waypoints_on_route_id"
+  end
+
+  create_table "shaping_points", force: :cascade do |t|
+    t.bigint "route_id", null: false
+    t.integer "segment_index", null: false
+    t.integer "position", null: false
+    t.float "lat", null: false
+    t.float "lon", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["route_id", "segment_index", "position"], name: "index_shaping_points_on_route_segment_position"
+    t.index ["route_id"], name: "index_shaping_points_on_route_id"
   end
 
   create_table "users", force: :cascade do |t|
@@ -130,5 +169,9 @@ ActiveRecord::Schema[7.2].define(version: 2026_11_05_000000) do
   add_foreign_key "calendar_entries", "users"
   add_foreign_key "friendships", "users"
   add_foreign_key "friendships", "users", column: "friend_id"
+  add_foreign_key "route_pois", "routes"
+  add_foreign_key "route_pois", "routing_waypoints", on_delete: :nullify
   add_foreign_key "routes", "users"
+  add_foreign_key "routing_waypoints", "routes"
+  add_foreign_key "shaping_points", "routes"
 end

@@ -52,6 +52,20 @@ class MapsController < ApplicationController
     # load per viewport now, so the browser never holds the full library a
     # client-side hotspot scan would need.
     @own_hotspot_bounds = Map::OwnRoutesHotspot.bounds(current_user.routes)
+
+    # Route Planner entry (technote.ROUTE-DRAW.md §2.2): /map?edit=ID boots
+    # the editor with the route's persisted state (RWs, SPs, POIs, profile,
+    # segments) shipped server-side. Only the OWNER's routes open — other
+    # users' rows (public included) never reach the editor, and a bad or
+    # foreign id bounces back to the plain map with a flash instead of 500.
+    return if params[:edit].blank?
+
+    route = current_user.routes.find_by(id: params[:edit])
+    unless route
+      redirect_to map_path, alert: "That route is not in your library." and return
+    end
+
+    @planner_state = route.planner_state
   end
 
   # GET /map/routes/own?west=&south=&east=&north= — routes of the current
