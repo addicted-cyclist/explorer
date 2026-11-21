@@ -67,7 +67,7 @@
           <span class="mymap__drawing-dot" aria-hidden="true"></span>
           <span>Drawing Mode: Click map to place waypoints</span>
         </div>
-        <button type="button" class="mymap__draw btn btn--primary"
+        <button type="button" class="mymap__draw btn btn--secondary"
                 title="Draw a new route on the map"
                 data-action="my-map#enterPlanner">
           <span class="material-symbols-outlined" aria-hidden="true">gesture</span>
@@ -211,7 +211,7 @@
         <%= link_to "#", class: "mymap-popup__edit", title: "Edit route in the planner",
                     aria: { label: "Edit route in the planner" },
                     data: { my_map_target: "popupEdit", turbo: false } do %>
-          <span class="material-symbols-outlined" aria-hidden="true">route</span>
+          <span class="material-symbols-outlined" aria-hidden="true">edit</span>
         <% end %>
         <%= link_to "#", class: "mymap-popup__download", title: "Download GPX",
                     aria: { label: "Download GPX" }, data: { my_map_target: "popupDownload" } do %>
