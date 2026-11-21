@@ -289,12 +289,11 @@ export class RoutePlanner {
     });
     this.keyHandler = (event) => this.onKeydown(event);
     document.addEventListener("keydown", this.keyHandler);
-    this.map.on("mousemove", this.moveHandler = (event) => this.onMapMouseMove(event));
-    this.map.on("click", this.clickHandler = (event) => this.onMapClick(event));
-    this.map.on("mouseout", this.outHandler = () => {
-      this.cursorPoint = null;
-      this.updatePendingLine();
-    });
+    // NOTE: the map handlers (click/mousemove/mouseout) deliberately do NOT
+    // bind here — addMapLayers() is their single registration site. Binding
+    // them in both methods stacked two listeners per session: every click ran
+    // onMapClick twice (duplicate waypoints at the same coordinates) and
+    // teardown could only detach the last-assigned closure.
     // POI modal (§7).
     this.dom["poi-form"].addEventListener("submit", (event) => {
       event.preventDefault();
@@ -643,8 +642,16 @@ export class RoutePlanner {
       else this.map.addLayer(definition);
     });
 
+    // ALL map handlers bind HERE — one registration site per planner session.
+    // They are kept on the instance so teardown can detach them; binding the
+    // same event twice (this used to happen with bindDom) makes MapLibre fire
+    // both listeners — one click produced two waypoints.
     this.map.on("mousemove", this.moveHandler = (event) => this.onMapMouseMove(event));
     this.map.on("click", this.clickHandler = (event) => this.onMapClick(event));
+    this.map.on("mouseout", this.outHandler = () => {
+      this.cursorPoint = null;
+      this.updatePendingLine();
+    });
     // Layer-scoped handlers, kept on the instance so teardown can detach them —
     // otherwise every re-entry stacks another copy and one drag fires N times.
     this.hitDownHandler = (event) => this.onRouteMouseDown(event);

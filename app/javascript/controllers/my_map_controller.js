@@ -194,6 +194,11 @@ export default class MyMapController extends Controller {
     // Location chip fetch (updateLocationLabel): a newer viewport aborts an
     // older in-flight label request, same contract as the public fetch.
     this.labelAbortController = null;
+    // Center key of the last (or in-flight) label request: moveend can fire
+    // twice for one settled camera (the initial fit's own moveend handler AND
+    // the debounced onMoveEnd), and both onMapLoad and refreshViewportData ask
+    // for the chip — the key keeps one Photon request per distinct center.
+    this.labelCenterKey = null;
 
     // "Find new routes" (design-refs/stitch_explorer_v0.14): null = normal
     // viewport drawer; a filters object = match mode. matchIds carries the
@@ -1090,6 +1095,14 @@ export default class MyMapController extends Controller {
     if (!this.map || !this.placeLabelUrlValue || !this.hasLocationLabelTarget)
       return;
     const center = this.map.getCenter();
+    // Same-center dedupe: the initial settle can reach this method twice with
+    // an unchanged camera (onMapLoad + the fit's moveend + the debounced
+    // onMoveEnd) — only the first request for a center goes out. ~11 m
+    // rounding (1e-4 deg) still dedupes float jitter between getCenter()
+    // calls. The key clears on failure/abort so a later moveend retries.
+    const centerKey = `${center.lng.toFixed(4)},${center.lat.toFixed(4)}`;
+    if (centerKey === this.labelCenterKey) return;
+    this.labelCenterKey = centerKey;
     if (this.labelAbortController) this.labelAbortController.abort();
     this.labelAbortController = new AbortController();
     const signal = this.labelAbortController.signal;
@@ -1105,7 +1118,8 @@ export default class MyMapController extends Controller {
       const label = payload && payload.place_label;
       if (label) this.locationLabelTarget.textContent = label;
     } catch (error) {
-      if (error.name === "AbortError") return; // superseded by a newer viewport
+      if (signal.aborted) return; // superseded by a newer viewport
+      this.labelCenterKey = null; // failed fetch: let the next moveend retry
       console.warn("Place label failed to load:", error);
     }
   }
