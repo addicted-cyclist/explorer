@@ -652,6 +652,33 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert_includes teardown_body, "document.removeEventListener"
   end
 
+  # Regression: /map?edit=ID and the popup's Edit link reloaded into a plain
+  # map. onMapLoad added the browsing sources/layers BEFORE booting the
+  # planner; those pending style mutations make isStyleLoaded() answer false
+  # even inside the "load" event, so startPlanner parked the editor state with
+  # its only retry hook ("load") already running — the editor never opened.
+  # The boot must precede the layer mutations, and a parked state must get a
+  # live retry (once("idle")) so it can never strand.
+  test "the planner edit boot precedes style mutations and parked state retries on idle" do
+    source = Rails.root.join("app/javascript/controllers/my_map_controller.js").read
+    load_body = source[/onMapLoad\(\) \{.*?\n  \}/m].to_s
+    assert_not_empty load_body, "could not locate onMapLoad()"
+
+    boot_index = [ load_body.index("enterPlannerFromEditState"),
+                   load_body.index("this.startPlanner") ].compact.min
+    layers_index = load_body.index("this.addRouteLayers")
+    assert boot_index && layers_index, "onMapLoad must boot the planner and add the route layers"
+    assert_operator boot_index, :<, layers_index,
+                   "the planner must boot BEFORE addRouteLayers — pending source updates flip isStyleLoaded() and strand the edit boot"
+    assert_includes load_body, "pendingPlannerState",
+                    "a state parked by a Draw press before load must be consumed on load"
+
+    start_body = source[/startPlanner\(initialState\) \{.*?\n  \}/m].to_s
+    assert_not_empty start_body, "could not locate startPlanner()"
+    assert_includes start_body, 'this.map.once("idle"',
+                    "a parked planner state must retry on idle — load can already be running when the gate trips"
+  end
+
   # Regression: pumpCalcQueue guards on `this.inFlightCount < MAX_INFLIGHT`.
   # While the counter was only initialised lazily (`(this.inFlightCount || 0)
   # + 1` inside requestSegment), `undefined < 2` was false, the queue never

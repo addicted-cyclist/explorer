@@ -328,12 +328,13 @@ export default class MyMapController extends Controller {
   }
 
   onMapLoad() {
-    this.addRouteLayers();
-    this.bindClicks();
-
-    // Route Planner edit entry (§2.2): /map?edit=ID ships the editor state;
-    // boot the planner as soon as the style is ready. A user who clicked
-    // "Draw new route" while the style was still loading retries here too.
+    // Route Planner boot (§2.2) must run FIRST — before any addSource/addLayer
+    // below. Every style mutation queues a pending source update, and
+    // map.isStyleLoaded() answers false until the worker drains it — even
+    // inside this very "load" event. Booting the planner last therefore parked
+    // the editor state in startPlanner() whose only retry hook ("load") had
+    // already fired: /map?edit=ID and the popup's Edit link reloaded into a
+    // plain map instead of the editor.
     if (this.pendingPlannerState) {
       const state = this.pendingPlannerState;
       this.pendingPlannerState = null;
@@ -341,6 +342,9 @@ export default class MyMapController extends Controller {
     } else {
       this.enterPlannerFromEditState();
     }
+
+    this.addRouteLayers();
+    this.bindClicks();
 
     // Selection highlight draws above both route sources (§6.1).
     this.map.addSource("route-highlight", {
@@ -525,8 +529,13 @@ export default class MyMapController extends Controller {
 
   startPlanner(initialState) {
     if (!this.map || !this.map.isStyleLoaded()) {
-      // The style may still be loading on first paint; retry on load.
+      // The style may still be loading on first paint (or carry pending source
+      // updates — addSource keeps isStyleLoaded() false until the worker
+      // round-trips, even after "load"). Park the state and retry on "idle":
+      // onMapLoad consumes it on "load" first, so the two consumers race
+      // safely — the loser finds pendingPlannerState already null and no-ops.
       this.pendingPlannerState = initialState;
+      if (this.map) this.map.once("idle", () => this.retryPendingPlanner());
       return;
     }
     this.closePopup();
@@ -550,6 +559,17 @@ export default class MyMapController extends Controller {
     this.drawingChipTarget.hidden = false;
     this.exitButtonTarget.hidden = false;
     this.collapseDrawer();
+  }
+
+  // Second-chance consumer for a parked editor state (see startPlanner):
+  // "idle" fires once every pending style operation has drained, so the
+  // planner still boots when the first startPlanner call hit a pending style.
+  // No-ops when onMapLoad ("load") already consumed the state.
+  retryPendingPlanner() {
+    if (!this.map || !this.pendingPlannerState) return;
+    const state = this.pendingPlannerState;
+    this.pendingPlannerState = null;
+    this.startPlanner(state);
   }
 
   exitPlanner() {
