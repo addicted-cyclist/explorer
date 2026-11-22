@@ -551,6 +551,9 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert state["loop"]
     assert_equal 2, state["waypoints"].size
     assert_equal 1, state["segments"].size
+    # The in-place entry door (popup Edit → JSON fetch) rides the same page.
+    assert_equal "/planner/state/__ROUTE_ID__",
+                 root["data-my-map-planner-state-url-template-value"]
   end
 
   test "map without edit ships an empty planner state" do
@@ -677,6 +680,59 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     assert_not_empty start_body, "could not locate startPlanner()"
     assert_includes start_body, 'this.map.once("idle"',
                     "a parked planner state must retry on idle — load can already be running when the gate trips"
+  end
+
+  # Regression: after leaving the planner (✕/Cancel/Escape, discard confirm or
+  # a successful save) the aside.mymap-planner panel stayed on screen and could
+  # not be closed — its close button belonged to the already-torn-down planner
+  # instance. leavePlannerMode is the funnel every exit path goes through, so
+  # it must hide the panel symmetrically to startPlanner showing it. It must
+  # also drop the ?edit=ID deep link: the server re-boots the editor from it
+  # on every request, so a refresh would re-enter the ended session.
+  test "leaving the planner hides the panel and drops the edit deep link" do
+    source = Rails.root.join("app/javascript/controllers/my_map_controller.js").read
+    start_body = source[/startPlanner\(initialState\) \{.*?\n  \}/m].to_s
+    leave_body = source[/leavePlannerMode\(\) \{.*?\n  \}/m].to_s
+    assert_not_empty start_body, "could not locate startPlanner()"
+    assert_not_empty leave_body, "could not locate leavePlannerMode()"
+
+    assert_includes start_body, "plannerPanelTarget.hidden = false",
+                    "startPlanner must show the editor panel"
+    assert_includes leave_body, "plannerPanelTarget.hidden = true",
+                    "leavePlannerMode must hide the editor panel — nothing else runs on every exit path"
+    assert_includes leave_body, "this.planner = null",
+                    "leavePlannerMode must drop the planner reference (browsing clicks must work again)"
+    assert_includes leave_body, "clearEditQueryParam()",
+                    "leavePlannerMode must drop the ?edit=ID deep link — a refresh would re-boot the editor"
+
+    clear_body = source[/clearEditQueryParam\(\) \{.*?\n  \}/m].to_s
+    assert_not_empty clear_body, "could not locate clearEditQueryParam()"
+    assert_includes clear_body, "replaceState",
+                    "the param removal must be a silent replaceState (no history entry, no Turbo visit)"
+    assert_includes clear_body, 'searchParams.delete("edit")',
+                    "only the edit param may go — other params and the hash must survive"
+  end
+
+  # The popup's Edit affordance boots the planner IN PLACE: one owner-only
+  # JSON fetch of the editor state instead of the /map?edit=ID full page
+  # reload. The anchor's href must stay untouched (no-JS fallback), any fetch
+  # failure must fall back to that navigation, and the URL must mirror the
+  # open editor (deep-link parity with the reload entry).
+  test "the popup edit affordance boots the planner in place with a reload fallback" do
+    source = Rails.root.join("app/javascript/controllers/my_map_controller.js").read
+    handler = source[/async onPopupEditClick\(event\) \{.*?\n  \}/m].to_s
+    assert_not_empty handler, "could not locate onPopupEditClick()"
+
+    assert_includes handler, "event.preventDefault()",
+                    "the in-place boot must stop the native navigation"
+    assert_includes handler, "plannerStateUrlTemplateValue",
+                    "the boot must fetch the editor state JSON"
+    assert_includes handler, "window.location.href",
+                    "a failed fetch must fall back to the anchor's navigation"
+    assert_includes handler, "pushState",
+                    "the URL must mirror the open editor (refresh re-boots the route)"
+    assert_includes source, "boundPopupEditClick",
+                    "the handler must be bound to the popup edit target"
   end
 
   # Regression: pumpCalcQueue guards on `this.inFlightCount < MAX_INFLIGHT`.

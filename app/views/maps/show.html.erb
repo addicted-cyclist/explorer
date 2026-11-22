@@ -33,6 +33,11 @@
      data-my-map-planner-calculate-url-value="<%= planner_calculate_path %>"
      data-my-map-planner-save-url-value="<%= planner_save_path %>"
      data-my-map-planner-poi-image-url-value="<%= planner_poi_images_path %>"
+     <%# GET template for one route's editor boot state (§2.2): the popup's
+         Edit affordance fetches it and boots the planner in place — no page
+         reload. The /map?edit=ID href below stays as the no-JS fallback and
+         the deep-link/refresh entry. %>
+     data-my-map-planner-state-url-template-value="<%= planner_state_path("__ROUTE_ID__") %>"
      data-my-map-popup-edit-url-template-value="<%= map_path(edit: "__ROUTE_ID__") %>"
      <%# §2.2 Edit existing route: the server-rendered editor state (RWs, SPs,
          POIs, profile, segments) when the page was opened via /map?edit=ID —

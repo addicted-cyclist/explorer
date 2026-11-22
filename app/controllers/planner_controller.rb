@@ -16,6 +16,11 @@
 #     signed_id the save payload references. ActiveStorage handles the bytes;
 #     ownership of the blob is irrelevant until a POI references it on save,
 #     so no extra authorization surface exists here beyond sign-in.
+#   * #state — the editor boot state of ONE owned route (the /map?edit=ID
+#     payload as JSON, §2.2): lets the popup's Edit affordance boot the
+#     planner in place instead of reloading the whole page. Ownership is the
+#     entire authorization model — a foreign route (public included) answers
+#     404, indistinguishable from a missing one.
 class PlannerController < ApplicationController
   # Client-side errors (bad JSON shapes) are 400; engine trouble 502; a
   # rejected editor state 422 with the human-readable list.
@@ -61,6 +66,19 @@ class PlannerController < ApplicationController
       signed_id: blob.signed_id,
       url: Rails.application.routes.url_helpers.rails_blob_path(blob, only_path: true)
     }
+  end
+
+  # GET /planner/state/:route_id — editor boot state for one owned route: the
+  # exact payload the /map?edit=ID deep link ships server-rendered (§2.2), as
+  # JSON. The popup's Edit affordance fetches it and boots the planner in
+  # place (no page reload); the deep link stays for no-JS and shared URLs.
+  def state
+    route = current_user.routes.find_by(id: params[:route_id])
+    unless route
+      return render json: { error: "route not found" }, status: :not_found
+    end
+
+    render json: { state: route.planner_state }
   end
 
   private

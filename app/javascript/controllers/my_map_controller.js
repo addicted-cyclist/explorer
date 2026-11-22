@@ -108,11 +108,13 @@ export default class MyMapController extends Controller {
     // static_map member route).
     thumbPostUrlTemplate: String,
     // Route Planner (technote.ROUTE-DRAW.md): the three POST doors
-    // (segment calculate, editor save, POI image upload) plus the edit-link
-    // template for the popup's "Edit route in the planner" affordance.
+    // (segment calculate, editor save, POI image upload), the GET template
+    // for one route's editor boot state, and the edit-link template for the
+    // popup's "Edit route in the planner" affordance.
     plannerCalculateUrl: String,
     plannerSaveUrl: String,
     plannerPoiImageUrl: String,
+    plannerStateUrlTemplate: String,
     popupEditUrlTemplate: String,
     // §2.2: server-rendered editor state when the page opened via
     // /map?edit=ID — the controller boots the planner with it on map load.
@@ -226,6 +228,13 @@ export default class MyMapController extends Controller {
       "find-routes:apply",
       this.boundApplyFindFilters,
     );
+    // Popup "Edit route in the planner" (§2.2): fetch the editor state and
+    // boot the planner in place instead of the /map?edit=ID full page reload
+    // the anchor's href still carries as its no-JS fallback.
+    if (this.hasPopupEditTarget) {
+      this.boundPopupEditClick = (event) => this.onPopupEditClick(event);
+      this.popupEditTarget.addEventListener("click", this.boundPopupEditClick);
+    }
     // Always run the chip render once: with no filters it just keeps the row
     // hidden (markup default) while recording the empty fingerprint, so later
     // renderFindChips calls stay no-ops until the filter set actually changes.
@@ -271,6 +280,9 @@ export default class MyMapController extends Controller {
       "find-routes:apply",
       this.boundApplyFindFilters,
     );
+    if (this.boundPopupEditClick && this.hasPopupEditTarget) {
+      this.popupEditTarget.removeEventListener("click", this.boundPopupEditClick);
+    }
     document.removeEventListener("turbo:before-cache", this.boundBeforeCache);
     if (this.ro) this.ro.disconnect();
     if (this.map) {
@@ -527,6 +539,49 @@ export default class MyMapController extends Controller {
     this.startPlanner(state);
   }
 
+  // Popup "Edit route in the planner" (§2.2): boot the editor IN PLACE — one
+  // owner-only JSON fetch of the route's editor state replaces the full
+  // /map?edit=ID page reload. The anchor's href remains the no-JS fallback,
+  // and any fetch failure falls back to it, so the entry never dead-ends.
+  // With a planner session already open the click is left to the native
+  // navigation: the reload replaces the whole session (old behavior) —
+  // swapping routes under an active draft is not a silent decision.
+  async onPopupEditClick(event) {
+    if (this.planner) return;
+    if (!this.plannerStateUrlTemplateValue) return;
+    const feature = this.findFeature(this.selectedId);
+    if (!feature || !feature.properties.own) return;
+    event.preventDefault();
+
+    const routeId = encodeURIComponent(feature.properties.id);
+    try {
+      const response = await fetch(
+        this.plannerStateUrlTemplateValue.replace("__ROUTE_ID__", routeId),
+        { headers: { Accept: "application/json" } },
+      );
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = await response.json();
+      const state = payload && payload.state;
+      if (!state || (!state.route_id && !(state.waypoints || []).length)) {
+        throw new Error("empty editor state");
+      }
+      // Deep-link parity: the URL mirrors the open editor (a refresh or a
+      // shared link re-boots the same route); leaving the editor strips the
+      // param again. pushState keeps Back = leave the editor, like the
+      // reload flow's history did.
+      if (this.popupEditUrlTemplateValue) {
+        window.history.pushState(
+          {},
+          "",
+          this.popupEditUrlTemplateValue.replace("__ROUTE_ID__", routeId),
+        );
+      }
+      this.startPlanner(state);
+    } catch (_error) {
+      window.location.href = this.popupEditTarget.href;
+    }
+  }
+
   startPlanner(initialState) {
     if (!this.map || !this.map.isStyleLoaded()) {
       // The style may still be loading on first paint (or carry pending source
@@ -580,8 +635,29 @@ export default class MyMapController extends Controller {
   leavePlannerMode() {
     this.planner = null;
     this.element.classList.remove("mymap--planning");
+    // The editor panel's visibility rides the hidden attribute alone (its
+    // display:flex overrides the UA [hidden] default), and startPlanner is
+    // the only place that shows it — every exit path (✕/Cancel/Escape,
+    // discard confirm, successful save) funnels through here, so the panel
+    // must be hidden again or it outlives the session and can't be closed.
+    if (this.hasPlannerPanelTarget) this.plannerPanelTarget.hidden = true;
     if (this.hasDrawingChipTarget) this.drawingChipTarget.hidden = true;
     if (this.hasExitButtonTarget) this.exitButtonTarget.hidden = true;
+    this.clearEditQueryParam();
+  }
+
+  // The /map?edit=ID deep link is a one-shot editor entry: the server boots
+  // the planner from it on every request, so a leftover param would drop a
+  // page refresh straight back into editing after the session ended (every
+  // exit funnels through leavePlannerMode). Silent replaceState — no history
+  // entry, no Turbo navigation; other params and the hash survive. "Draw new
+  // route" sessions carry no param and no-op here.
+  clearEditQueryParam() {
+    if (!window.location.search) return;
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("edit")) return;
+    url.searchParams.delete("edit");
+    window.history.replaceState({}, "", url.pathname + url.search + url.hash);
   }
 
   // §6.1: after a successful save the route is a first-class library member —

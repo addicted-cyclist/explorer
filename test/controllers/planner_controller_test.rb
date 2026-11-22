@@ -102,6 +102,40 @@ class PlannerControllerTest < ActionDispatch::IntegrationTest
     assert_not_empty response.parsed_body["errors"]
   end
 
+  # ---- GET /planner/state/:route_id (§2.2 in-place editor entry) --------------
+
+  test "state returns the editor boot state of an owned route" do
+    route = @user.routes.create!(source: "drawn", title: "Gravel loop", routing_profile: "road")
+    route.routing_waypoints.create!(position: 0, lat: 49.41, lon: 8.71)
+    route.routing_waypoints.create!(position: 1, lat: 49.42, lon: 8.72)
+
+    get planner_state_path(route.id), as: :json
+
+    assert_response :success
+    state = response.parsed_body["state"]
+    assert_equal route.id, state["route_id"]
+    assert_equal "Gravel loop", state["title"]
+    assert_equal "road", state["profile"]
+    assert_equal 2, state["waypoints"].size
+  end
+
+  test "state never opens another user's route (even a public one)" do
+    stranger = User.create!(valid_user_attributes(email: "stranger@example.com", username: "stranger"))
+    foreign = stranger.routes.create!(source: "drawn", title: "Not yours", routing_profile: "road")
+
+    get planner_state_path(foreign.id), as: :json
+
+    assert_response :not_found
+  end
+
+  test "state requires sign-in" do
+    sign_out @user
+
+    get planner_state_path(1), as: :json
+
+    assert_response :unauthorized
+  end
+
   def image_fixture_upload(filename, fixture)
     Rack::Test::UploadedFile.new(Rails.root.join("test/fixtures/files", fixture), "image/png", false,
                                  original_filename: filename)
