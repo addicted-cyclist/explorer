@@ -258,13 +258,12 @@
       </header>
 
       <div class="mymap-planner__name">
-        <label class="visually-hidden" for="planner-route-name">Route name</label>
         <span class="material-symbols-outlined mymap-planner__name-icon" aria-hidden="true">edit</span>
         <input type="text" id="planner-route-name" class="mymap-planner__name-input" data-planner="title"
                placeholder="Name your route" maxlength="200" autocomplete="off">
       </div>
 
-      <div class="mymap-planner__section-label t-label-sm c-tertiary">ROUTING MODE</div>
+      <div class="mymap-planner__section-row t-label-sm c-tertiary">ROUTING MODE</div>
       <div class="mymap-planner__modes" role="radiogroup" aria-label="Routing profile">
         <button type="button" class="mymap-planner__mode" data-planner="profile" data-profile="road">
           <span class="material-symbols-outlined" aria-hidden="true">pedal_bike</span>
@@ -293,7 +292,7 @@
         </button>
         <button type="button" class="mymap-planner__tool mymap-planner__tool--wide" data-planner="loop" title="Close the loop">
           <span class="material-symbols-outlined" aria-hidden="true">all_inclusive</span>
-          <span data-planner="loop-label">Close Loop</span>
+          <span data-planner="loop-label">Loop</span>
         </button>
         <button type="button" class="mymap-planner__tool mymap-planner__tool--danger" data-planner="clear" title="Clear route">
           <span class="material-symbols-outlined" aria-hidden="true">delete</span>
@@ -315,11 +314,11 @@
         Click the map to place your first waypoint.
       </p>
 
+      <div class="mymap-planner__section-row">
+        <span class="mymap-planner__profile-label t-label-sm c-tertiary">LIVE ALTITUDE PROFILE</span>
+        <span class="mymap-planner__profile-max t-code-sm c-tertiary" data-planner="profile-max"></span>
+      </div>
       <div class="mymap-planner__profile" data-planner="profile-block" hidden>
-        <div class="mymap-planner__profile-head">
-          <span class="mymap-planner__profile-label t-label-md">LIVE ALTITUDE PROFILE</span>
-          <span class="mymap-planner__profile-max t-code-sm c-tertiary" data-planner="profile-max"></span>
-        </div>
         <svg class="mymap-planner__profile-chart" viewBox="0 0 300 56" preserveAspectRatio="none" aria-hidden="true">
           <path class="mymap-planner__profile-area" data-planner="profile-area" d=""></path>
           <path class="mymap-planner__profile-line" data-planner="profile-line" d=""></path>

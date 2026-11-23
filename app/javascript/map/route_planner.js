@@ -13,9 +13,15 @@ import maplibregl from "maplibre-gl";
 // during drags, capped at MAX_INFLIGHT concurrent, and a failure keeps the
 // last valid geometry (only the affected segment turns red).
 
-const ROUTE_COLOR = "#e11d48";
+const ROUTE_COLOR = "#000dff";
 const ROUTE_CASING = "#ffffff";
 const FAILED_COLOR = "#b91c1c";
+// The route's direction cue (§5.1): an EVEN dashed overlay — one dash length
+// everywhere — in blues that run deep → light along every segment, so the
+// line still reads start → finish. Deliberately static: no animation, the
+// dashes and their colors never move. Failed segments are excluded by the
+// layer's filter, keeping §10.6's red state undecorated.
+const ROUTE_FLOW_DASH = [2, 2]; // dash/gap in line-width multiples — equal by design
 const MAX_INFLIGHT = 2;
 const MAX_SNAPSHOTS = 50;
 const MAX_WAYPOINTS = 100;
@@ -75,7 +81,10 @@ export class RoutePlanner {
     this.title = state.title || "";
     this.profile = state.profile || "road";
     this.loop = !!state.loop;
-    this.waypoints = (state.waypoints || []).map((point) => ({ lat: point.lat, lon: point.lon }));
+    this.waypoints = (state.waypoints || []).map((point) => ({
+      lat: point.lat,
+      lon: point.lon,
+    }));
     this.shaping = this.loadShaping(state.shaping_points || []);
     this.pois = (state.pois || []).map((poi) => ({
       id: this.nextId(),
@@ -86,12 +95,18 @@ export class RoutePlanner {
       external_url: poi.external_url || "",
       image_url: poi.image_url || null,
       image_signed_id: null,
-      waypoint_index: Number.isFinite(Number(poi.waypoint_index)) ? Number(poi.waypoint_index) : null,
+      waypoint_index: Number.isFinite(Number(poi.waypoint_index))
+        ? Number(poi.waypoint_index)
+        : null,
     }));
     // Uploaded (never-drawn) routes carry their full track as one "segment"
     // and no RWs: seed RWs at the track ends so every planner tool works
     // (technote §2.2).
-    if (this.waypoints.length === 0 && (state.segments || []).length === 1 && (state.segments[0] || []).length >= 2) {
+    if (
+      this.waypoints.length === 0 &&
+      (state.segments || []).length === 1 &&
+      (state.segments[0] || []).length >= 2
+    ) {
       const track = state.segments[0];
       this.waypoints = [
         { lat: track[0][1], lon: track[0][0] },
@@ -111,6 +126,7 @@ export class RoutePlanner {
     this.inFlightCount = 0;
     this.queuedSegments = new Set();
     this.calcTimer = null;
+    this.flowTimer = null;
     this.dragContext = null;
     this.cursorPoint = null;
     this.poiArmed = false;
@@ -127,7 +143,8 @@ export class RoutePlanner {
     this.syncPoiMarkers();
     this.renderAll();
     this.fitToRoute();
-    if (this.segments.some((segment) => segment.status === "pending")) this.recalculateAll();
+    if (this.segments.some((segment) => segment.status === "pending"))
+      this.recalculateAll();
   }
 
   nextId() {
@@ -150,13 +167,25 @@ export class RoutePlanner {
     // Uploaded route: its whole stored track is segment 0's geometry; the
     // RW seeds above make it editable without a recalculation.
     if (count === 1 && storedSegments.length === 1) {
-      return [{
-        points: storedSegments[0] || [], distanceM: 0, ascendM: 0, timeS: 0,
-        status: storedSegments[0] && storedSegments[0].length >= 2 ? "ok" : "pending",
-      }];
+      return [
+        {
+          points: storedSegments[0] || [],
+          distanceM: 0,
+          ascendM: 0,
+          timeS: 0,
+          status:
+            storedSegments[0] && storedSegments[0].length >= 2
+              ? "ok"
+              : "pending",
+        },
+      ];
     }
     return Array.from({ length: count }, () => ({
-      points: [], distanceM: 0, ascendM: 0, timeS: 0, status: "pending",
+      points: [],
+      distanceM: 0,
+      ascendM: 0,
+      timeS: 0,
+      status: "pending",
     }));
   }
 
@@ -165,7 +194,12 @@ export class RoutePlanner {
     (rawPoints || []).forEach((raw) => {
       const index = Number(raw.segment_index) || 0;
       if (!shaping[index]) shaping[index] = [];
-      shaping[index].push({ id: `s${this.nextId()}`, lat: raw.lat, lon: raw.lon, position: Number(raw.position) || 0 });
+      shaping[index].push({
+        id: `s${this.nextId()}`,
+        lat: raw.lat,
+        lon: raw.lon,
+        position: Number(raw.position) || 0,
+      });
     });
     shaping.forEach((points) => points.sort((a, b) => a.position - b.position));
     return shaping;
@@ -232,7 +266,9 @@ export class RoutePlanner {
   }
 
   isDirty() {
-    return JSON.stringify(this.stateSnapshot()) !== JSON.stringify(this.persisted);
+    return (
+      JSON.stringify(this.stateSnapshot()) !== JSON.stringify(this.persisted)
+    );
   }
 
   // ---- DOM contract (the data-planner hooks in maps/show.html.erb) ----------
@@ -270,7 +306,9 @@ export class RoutePlanner {
       this.renderButtons();
     });
     this.dom.profiles.forEach((button) => {
-      button.addEventListener("click", () => this.setProfile(button.getAttribute("data-profile")));
+      button.addEventListener("click", () =>
+        this.setProfile(button.getAttribute("data-profile")),
+      );
     });
     this.dom.undo.addEventListener("click", () => this.undo());
     this.dom.redo.addEventListener("click", () => this.redo());
@@ -281,7 +319,9 @@ export class RoutePlanner {
     this.dom.cancel.addEventListener("click", () => this.requestExit());
     this.dom.close.addEventListener("click", () => this.requestExit());
     this.dom.addPoi.addEventListener("click", () => this.armPoiPlacement());
-    this.dom["confirm-stay"].addEventListener("click", () => this.hideConfirm());
+    this.dom["confirm-stay"].addEventListener("click", () =>
+      this.hideConfirm(),
+    );
     this.dom["confirm-discard"].addEventListener("click", () => {
       this.hideConfirm();
       this.teardown();
@@ -299,11 +339,21 @@ export class RoutePlanner {
       event.preventDefault();
       this.commitPoiModal();
     });
-    this.dom["poi-cancel"].addEventListener("click", () => this.closePoiModal());
-    this.dom["poi-modal-close"].addEventListener("click", () => this.closePoiModal());
-    this.dom["poi-modal-backdrop"].addEventListener("click", () => this.closePoiModal());
-    this.dom["poi-image"].addEventListener("change", (event) => this.uploadPoiImage(event));
-    this.dom["poi-image-remove"].addEventListener("click", () => this.clearPoiImage());
+    this.dom["poi-cancel"].addEventListener("click", () =>
+      this.closePoiModal(),
+    );
+    this.dom["poi-modal-close"].addEventListener("click", () =>
+      this.closePoiModal(),
+    );
+    this.dom["poi-modal-backdrop"].addEventListener("click", () =>
+      this.closePoiModal(),
+    );
+    this.dom["poi-image"].addEventListener("change", (event) =>
+      this.uploadPoiImage(event),
+    );
+    this.dom["poi-image-remove"].addEventListener("click", () =>
+      this.clearPoiImage(),
+    );
   }
 
   onKeydown(event) {
@@ -349,9 +399,15 @@ export class RoutePlanner {
     const count = this.segmentCount();
     const next = [];
     for (let index = 0; index < count; index += 1) {
-      next.push(this.segments[index] || {
-        points: [], distanceM: 0, ascendM: 0, timeS: 0, status: "pending",
-      });
+      next.push(
+        this.segments[index] || {
+          points: [],
+          distanceM: 0,
+          ascendM: 0,
+          timeS: 0,
+          status: "pending",
+        },
+      );
     }
     this.segments = next;
     while (this.shaping.length < count) this.shaping.push([]);
@@ -363,8 +419,9 @@ export class RoutePlanner {
   // Coalescing + debounce + concurrency cap: at most MAX_INFLIGHT requests
   // to Rails; the newest control-point set per segment wins; drags debounce.
   scheduleSegmentRecalc(indexes, immediate) {
-    const valid = [...new Set(indexes || [])]
-      .filter((index) => index >= 0 && index < this.segmentCount());
+    const valid = [...new Set(indexes || [])].filter(
+      (index) => index >= 0 && index < this.segmentCount(),
+    );
     if (!valid.length) return;
     this.queuedSegments = this.queuedSegments || new Set();
     valid.forEach((index) => this.queuedSegments.add(index));
@@ -396,9 +453,12 @@ export class RoutePlanner {
   // valid geometry and mark only this segment (§10.6).
   requestSegment(index) {
     const from = this.waypoints[index];
-    const to = index === this.waypoints.length - 1
-      ? (this.loop ? this.waypoints[0] : null)
-      : this.waypoints[index + 1];
+    const to =
+      index === this.waypoints.length - 1
+        ? this.loop
+          ? this.waypoints[0]
+          : null
+        : this.waypoints[index + 1];
     if (!from || !to) return;
     const points = [
       [from.lat, from.lon],
@@ -419,7 +479,9 @@ export class RoutePlanner {
       },
       body: JSON.stringify({ profile: this.profile, points }),
     })
-      .then((response) => response.json().then((payload) => ({ ok: response.ok, payload })))
+      .then((response) =>
+        response.json().then((payload) => ({ ok: response.ok, payload })),
+      )
       .then(({ ok, payload }) => {
         if (!ok) throw new Error(payload.error || "Routing failed.");
         if (!this.active) return; // planner exited while in flight
@@ -450,7 +512,8 @@ export class RoutePlanner {
 
   recalculateAll() {
     const indexes = [];
-    for (let index = 0; index < this.segmentCount(); index += 1) indexes.push(index);
+    for (let index = 0; index < this.segmentCount(); index += 1)
+      indexes.push(index);
     this.scheduleSegmentRecalc(indexes, true);
   }
 
@@ -489,7 +552,10 @@ export class RoutePlanner {
     // §5.3: the two adjoining segments merge; their SPs are reassigned into
     // the merged segment in order, other segments keep their constraints.
     this.waypoints.splice(index, 1);
-    const mergedShaping = [...(this.shaping[index - 1] || []), ...(this.shaping[index] || [])];
+    const mergedShaping = [
+      ...(this.shaping[index - 1] || []),
+      ...(this.shaping[index] || []),
+    ];
     if (index > 0) {
       this.shaping.splice(index - 1, 2, mergedShaping);
     } else {
@@ -597,11 +663,19 @@ export class RoutePlanner {
   addMapLayers() {
     if (!this.map.getSource("planner-route")) {
       const empty = { type: "FeatureCollection", features: [] };
-      this.map.addSource("planner-route", { type: "geojson", data: empty });
-      this.map.addSource("planner-pending", { type: "geojson", data: empty });
+      // lineMetrics: per-vertex line-progress — REQUIRED for the flow
+      // overlay's line-gradient (the direction shimmer) to render at all.
+      this.map.addSource("planner-route", {
+        type: "geojson",
+        data: empty,
+        lineMetrics: true,
+      });
+      this.map.addSource("planner-pending", {
+        type: "geojson",
+        data: empty,
+        lineMetrics: true,
+      });
     }
-    const layers = (this.map.getStyle() || { layers: [] }).layers || [];
-    const beforeId = (layers.find((layer) => layer.type === "symbol") || {}).id;
     const definitions = [
       {
         id: "planner-route-casing",
@@ -616,12 +690,17 @@ export class RoutePlanner {
         source: "planner-route",
         layout: { "line-cap": "round", "line-join": "round" },
         paint: {
-          "line-color": ["case", ["==", ["get", "failed"], true], FAILED_COLOR, ROUTE_COLOR],
+          "line-color": [
+            "case",
+            ["==", ["get", "failed"], true],
+            FAILED_COLOR,
+            ROUTE_COLOR,
+          ],
           "line-width": 4.5,
         },
       },
       {
-        // Wide transparent hit-area so grabbing the line is easy.
+        // Wide transparent hit-area so the line is easy to catch for a drag.
         id: "planner-route-hit",
         type: "line",
         source: "planner-route",
@@ -633,38 +712,72 @@ export class RoutePlanner {
         type: "line",
         source: "planner-pending",
         layout: { "line-cap": "round" },
-        paint: { "line-color": ROUTE_COLOR, "line-width": 3, "line-dasharray": [1.5, 1.5] },
+        paint: {
+          "line-color": ROUTE_COLOR,
+          "line-width": 3,
+          "line-dasharray": ROUTE_FLOW_DASH,
+        },
+      },
+      {
+        // Blue route path. Failed
+        // segments are excluded so §10.6's red failure state reads undecorated.
+        id: "planner-route",
+        type: "line",
+        source: "planner-route",
+        filter: ["!", ["get", "failed"]],
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-width": 5,
+          "line-color": ROUTE_COLOR,
+        },
       },
     ];
+
     definitions.forEach((definition) => {
       if (this.map.getLayer(definition.id)) return;
-      if (beforeId) this.map.addLayer(definition, beforeId);
-      else this.map.addLayer(definition);
+      // No beforeId — append to the very top of the stack (see the comment
+      // above the definitions: bridges must never paint over the route).
+      this.map.addLayer(definition);
     });
 
     // ALL map handlers bind HERE — one registration site per planner session.
     // They are kept on the instance so teardown can detach them; binding the
     // same event twice (this used to happen with bindDom) makes MapLibre fire
     // both listeners — one click produced two waypoints.
-    this.map.on("mousemove", this.moveHandler = (event) => this.onMapMouseMove(event));
-    this.map.on("click", this.clickHandler = (event) => this.onMapClick(event));
-    this.map.on("mouseout", this.outHandler = () => {
-      this.cursorPoint = null;
-      this.updatePendingLine();
-    });
+    this.map.on(
+      "mousemove",
+      (this.moveHandler = (event) => this.onMapMouseMove(event)),
+    );
+    this.map.on(
+      "click",
+      (this.clickHandler = (event) => this.onMapClick(event)),
+    );
+    this.map.on(
+      "mouseout",
+      (this.outHandler = () => {
+        this.cursorPoint = null;
+        this.updatePendingLine();
+      }),
+    );
     // Layer-scoped handlers, kept on the instance so teardown can detach them —
     // otherwise every re-entry stacks another copy and one drag fires N times.
     this.hitDownHandler = (event) => this.onRouteMouseDown(event);
     this.hitEnterHandler = () => {
-      if (!this.dragContext) this.map.getCanvas().style.cursor = "grab";
+      // The editor draws: pointer everywhere — never the browsing hand.
+      if (!this.dragContext) this.map.getCanvas().style.cursor = "pointer";
     };
     this.hitLeaveHandler = () => {
-      this.map.getCanvas().style.cursor = "";
+      this.map.getCanvas().style.cursor = "pointer";
     };
     this.map.on("mousedown", "planner-route-hit", this.hitDownHandler);
     this.map.on("mouseenter", "planner-route-hit", this.hitEnterHandler);
     this.map.on("mouseleave", "planner-route-hit", this.hitLeaveHandler);
+    // Planning mode's base cursor: the map is a click-to-place surface.
+    this.map.getCanvas().style.cursor = "pointer";
   }
+
+  // The shimmer is static by design (§5.1): no timers, no repaints — the
+  // dashed overlay and its direction gradient are set once in addMapLayers.
 
   onMapMouseMove(event) {
     this.cursorPoint = event.lngLat;
@@ -682,7 +795,7 @@ export class RoutePlanner {
     this.addWaypoint(event.lngLat.lat, event.lngLat.lng);
   }
 
-  // Segment drag (§5.2): grab the line → a temporary Shaping Point appears
+  // Segment drag (§5.2): take the line → a temporary Shaping Point appears
   // under the cursor, follows it, and the segment recalculates (debounced).
   // On drop the SP is persisted as part of the segment.
   onRouteMouseDown(event) {
@@ -693,12 +806,19 @@ export class RoutePlanner {
     const points = this.segments[segmentIndex].points;
     let nearest = { distance: Infinity, index: 0 };
     points.forEach((point, index) => {
-      const distance = this.screenDistance(event.point, this.map.project(point));
+      const distance = this.screenDistance(
+        event.point,
+        this.map.project(point),
+      );
       if (distance < nearest.distance) nearest = { distance, index };
     });
     const point = { lat: event.lngLat.lat, lon: event.lngLat.lng };
-    this.dragContext = { segmentIndex, point, marker: this.makeShapingMarker(point) };
-    this.map.getCanvas().style.cursor = "grabbing";
+    this.dragContext = {
+      segmentIndex,
+      point,
+      marker: this.makeShapingMarker(point),
+    };
+    this.map.getCanvas().style.cursor = "move";
     this.map.dragPan.disable();
 
     const onMove = (moveEvent) => {
@@ -711,12 +831,14 @@ export class RoutePlanner {
       this.map.off("mousemove", onMove);
       this.map.off("mouseup", onUp);
       this.map.dragPan.enable();
-      this.map.getCanvas().style.cursor = "";
+      this.map.getCanvas().style.cursor = "pointer";
       if (this.dragContext) {
         const context = this.dragContext;
         this.dragContext = null;
         context.marker.remove();
-        (this.shaping[segmentIndex] = this.shaping[segmentIndex] || []).push(context.point);
+        (this.shaping[segmentIndex] = this.shaping[segmentIndex] || []).push(
+          context.point,
+        );
         this.syncShapingMarkers();
         this.scheduleSegmentRecalc([segmentIndex], true);
       }
@@ -748,11 +870,19 @@ export class RoutePlanner {
     }
     source.setData({
       type: "FeatureCollection",
-      features: [{
-        type: "Feature",
-        properties: {},
-        geometry: { type: "LineString", coordinates: [[last.lon, last.lat], [this.cursorPoint.lng, this.cursorPoint.lat]] },
-      }],
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [last.lon, last.lat],
+              [this.cursorPoint.lng, this.cursorPoint.lat],
+            ],
+          },
+        },
+      ],
     });
   }
 
@@ -763,7 +893,10 @@ export class RoutePlanner {
       .filter((segment) => segment.points && segment.points.length >= 2)
       .map((segment) => ({
         type: "Feature",
-        properties: { failed: segment.status === "failed", segment: this.segments.indexOf(segment) },
+        properties: {
+          failed: segment.status === "failed",
+          segment: this.segments.indexOf(segment),
+        },
         geometry: { type: "LineString", coordinates: segment.points },
       }));
     source.setData({ type: "FeatureCollection", features });
@@ -773,27 +906,35 @@ export class RoutePlanner {
 
   // Numbered RW markers: drag to move (§5.3), right-click to delete.
   syncWaypointMarkers() {
-    if (this.waypointMarkers) this.waypointMarkers.forEach((marker) => marker.remove());
+    if (this.waypointMarkers)
+      this.waypointMarkers.forEach((marker) => marker.remove());
     this.waypointMarkers = this.waypoints.map((waypoint, index) => {
       const element = document.createElement("div");
       element.className = "planner-marker";
       element.setAttribute("role", "button");
       element.setAttribute("tabindex", "0");
-      element.setAttribute("aria-label", `Waypoint ${index + 1}: drag to move, right-click to delete`);
+      element.setAttribute(
+        "aria-label",
+        `Waypoint ${index + 1}: drag to move, right-click to delete`,
+      );
       element.textContent = String(index + 1);
       element.addEventListener("contextmenu", (event) => {
         event.preventDefault();
         this.deleteWaypoint(index);
       });
-      const marker = new maplibregl.Marker({ element, draggable: true, anchor: "center" })
+      const marker = new maplibregl.Marker({
+        element,
+        draggable: true,
+        anchor: "center",
+      })
         .setLngLat([waypoint.lon, waypoint.lat])
         .addTo(this.map);
       marker.on("dragstart", () => {
         this.pushUndo();
-        this.map.getCanvas().style.cursor = "grabbing";
+        this.map.getCanvas().style.cursor = "move";
       });
       marker.on("dragend", () => {
-        this.map.getCanvas().style.cursor = "";
+        this.map.getCanvas().style.cursor = "pointer";
         const lngLat = marker.getLngLat();
         this.moveWaypoint(index, lngLat.lat, lngLat.lng);
       });
@@ -805,7 +946,8 @@ export class RoutePlanner {
   // SPs stay hidden unless their segment is being dragged (§3.3: not
   // user-facing waypoints); right-click removes the constraint (§5.2).
   syncShapingMarkers() {
-    if (this.shapingMarkers) this.shapingMarkers.forEach((marker) => marker.remove());
+    if (this.shapingMarkers)
+      this.shapingMarkers.forEach((marker) => marker.remove());
     this.shapingMarkers = [];
     if (!this.dragContext) return;
     this.shaping.forEach((points) => {
@@ -857,16 +999,27 @@ export class RoutePlanner {
     // commitPoiModal reads the source when the modal is saved.
     this.pendingPoiPoint = poi
       ? null
-      : (at ? { lat: at.lat, lon: at.lng !== undefined ? at.lng : at.lon } : null)
-        || (waypointIndex !== undefined && waypointIndex !== null
+      : (at
+          ? { lat: at.lat, lon: at.lng !== undefined ? at.lng : at.lon }
+          : null) ||
+        (waypointIndex !== undefined && waypointIndex !== null
           ? this.waypoints[waypointIndex]
           : null);
     this.poiWaypointIndex = waypointIndex === undefined ? null : waypointIndex;
-    this.poiImageState = { signedId: null, url: poi ? poi.image_url : null, removed: false };
+    this.poiImageState = {
+      signedId: null,
+      url: poi ? poi.image_url : null,
+      removed: false,
+    };
     this.dom.poiTitle.value = poi ? poi.title : "";
     this.dom.poiDescription.value = poi ? poi.description : "";
     this.dom.poiUrl.value = poi ? poi.external_url : "";
-    this.dom.poiHeading.textContent = poi && poi.title ? poi.title : (poi ? "Point of interest" : "New point of interest");
+    this.dom.poiHeading.textContent =
+      poi && poi.title
+        ? poi.title
+        : poi
+          ? "Point of interest"
+          : "New point of interest";
     this.dom.poiSaveLabel.textContent = poi ? "Save POI" : "Add to Route";
     this.dom.poiUploadError.hidden = true;
     this.renderPoiImage();
@@ -898,9 +1051,10 @@ export class RoutePlanner {
         this.poiEditing.image_signed_id = this.poiImageState.signedId;
       }
     } else {
-      const source = this.poiWaypointIndex !== null
-        ? this.waypoints[this.poiWaypointIndex]
-        : this.pendingPoiPoint;
+      const source =
+        this.poiWaypointIndex !== null
+          ? this.waypoints[this.poiWaypointIndex]
+          : this.pendingPoiPoint;
       this.pois.push({
         id: this.nextId(),
         lat: source ? source.lat : 0,
@@ -931,7 +1085,11 @@ export class RoutePlanner {
       .then(async (response) => {
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || "Upload failed.");
-        this.poiImageState = { signedId: payload.signed_id, url: payload.url, removed: false };
+        this.poiImageState = {
+          signedId: payload.signed_id,
+          url: payload.url,
+          removed: false,
+        };
         this.renderPoiImage();
       })
       .catch((error) => {
@@ -968,10 +1126,13 @@ export class RoutePlanner {
 
   renderModeButtons() {
     this.dom.profiles.forEach((button) => {
-      button.classList.toggle("is-active", button.getAttribute("data-profile") === this.profile);
+      button.classList.toggle(
+        "is-active",
+        button.getAttribute("data-profile") === this.profile,
+      );
     });
     const label = this.dom["loop-label"];
-    if (label) label.textContent = this.loop ? "Open Loop" : "Close Loop";
+    if (label) label.textContent = this.loop ? "Unloop" : "Loop";
     this.dom.loop.classList.toggle("is-active", this.loop);
   }
 
@@ -979,18 +1140,32 @@ export class RoutePlanner {
     this.dom.undo.disabled = this.undoStack.length === 0;
     this.dom.redo.disabled = this.redoStack.length === 0;
     // Save needs a finished route: every segment calculated at least once.
-    this.dom.save.disabled = this.waypoints.length < 2 ||
+    this.dom.save.disabled =
+      this.waypoints.length < 2 ||
       this.segments.length !== this.segmentCount() ||
-      this.segments.some((segment) => !segment.points || segment.points.length < 2);
+      this.segments.some(
+        (segment) => !segment.points || segment.points.length < 2,
+      );
   }
 
   renderStats() {
-    const distanceM = this.segments.reduce((total, segment) => total + (segment.distanceM || 0), 0);
-    const timeS = this.segments.reduce((total, segment) => total + (segment.timeS || 0), 0);
+    const distanceM = this.segments.reduce(
+      (total, segment) => total + (segment.distanceM || 0),
+      0,
+    );
+    const timeS = this.segments.reduce(
+      (total, segment) => total + (segment.timeS || 0),
+      0,
+    );
     const elevations = this.combinedElevations();
-    const deltas = elevations.length >= 2 ? elevationDeltas(elevations) : { gain: 0, loss: 0 };
-    this.dom.statDistance.textContent = distanceM > 0 ? `${KM_FORMAT.format(distanceM / 1000)} km` : "—";
-    this.dom.statElevation.textContent = deltas.gain > 0 ? `+${Math.round(deltas.gain)} m` : "—";
+    const deltas =
+      elevations.length >= 2
+        ? elevationDeltas(elevations)
+        : { gain: 0, loss: 0 };
+    this.dom.statDistance.textContent =
+      distanceM > 0 ? `${KM_FORMAT.format(distanceM / 1000)} km` : "—";
+    this.dom.statElevation.textContent =
+      deltas.gain > 0 ? `+${Math.round(deltas.gain)} m` : "—";
     this.dom.statTime.textContent = timeS > 0 ? formatDuration(timeS) : "—";
     this.dom.statPoints.textContent = INT_FORMAT.format(this.waypoints.length);
   }
@@ -999,7 +1174,8 @@ export class RoutePlanner {
     const elevations = [];
     this.segments.forEach((segment) => {
       (segment.points || []).forEach((point) => {
-        if (point.length >= 3 && point[2] !== null && point[2] !== undefined) elevations.push(point[2]);
+        if (point.length >= 3 && point[2] !== null && point[2] !== undefined)
+          elevations.push(point[2]);
       });
     });
     return elevations;
@@ -1033,26 +1209,40 @@ export class RoutePlanner {
       text.className = "mymap-planner__row-text";
       const title = document.createElement("span");
       title.className = "mymap-planner__row-title";
-      title.textContent = index === 0 ? "Start" : (index === this.waypoints.length - 1 ? "Finish" : `Waypoint ${index + 1}`);
+      title.textContent =
+        index === 0
+          ? "Start"
+          : index === this.waypoints.length - 1
+            ? "Finish"
+            : `Waypoint ${index + 1}`;
       text.appendChild(title);
       const subtitle = document.createElement("span");
       subtitle.className = "mymap-planner__row-sub t-code-sm c-tertiary";
       subtitle.textContent = `${KM_FORMAT.format(distances[index] / 1000)} km`;
       text.appendChild(subtitle);
       row.appendChild(text);
-      row.appendChild(this.rowButton("flag", "Convert to POI", () => this.openPoiModal({
-        lat: waypoint.lat,
-        lon: waypoint.lon,
-        waypointIndex: index,
-      })));
-      row.appendChild(this.rowButton("delete", "Delete waypoint", () => this.deleteWaypoint(index)));
+      row.appendChild(
+        this.rowButton("flag", "Convert to POI", () =>
+          this.openPoiModal({
+            lat: waypoint.lat,
+            lon: waypoint.lon,
+            waypointIndex: index,
+          }),
+        ),
+      );
+      row.appendChild(
+        this.rowButton("delete", "Delete waypoint", () =>
+          this.deleteWaypoint(index),
+        ),
+      );
       list.appendChild(row);
     });
     this.pois.forEach((poi) => {
       const row = document.createElement("div");
       row.className = "mymap-planner__row mymap-planner__row--poi";
       const badge = document.createElement("span");
-      badge.className = "mymap-planner__row-badge mymap-planner__row-badge--poi";
+      badge.className =
+        "mymap-planner__row-badge mymap-planner__row-badge--poi";
       const icon = document.createElement("span");
       icon.className = "material-symbols-outlined";
       icon.textContent = "flag";
@@ -1069,11 +1259,16 @@ export class RoutePlanner {
       subtitle.textContent = poi.external_url || "POI";
       text.appendChild(subtitle);
       row.appendChild(text);
-      row.appendChild(this.rowButton("edit", "Edit POI", () => this.openPoiModal({ poi })));
-      row.appendChild(this.rowButton("delete", "Delete POI", () => this.deletePoi(poi)));
+      row.appendChild(
+        this.rowButton("edit", "Edit POI", () => this.openPoiModal({ poi })),
+      );
+      row.appendChild(
+        this.rowButton("delete", "Delete POI", () => this.deletePoi(poi)),
+      );
       list.appendChild(row);
     });
-    this.dom["list-hint"].hidden = this.waypoints.length > 0 || this.pois.length > 0;
+    this.dom["list-hint"].hidden =
+      this.waypoints.length > 0 || this.pois.length > 0;
   }
 
   rowButton(iconName, label, handler) {
@@ -1094,8 +1289,13 @@ export class RoutePlanner {
   // from the combined elevation series.
   renderProfile() {
     const points = [];
-    this.segments.forEach((segment) => (segment.points || []).forEach((point) => points.push(point)));
-    const elevated = points.filter((point) => point.length >= 3 && point[2] !== null && point[2] !== undefined);
+    this.segments.forEach((segment) =>
+      (segment.points || []).forEach((point) => points.push(point)),
+    );
+    const elevated = points.filter(
+      (point) =>
+        point.length >= 3 && point[2] !== null && point[2] !== undefined,
+    );
     if (elevated.length < 2) {
       this.dom["profile-block"].hidden = true;
       return;
@@ -1113,7 +1313,10 @@ export class RoutePlanner {
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     });
     this.dom["profile-line"].setAttribute("d", `M${coords.join(" L")}`);
-    this.dom["profile-area"].setAttribute("d", `M0,${height} L${coords.join(" L")} L${width},${height} Z`);
+    this.dom["profile-area"].setAttribute(
+      "d",
+      `M0,${height} L${coords.join(" L")} L${width},${height} Z`,
+    );
     this.dom["profile-max"].textContent = `Max ${Math.round(max)} m`;
   }
 
@@ -1156,7 +1359,12 @@ export class RoutePlanner {
     const shaping = [];
     this.shaping.forEach((points, segmentIndex) => {
       (points || []).forEach((point, position) => {
-        shaping.push({ segment_index: segmentIndex, position, lat: point.lat, lon: point.lon });
+        shaping.push({
+          segment_index: segmentIndex,
+          position,
+          lat: point.lat,
+          lon: point.lon,
+        });
       });
     });
     return {
@@ -1164,7 +1372,10 @@ export class RoutePlanner {
       title: this.title,
       profile: this.profile,
       loop: this.loop,
-      waypoints: this.waypoints.map((point) => ({ lat: point.lat, lon: point.lon })),
+      waypoints: this.waypoints.map((point) => ({
+        lat: point.lat,
+        lon: point.lon,
+      })),
       shaping_points: shaping,
       pois: this.pois.map((poi) => ({
         lat: poi.lat,
@@ -1187,7 +1398,11 @@ export class RoutePlanner {
       this.toast("Place at least two waypoints before saving.");
       return;
     }
-    if (this.segments.some((segment) => !segment.points || segment.points.length < 2)) {
+    if (
+      this.segments.some(
+        (segment) => !segment.points || segment.points.length < 2,
+      )
+    ) {
       this.toast("The route is still calculating — try again in a moment.");
       return;
     }
@@ -1204,9 +1419,10 @@ export class RoutePlanner {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const message = payload.errors && payload.errors.length
-          ? payload.errors.join(" ")
-          : (payload.error || "The route could not be saved.");
+        const message =
+          payload.errors && payload.errors.length
+            ? payload.errors.join(" ")
+            : payload.error || "The route could not be saved.";
         throw new Error(message);
       }
       this.routeId = payload.id;
@@ -1240,7 +1456,8 @@ export class RoutePlanner {
   // Center the camera on the drawn route (§2.2 edit entry lands where the
   // route lives, not at the default viewport).
   fitToRoute() {
-    const coordinates = this.segments.flatMap((segment) => segment.points || [])
+    const coordinates = this.segments
+      .flatMap((segment) => segment.points || [])
       .map((point) => [point[0], point[1]]);
     if (coordinates.length < 2) return;
     const bounds = coordinates.reduce(
@@ -1260,20 +1477,36 @@ export class RoutePlanner {
       clearTimeout(this.calcTimer);
       this.calcTimer = null;
     }
+    // The editor owned the canvas cursor (pointer/move); give the browsing
+    // default back (its own hover handlers take over from here).
+    this.map.getCanvas().style.cursor = "";
     this.queuedSegments = new Set();
-    if (this.waypointMarkers) this.waypointMarkers.forEach((marker) => marker.remove());
+    if (this.waypointMarkers)
+      this.waypointMarkers.forEach((marker) => marker.remove());
     if (this.poiMarkers) this.poiMarkers.forEach((marker) => marker.remove());
-    if (this.shapingMarkers) this.shapingMarkers.forEach((marker) => marker.remove());
-    if (this.dragContext && this.dragContext.marker) this.dragContext.marker.remove();
+    if (this.shapingMarkers)
+      this.shapingMarkers.forEach((marker) => marker.remove());
+    if (this.dragContext && this.dragContext.marker)
+      this.dragContext.marker.remove();
     this.dragContext = null;
-    if (this.keyHandler) document.removeEventListener("keydown", this.keyHandler);
+    if (this.keyHandler)
+      document.removeEventListener("keydown", this.keyHandler);
     if (this.moveHandler) this.map.off("mousemove", this.moveHandler);
     if (this.clickHandler) this.map.off("click", this.clickHandler);
     if (this.outHandler) this.map.off("mouseout", this.outHandler);
-    if (this.hitDownHandler) this.map.off("mousedown", "planner-route-hit", this.hitDownHandler);
-    if (this.hitEnterHandler) this.map.off("mouseenter", "planner-route-hit", this.hitEnterHandler);
-    if (this.hitLeaveHandler) this.map.off("mouseleave", "planner-route-hit", this.hitLeaveHandler);
-    if (this.map.getSource("planner-route")) this.map.getSource("planner-route").setData({ type: "FeatureCollection", features: [] });
-    if (this.map.getSource("planner-pending")) this.map.getSource("planner-pending").setData({ type: "FeatureCollection", features: [] });
+    if (this.hitDownHandler)
+      this.map.off("mousedown", "planner-route-hit", this.hitDownHandler);
+    if (this.hitEnterHandler)
+      this.map.off("mouseenter", "planner-route-hit", this.hitEnterHandler);
+    if (this.hitLeaveHandler)
+      this.map.off("mouseleave", "planner-route-hit", this.hitLeaveHandler);
+    if (this.map.getSource("planner-route"))
+      this.map
+        .getSource("planner-route")
+        .setData({ type: "FeatureCollection", features: [] });
+    if (this.map.getSource("planner-pending"))
+      this.map
+        .getSource("planner-pending")
+        .setData({ type: "FeatureCollection", features: [] });
   }
 }

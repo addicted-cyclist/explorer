@@ -629,6 +629,8 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
                     "addMapLayers must not re-add an existing source (re-entry throws __map.addSource: Source already exists)"
     assert_includes setup_body, "getLayer(definition.id)",
                     "addMapLayers must not re-add an existing layer"
+    assert_nil setup_body[/addLayer\(definition, beforeId\)/],
+               "planner layers must append to the TOP of the stack — base styles draw bridges/overpasses after their first symbol layer, which left them painted over the route"
 
     events = setup_body.scan(/this\.map\.on\(\s*["'](\w+)["']/).flatten
     assert_includes events, "mousedown", "the scanner must find the layer-scoped mousedown binding"
@@ -733,6 +735,79 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
                     "the URL must mirror the open editor (refresh re-boots the route)"
     assert_includes source, "boundPopupEditClick",
                     "the handler must be bound to the popup edit target"
+  end
+
+  # Planning mode clears the stage: every browsing route layer (own + public
+  # feeds, selection highlight, direction arrows) hides when the editor opens
+  # and comes back when it closes — the sources keep their data, so the
+  # restore is instant (no refetch). The ?edit boot runs BEFORE the layers
+  # exist (see the onMapLoad ordering test), so the hide must run again there.
+  test "planning mode hides browsing routes and restores them on exit" do
+    source = Rails.root.join("app/javascript/controllers/my_map_controller.js").read
+    start_body = source[/startPlanner\(initialState\) \{.*?\n  \}/m].to_s
+    leave_body = source[/leavePlannerMode\(\) \{.*?\n  \}/m].to_s
+    load_body = source[/onMapLoad\(\) \{.*?\n  \}/m].to_s
+    assert_not_empty start_body, "could not locate startPlanner()"
+    assert_not_empty leave_body, "could not locate leavePlannerMode()"
+    assert_not_empty load_body, "could not locate onMapLoad()"
+
+    %w[own-casing own-line public-casing public-line highlight-casing highlight-line route-arrows].each do |layer|
+      assert_includes source, "\"#{layer}\"",
+                      "the browsing-layer list must include #{layer}"
+    end
+    assert_includes start_body, "setBrowsingRoutesVisibility(false)",
+                    "entering the planner must hide the browsing routes"
+    assert_includes leave_body, "setBrowsingRoutesVisibility(true)",
+                    "leaving the planner must bring the browsing routes back"
+    assert_includes load_body, "if (this.planner) this.setBrowsingRoutesVisibility(false)",
+                    "the ?edit boot precedes layer creation — the hide must run again after addRouteLayers"
+
+    # settleStatus → setStatus("") → applyScopeToLayers runs on every moveend:
+    # without a planner guard it flips the hidden routes back on mid-session
+    # (the zoom regression). On exit the scope reapplies over the restored
+    # layers, so a pre-session "My Routes"-only view survives the round trip.
+    scope_body = source[/applyScopeToLayers\(\) \{.*?\n  \}/m].to_s
+    assert_not_empty scope_body, "could not locate applyScopeToLayers()"
+    assert_includes scope_body, "if (this.planner) return",
+                    "the scope must not touch layer visibility while the planner is open"
+    assert_includes leave_body, "this.applyScopeToLayers()",
+                    "leaving the planner must reapply the scope on the restored layers"
+  end
+
+  # The planner's route line is deliberately static: solid color (failed
+  # segments switch to the §10.6 red via the layer's case expression), the
+  # pending rubber line keeps the even dash — and nothing in the editor
+  # module repaints the map on its own (no timers, no paint mutations).
+  test "the planner route line is static and colors failed segments red" do
+    source = Rails.root.join("app/javascript/map/route_planner.js").read
+
+    assert_includes source, 'id: "planner-route-line"',
+                    "the route line layer must exist"
+    assert_includes source, "FAILED_COLOR",
+                    "failed segments switch to the §10.6 red"
+    assert_includes source, "ROUTE_FLOW_DASH = [2, 2]",
+                    "the dash is uniform — one dash length, one gap length"
+    assert_includes source, '"line-dasharray": ROUTE_FLOW_DASH',
+                    "the pending rubber line paints the even dash pattern"
+    assert_nil source[/setInterval|requestAnimationFrame|setPaintProperty/],
+               "the editor is deliberately static — no animation loops in the planner"
+  end
+
+  # The editor is a click-to-place surface: the canvas cursor is the pointer
+  # everywhere in planning mode (hover included; an active geometry drag reads
+  # as "move", never as a hand), and teardown hands the default back to the
+  # browsing hover handlers.
+  test "the planner draws with a pointer cursor and restores the default on exit" do
+    source = Rails.root.join("app/javascript/map/route_planner.js").read
+
+    assert_includes source[/addMapLayers\(\) \{.*?\n  \}/m].to_s, 'style.cursor = "pointer"',
+                    "entering the planner must switch the canvas to the pointer cursor"
+    assert_includes source[/teardown\(\) \{.*?\n  \}/m].to_s, 'style.cursor = ""',
+                    "teardown must restore the browsing default cursor"
+    assert_nil source[/grab/i],
+               "no hand cursor in the editor — the map draws with the pointer"
+    assert_includes source, '"move"',
+                    "an active geometry drag reads as move, not as a hand"
   end
 
   # Regression: pumpCalcQueue guards on `this.inFlightCount < MAX_INFLIGHT`.

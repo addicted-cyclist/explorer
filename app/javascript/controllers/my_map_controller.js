@@ -281,7 +281,10 @@ export default class MyMapController extends Controller {
       this.boundApplyFindFilters,
     );
     if (this.boundPopupEditClick && this.hasPopupEditTarget) {
-      this.popupEditTarget.removeEventListener("click", this.boundPopupEditClick);
+      this.popupEditTarget.removeEventListener(
+        "click",
+        this.boundPopupEditClick,
+      );
     }
     document.removeEventListener("turbo:before-cache", this.boundBeforeCache);
     if (this.ro) this.ro.disconnect();
@@ -383,6 +386,10 @@ export default class MyMapController extends Controller {
     this.addArrowLayer();
 
     this.layersReady = true;
+    // Planning boot (?edit=ID): the planner booted before these layers
+    // existed, so the stage-clearing runs here too — the editor's geometry
+    // must be the only thing on the map from the first paint.
+    if (this.planner) this.setBrowsingRoutesVisibility(false);
     // Own routes load per viewport (§5.1), so the initial viewport comes
     // straight from the server-provided hotspot; the first own+public fetch
     // rides the fit transition's moveend (see resolveInitialViewport).
@@ -525,6 +532,33 @@ export default class MyMapController extends Controller {
 
   // ---- Route Planner (technote.ROUTE-DRAW.md) ---------------------------------
 
+  // Layers the BROWSING mode draws routes with: the two viewport feeds, the
+  // selection highlight and its direction arrows. Planning mode hides them —
+  // the editor's geometry must be the only thing on the stage (§5.1: no
+  // visual competition while placing waypoints and dragging segments).
+  static BROWSING_ROUTE_LAYERS = [
+    "own-casing",
+    "own-line",
+    "public-casing",
+    "public-line",
+    "highlight-casing",
+    "highlight-line",
+    "route-arrows",
+  ];
+
+  // Show/hide every browsing route layer in one call. Idempotent: layers may
+  // not exist yet when the ?edit boot runs (the planner boots before
+  // addRouteLayers — see onMapLoad), and a failed base style ships none.
+  setBrowsingRoutesVisibility(visible) {
+    if (!this.map) return;
+    const visibility = visible ? "visible" : "none";
+    MyMapController.BROWSING_ROUTE_LAYERS.forEach((layerId) => {
+      if (this.map.getLayer(layerId)) {
+        this.map.setLayoutProperty(layerId, "visibility", visibility);
+      }
+    });
+  }
+
   // §2.1 "Draw New Route": enter planning mode with an empty session.
   enterPlanner() {
     if (this.planner) return;
@@ -614,6 +648,9 @@ export default class MyMapController extends Controller {
     this.drawingChipTarget.hidden = false;
     this.exitButtonTarget.hidden = false;
     this.collapseDrawer();
+    // Clear the stage: browsing routes yield to the editor's geometry until
+    // the session ends (leavePlannerMode brings them back).
+    this.setBrowsingRoutesVisibility(false);
   }
 
   // Second-chance consumer for a parked editor state (see startPlanner):
@@ -643,6 +680,11 @@ export default class MyMapController extends Controller {
     if (this.hasPlannerPanelTarget) this.plannerPanelTarget.hidden = true;
     if (this.hasDrawingChipTarget) this.drawingChipTarget.hidden = true;
     if (this.hasExitButtonTarget) this.exitButtonTarget.hidden = true;
+    // The browsing routes come back — the sources kept their data while the
+    // layers were hidden, so the restore is instant (no refetch). The scope
+    // filter reapplies on top (planner is null now, so it may touch layers).
+    this.setBrowsingRoutesVisibility(true);
+    this.applyScopeToLayers();
     this.clearEditQueryParam();
   }
 
@@ -1907,6 +1949,11 @@ export default class MyMapController extends Controller {
   }
 
   applyScopeToLayers() {
+    // Planning mode owns the browsing layers' visibility entirely (they stay
+    // hidden until the session ends): settleStatus fires on every moveend and
+    // must not flip the routes back on behind the editor's back. On exit
+    // leavePlannerMode re-applies the scope once the layers are visible again.
+    if (this.planner) return;
     const visibility = (ownLayer) => {
       if (this.activeScope === "all") return "visible";
       return (this.activeScope === "own") === ownLayer ? "visible" : "none";
