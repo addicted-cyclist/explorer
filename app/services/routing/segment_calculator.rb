@@ -10,8 +10,8 @@ module Routing
   # HTTP and the engine.
   class SegmentCalculator
     class << self
-      # +points+ are [lat, lon] pairs in travel order (RW, its SPs, next RW).
-      # Returns { coordinates: [[lon, lat, ele], ...], distance_m:, ascend_m:,
+      # +points+ are [lat, lon] pairs in travel order (the segment's plotted
+      # waypoints — two since §12). Returns { coordinates: [[lon, lat, ele], ...], distance_m:, ascend_m:,
       # time_s:, profile: } — the exact payload the client merges into its
       # segment list.
       def call(points:, profile:)

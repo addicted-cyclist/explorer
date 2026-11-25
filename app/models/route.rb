@@ -11,10 +11,9 @@ class Route < ApplicationRecord
   # route icon until a later visit heals them.
   has_one_attached :static_map
   has_many :calendar_entries, dependent: :destroy
-  # Route planner collections (technote.ROUTE-DRAW.md §3/§9): RW, SP and
-  # POIs stay three SEPARATE collections, each destroyed with the route.
+  # Route planner collections (technote.ROUTE-DRAW.md §3/§9, §12): RW and
+  # POIs stay two SEPARATE collections, each destroyed with the route.
   has_many :routing_waypoints, -> { order(:position) }, dependent: :destroy, inverse_of: :route
-  has_many :shaping_points, -> { order(:segment_index, :position) }, dependent: :destroy, inverse_of: :route
   has_many :pois, class_name: "RoutePoi", dependent: :destroy, inverse_of: :route
 
   # Difficulty label shown as the primary badge on library cards
@@ -87,10 +86,6 @@ class Route < ApplicationRecord
       profile: routing_profile || DEFAULT_ROUTING_PROFILE,
       loop: geometry["loop"].present?,
       waypoints: waypoints,
-      shaping_points: shaping_points.map do |point|
-        { id: point.id, segment_index: point.segment_index, position: point.position,
-          lat: point.lat, lon: point.lon }
-      end,
       pois: pois.map { |poi| poi_state(poi) },
       segments: segments
     }
@@ -353,21 +348,14 @@ class Route < ApplicationRecord
   end
 
   # Deep-copy the Route Planner collections (technote.ROUTE-DRAW.md §9) onto
-  # +copy+: ordered RW, SP with their segment associations, POIs with their
-  # metadata and imagery. Plain row copies — the copy owns its own planner
-  # state exactly like it owns its own GPX bytes, so editing one can never
-  # move the other's waypoints.
+  # +copy+: ordered RW and POIs with their metadata and imagery. Plain row
+  # copies — the copy owns its own planner state exactly like it owns its own
+  # GPX bytes, so editing one can never move the other's waypoints.
   def copy_planner_collections(copy)
     key_map = {}
     routing_waypoints.each do |waypoint|
       duplicate = copy.routing_waypoints.build(lat: waypoint.lat, lon: waypoint.lon, position: waypoint.position)
       key_map[waypoint.id] = duplicate
-    end
-    shaping_points.each do |point|
-      copy.shaping_points.build(
-        segment_index: point.segment_index, position: point.position,
-        lat: point.lat, lon: point.lon
-      )
     end
     pois.each do |poi|
       duplicate = copy.pois.build(

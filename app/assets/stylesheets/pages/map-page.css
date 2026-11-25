@@ -1432,6 +1432,22 @@
 .mymap-planner__row--poi {
   background: #fff1f2;
 }
+/* Waypoint rows select their RW on click (§12.1) — POI rows are not
+   selectable, so they keep the default cursor. */
+.mymap-planner__row:not(.mymap-planner__row--poi) {
+  cursor: pointer;
+}
+.mymap-planner__row:not(.mymap-planner__row--poi):hover {
+  background: #e4e4e7;
+}
+.mymap-planner__row:focus-visible {
+  outline: 2px solid #000dff;
+  outline-offset: 2px;
+}
+/* The selected waypoint's row (§12.1) — mirrors the map marker's ring. */
+.mymap-planner__row--selected {
+  box-shadow: inset 0 0 0 2px #000dff;
+}
 .mymap-planner__row-badge {
   display: inline-flex;
   align-items: center;
@@ -1591,13 +1607,21 @@
 .planner-marker:active {
   cursor: grabbing;
 }
-.planner-sp {
-  width: 0.65rem;
-  height: 0.65rem;
-  border-radius: 9999px;
-  background: #ffffff;
-  border: 2px solid #09090b;
-  cursor: pointer;
+/* Selected waypoint (§12.1): the rubber band and the next insert originate
+   here — the accent fill + ring must read at a glance. */
+.planner-marker--selected {
+  background: #000dff;
+  box-shadow:
+    0 0 0 3px rgba(0, 13, 255, 0.3),
+    0 1px 4px rgba(9, 9, 11, 0.35);
+}
+/* Transient segment-drag marker (§12.3): waypoint-shaped ghost without a
+   number — the number arrives when the drag commits the plotted waypoint. */
+.planner-marker--ghost {
+  width: 0.9rem;
+  height: 0.9rem;
+  background: #000dff;
+  opacity: 0.65;
 }
 .planner-poi {
   display: flex;

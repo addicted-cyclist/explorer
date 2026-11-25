@@ -4,7 +4,7 @@ module Map
   # Builds the GPX representation of a drawn route (technote.ROUTE-DRAW.md
   # §9): the calculated geometry with one <trkpt> per point, elevations when
   # BRouter provided them. The GPX is NOT the source of truth for editing —
-  # the RW/SP/POI collections are (§3) — but attaching it makes a drawn
+  # the RW/POI collections are (§3, §12) — but attaching it makes a drawn
   # route a first-class citizen of the existing machinery: detail page,
   # gpx.studio embed, download, calendar joins and thumbnail capture all
   # read the attachment exactly like an uploaded ride.

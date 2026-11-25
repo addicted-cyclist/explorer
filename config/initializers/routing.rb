@@ -49,7 +49,8 @@ Rails.application.config.x.routing =
     # the same drag point never recomputes, saves replay the session's
     # calculations for free, and warmth cannot change response shape.
     cache_ttl: 6.hours,
-    # Cap on the number of lonlats a single segment request may carry
-    # (RW + its shaping points + closing RW).
+    # Cap on the number of lonlats a single segment request may carry. Since
+    # §12 a segment request is always the segment's two plotted waypoints —
+    # the cap stays as a hard ceiling against abusive payloads.
     max_points_per_request: 120
   }.freeze

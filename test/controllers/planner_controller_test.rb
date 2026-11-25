@@ -66,7 +66,6 @@ class PlannerControllerTest < ActionDispatch::IntegrationTest
     assert_equal "drawn", route.source
     assert_equal "road", route.routing_profile
     assert_equal 2, route.routing_waypoints.count
-    assert_equal 1, route.shaping_points.count
     assert_equal 1, route.pois.count
     assert_operator route.distance, :>, 0
     assert route.gpx_file.attached?
@@ -197,15 +196,13 @@ class PlannerControllerTest < ActionDispatch::IntegrationTest
   end
 
   # A complete, consistent editor state: two RWs, one segment whose geometry
-  # starts and ends at the RWs (within the saver's snap tolerance), one SP,
-  # one POI.
+  # starts and ends at the RWs (within the saver's snap tolerance), one POI.
   def editor_state(overrides = {})
     {
       "title" => "Drafthouse Loop",
       "profile" => "road",
       "loop" => false,
       "waypoints" => [ { "lat" => 49.4100, "lon" => 8.7100 }, { "lat" => 49.4140, "lon" => 8.7140 } ],
-      "shaping_points" => [ { "segment_index" => 0, "position" => 0, "lat" => 49.4120, "lon" => 8.7120 } ],
       "pois" => [ {
         "lat" => 49.4125, "lon" => 8.7125, "title" => "Water refill",
         "description" => "Fountain at the trailhead", "external_url" => "https://example.com/fountain",

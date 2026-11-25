@@ -3,8 +3,8 @@
 module Routing
   # The Routing Engine Adapter (technote.ROUTE-DRAW.md §10.4): the ONLY code
   # path between the application and the self-hosted BRouter HTTP server.
-  # Converts RW/SP coordinate sequences into BRouter requests, parses the
-  # responses into the application's GeoJSON shape, caches identical
+  # Converts control-point coordinate sequences into BRouter requests, parses
+  # the responses into the application's GeoJSON shape, caches identical
   # requests, and translates every failure mode into a small set of
   # user-safe errors. BRouter implementation details never leak past this
   # class, and the frontend never talks to BRouter — it talks to
@@ -37,9 +37,11 @@ module Routing
 
     class << self
       # Route a single segment through BRouter: +points+ are [lat, lon]
-      # control points (RW with any SPs spliced in order, closing RW last),
-      # +profile+ one of Route::ROUTING_PROFILES. Cached by rounded
-      # coordinates + profile (§10.6: identical requests must not recompute).
+      # control points in travel order (the segment's plotted waypoints —
+      # two since §12, plus any temp drag point spliced in by the live
+      # preview), +profile+ one of Route::ROUTING_PROFILES. Cached by
+      # rounded coordinates + profile (§10.6: identical requests must not
+      # recompute).
       def calculate_segment(points:, profile:)
         validate_points!(points)
         cache_key = segment_cache_key(points, profile)

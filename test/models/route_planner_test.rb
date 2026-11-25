@@ -3,9 +3,10 @@
 require "test_helper"
 
 # The Route Planner's persistence contracts on the Route model
-# (technote.ROUTE-DRAW.md §9): three separate collections, an editor state
-# builder for reopening, and deep copies that carry the full planner state
-# so a joined drawn ride stays editable in the joiner's library.
+# (technote.ROUTE-DRAW.md §9, §12): separate waypoint/POI collections, an
+# editor state builder for reopening, and deep copies that carry the full
+# planner state so a joined drawn ride stays editable in the joiner's
+# library.
 class RoutePlannerTest < ActiveSupport::TestCase
   setup do
     @user = User.create!(valid_user_attributes)
@@ -18,19 +19,17 @@ class RoutePlannerTest < ActiveSupport::TestCase
     )
     @waypoint_a = @route.routing_waypoints.create!(position: 0, lat: 49.41, lon: 8.71)
     @waypoint_b = @route.routing_waypoints.create!(position: 1, lat: 49.42, lon: 8.72)
-    @route.shaping_points.create!(segment_index: 0, position: 0, lat: 49.415, lon: 8.715)
     @route.pois.create!(lat: 49.411, lon: 8.711, title: "Fountain", routing_waypoint: @waypoint_a)
   end
 
-  test "planner_state carries profile, loop flag and the three collections" do
+  test "planner_state carries profile, loop flag and the waypoint/POI collections" do
     state = @route.planner_state
 
     assert_equal "gravel", state[:profile]
     assert state[:loop]
     assert_equal 2, state[:waypoints].size
     assert_equal @waypoint_a.id, state[:waypoints].first[:id]
-    assert_equal 1, state[:shaping_points].size
-    assert_equal 0, state[:shaping_points].first[:segment_index]
+    assert_not state.key?(:shaping_points) # §12: hidden points are gone
     assert_equal 1, state[:pois].size
     assert_equal [ [ 8.71, 49.41, 100.0 ], [ 8.72, 49.42, 120.0 ] ], state[:segments].first
   end
@@ -51,7 +50,7 @@ class RoutePlannerTest < ActiveSupport::TestCase
     assert_nil state[:waypoints].first[:id]
     assert_equal [ 8.5417, 47.3769 ], [ state[:waypoints].first[:lon], state[:waypoints].first[:lat] ]
     assert_equal [ 8.5437, 47.3789 ], [ state[:waypoints].last[:lon], state[:waypoints].last[:lat] ]
-    assert_empty state[:shaping_points]
+    assert_not state.key?(:shaping_points)
     assert_empty state[:pois]
     assert_equal 1, state[:segments].size
     assert_equal [ 8.5417, 47.3769, 100.0 ], state[:segments].first.first
@@ -114,9 +113,8 @@ class RoutePlannerTest < ActiveSupport::TestCase
     assert_in_delta 47.05, state[:waypoints].last[:lat], 1e-6
   end
 
-  test "destroying the route removes all three collections" do
+  test "destroying the route removes both collections" do
     assert_difference -> { RoutingWaypoint.count } => -2,
-                     -> { ShapingPoint.count } => -1,
                      -> { RoutePoi.count } => -1 do
       @route.destroy
     end
@@ -131,7 +129,7 @@ class RoutePlannerTest < ActiveSupport::TestCase
     assert_in_delta 49.411, poi.lat, 0.000001
   end
 
-  test "deep copy carries RWs, SPs, POIs and the generated GPX metadata" do
+  test "deep copy carries RWs, POIs and the generated GPX metadata" do
     rider = User.create!(valid_user_attributes(email: "joiner@example.com", username: "joiner"))
 
     copy = @route.deep_copy_for(rider)
@@ -141,7 +139,6 @@ class RoutePlannerTest < ActiveSupport::TestCase
     assert_equal "drawn", copy.source
     assert_equal "gravel", copy.routing_profile
     assert_equal 2, copy.routing_waypoints.count
-    assert_equal 1, copy.shaping_points.count
     assert_equal 1, copy.pois.count
     assert_equal @route.planner_geometry, copy.planner_geometry
     # The copy's POI links to the COPY's waypoint, not the original's.

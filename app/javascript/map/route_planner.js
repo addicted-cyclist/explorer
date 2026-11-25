@@ -2,11 +2,16 @@ import maplibregl from "maplibre-gl";
 
 // Route Planner engine (technote.ROUTE-DRAW.md) — the editing brain behind
 // the My Map "Draw new route" mode. Owns the editor session (Routing
-// Waypoints, Shaping Points, POIs, routing profile, per-segment calculated
-// geometry), the undo/redo stacks and all map interaction. Routing is
-// delegated to Rails (POST /planner/calculate → Routing::BrouterClient):
-// the frontend NEVER talks to BRouter directly (§10.4). Design reference:
+// Waypoints, POIs, routing profile, per-segment calculated geometry), the
+// undo/redo stacks and all map interaction. Routing is delegated to Rails
+// (POST /planner/calculate → Routing::BrouterClient): the frontend NEVER
+// talks to BRouter directly (§10.4). Design reference:
 // design-refs/stitch_explorer_v.0.15.
+//
+// §12 model: the route is a pure sequence of plotted waypoints. There are no
+// hidden shaping points — dragging the line plants a new plotted waypoint,
+// clicking a waypoint selects it so the dashed pending line starts there and
+// the next map click inserts right after it, and marker drags move waypoints.
 //
 // Recalculation discipline (§10.6): every request carries a monotonically
 // increasing revision — stale responses are dropped; requests are debounced
@@ -110,8 +115,7 @@ export class RoutePlanner {
     // Defensive fallback — the server seeds editor waypoints itself now
     // (sliced tracks, RW at every cut). A state that still arrives with one
     // full-track segment and no RWs gets its start/end seeded here so every
-    // planner tool works (technote §2.2). MUST run before loadShaping: the
-    // shaping array is sized from the final waypoint count.
+    // planner tool works (technote §2.2).
     if (
       this.waypoints.length === 0 &&
       (state.segments || []).length === 1 &&
@@ -123,7 +127,6 @@ export class RoutePlanner {
         { lat: track[track.length - 1][1], lon: track[track.length - 1][0] },
       ];
     }
-    this.shaping = this.loadShaping(state.shaping_points || []);
     this.pois = (state.pois || []).map((poi) => ({
       id: this.nextId(),
       lat: poi.lat,
@@ -152,6 +155,9 @@ export class RoutePlanner {
     this.calcTimer = null;
     this.flowTimer = null;
     this.dragContext = null;
+    this.draggingMarker = false;
+    this.suppressNextMapClick = false;
+    this.selectedWaypointIndex = null;
     this.cursorPoint = null;
     this.poiArmed = false;
     this.pendingPoiPoint = null;
@@ -208,22 +214,6 @@ export class RoutePlanner {
     }));
   }
 
-  loadShaping(rawPoints) {
-    const shaping = this.waypoints.map(() => []);
-    (rawPoints || []).forEach((raw) => {
-      const index = Number(raw.segment_index) || 0;
-      if (!shaping[index]) shaping[index] = [];
-      shaping[index].push({
-        id: `s${this.nextId()}`,
-        lat: raw.lat,
-        lon: raw.lon,
-        position: Number(raw.position) || 0,
-      });
-    });
-    shaping.forEach((points) => points.sort((a, b) => a.position - b.position));
-    return shaping;
-  }
-
   // ---- session state + undo (§5.4) ------------------------------------------
 
   // Everything undo must restore — geometry, point collections, associations
@@ -235,7 +225,6 @@ export class RoutePlanner {
       profile: this.profile,
       loop: this.loop,
       waypoints: deepClone(this.waypoints),
-      shaping: deepClone(this.shaping),
       pois: deepClone(this.pois),
       segments: this.segments.map((segment) => ({
         points: deepClone(segment.points),
@@ -269,8 +258,10 @@ export class RoutePlanner {
     this.profile = snapshot.profile;
     this.loop = snapshot.loop;
     this.waypoints = deepClone(snapshot.waypoints);
-    this.shaping = deepClone(snapshot.shaping);
     this.pois = deepClone(snapshot.pois);
+    // Selection is transient UI state — a restored index may point at a
+    // different waypoint after undo/redo.
+    this.selectedWaypointIndex = null;
     this.segments = snapshot.segments.map((segment) => ({
       points: deepClone(segment.points),
       distanceM: segment.distanceM,
@@ -381,6 +372,11 @@ export class RoutePlanner {
       if (event.shiftKey) this.redo();
       else this.undo();
     } else if (event.key === "Escape" && !this.poiModalOpen) {
+      // Esc first releases the waypoint selection (§12.1), only then exits.
+      if (this.selectedWaypointIndex !== null) {
+        this.selectWaypoint(this.selectedWaypointIndex);
+        return;
+      }
       this.requestExit();
     }
   }
@@ -399,20 +395,7 @@ export class RoutePlanner {
     return this.loop ? this.waypoints[0] : null;
   }
 
-  // Control points for BRouter: the segment's two RWs with its SPs spliced
-  // in order (§3.3 — SPs participate in the calculation).
-  segmentControlPoints(index) {
-    const from = this.waypoints[index];
-    const to = this.segmentTo(index);
-    if (!from || !to) return null;
-    return [
-      [from.lat, from.lon],
-      ...(this.shaping[index] || []).map((point) => [point.lat, point.lon]),
-      [to.lat, to.lon],
-    ];
-  }
-
-  // Align segments/shaping with the RW sequence; existing geometry is kept
+  // Align segments with the RW sequence; existing geometry is kept
   // so unaffected segments are never recalculated (§5.3).
   reconcileSegments() {
     const count = this.segmentCount();
@@ -429,8 +412,6 @@ export class RoutePlanner {
       );
     }
     this.segments = next;
-    while (this.shaping.length < count) this.shaping.push([]);
-    this.shaping.length = count;
   }
 
   // ---- recalculation pipeline (§10.6) ----------------------------------------
@@ -479,11 +460,13 @@ export class RoutePlanner {
           : null
         : this.waypoints[index + 1];
     if (!from || !to) return;
-    const points = [
-      [from.lat, from.lon],
-      ...(this.shaping[index] || []).map((point) => [point.lat, point.lon]),
-      [to.lat, to.lon],
-    ];
+    // The segment's two plotted waypoints; while its line is being dragged
+    // (§12.3) the temp point rides between them so the preview bends along
+    // real roads under the cursor — not just on drop.
+    const points = [[from.lat, from.lon]];
+    if (this.dragContext && this.dragContext.segmentIndex === index)
+      points.push([this.dragContext.point.lat, this.dragContext.point.lon]);
+    points.push([to.lat, to.lon]);
     const revision = ++this.revisionCounter;
     const segment = this.segments[index];
     segment.status = segment.points.length >= 2 ? segment.status : "pending";
@@ -559,49 +542,108 @@ export class RoutePlanner {
     this.scheduleSegmentRecalc([this.segmentCount() - 1], true);
   }
 
-  // RW deletion (§5.3): the adjoining segments merge, their SPs are
-  // reassigned to the merged segment in order, and only the merged segment
-  // recalculates. POIs linked to the RW keep coordinates and metadata (§3.4).
+  // RW deletion (§5.3): the two adjoining segments merge into one across the
+  // remaining neighbours, and only the merged span recalculates. In loop mode
+  // the closing segment also loses an endpoint when the first or last RW goes
+  // — it must recalculate too, or the saver's endpoint check would reject the
+  // next save. POIs linked to the RW keep coordinates and metadata (§3.4).
   deleteWaypoint(index) {
     if (this.waypoints.length <= 2) {
       this.clearRoute();
       return;
     }
     this.pushUndo();
-    // §5.3: the two adjoining segments merge; their SPs are reassigned into
-    // the merged segment in order, other segments keep their constraints.
+    const last = this.waypoints.length - 1;
+    const wasLast = index === last;
     this.waypoints.splice(index, 1);
-    const mergedShaping = [
-      ...(this.shaping[index - 1] || []),
-      ...(this.shaping[index] || []),
-    ];
-    if (index > 0) {
-      this.shaping.splice(index - 1, 2, mergedShaping);
-    } else {
-      this.shaping.splice(index, 1);
+    // Drop the segment that can no longer exist: for a middle deletion the
+    // right adjoining one (the left keeps its slot and recalculates across
+    // the merged span); for the first RW, segment 0 (the old second segment
+    // is already the valid merged one); for the last RW, the final chain
+    // segment. All later segments shift with the splice.
+    this.segments.splice(wasLast ? index - 1 : index, 1);
+    if (this.selectedWaypointIndex !== null) {
+      if (this.selectedWaypointIndex === index) this.selectedWaypointIndex = null;
+      else if (this.selectedWaypointIndex > index) this.selectedWaypointIndex -= 1;
     }
-    this.reconcileSegments();
     this.pois.forEach((poi) => {
       if (poi.waypoint_index === index) poi.waypoint_index = null;
       else if (poi.waypoint_index > index) poi.waypoint_index -= 1;
     });
     this.syncWaypointMarkers();
     this.syncPoiMarkers();
-    this.syncShapingMarkers();
     this.renderWaypointList();
     this.renderStats();
-    this.scheduleSegmentRecalc([index - 1], true);
+    const indexes = new Set();
+    if (index > 0 && index < last) indexes.add(index - 1);
+    if (this.loop && (index === 0 || wasLast))
+      indexes.add(this.segmentCount() - 1);
+    this.scheduleSegmentRecalc([...indexes], true);
   }
 
-  // RW move (marker drag): only the adjoining segments recalculate (§5.3).
+  // RW move (marker drag): only the segments that reference the moved RW
+  // recalculate (§5.3) — in loop mode that includes the closing segment.
   moveWaypoint(index, lat, lon) {
     const waypoint = this.waypoints[index];
     if (!waypoint) return;
     waypoint.lat = lat;
     waypoint.lon = lon;
-    this.scheduleSegmentRecalc([index - 1, index], true);
+    this.scheduleSegmentRecalc(this.waypointSegmentIndexes(index), true);
     this.renderStats();
     this.renderWaypointList();
+  }
+
+  // Indexes of the segments whose geometry depends on RW[index]: the chain
+  // segments on both sides, plus the loop closing segment whenever the moved
+  // RW is one of its endpoints (§5.6 — RW[0] is its target, the last RW its
+  // source). Missing the closing segment here used to leave stale geometry
+  // that the saver's endpoint check rejects on save.
+  waypointSegmentIndexes(index) {
+    const indexes = new Set();
+    if (index > 0) indexes.add(index - 1);
+    if (index < this.waypoints.length - 1) indexes.add(index);
+    if (this.loop && (index === 0 || index === this.waypoints.length - 1))
+      indexes.add(this.segmentCount() - 1);
+    return [...indexes];
+  }
+
+  // §12.1: clicking a plotted waypoint selects it — the dashed pending line
+  // then starts there (updatePendingLine) and the next map click inserts a
+  // waypoint right after it. Clicking the selected one again deselects.
+  selectWaypoint(index) {
+    this.selectedWaypointIndex =
+      this.selectedWaypointIndex === index ? null : index;
+    this.syncWaypointMarkers();
+    this.renderWaypointList();
+    this.updatePendingLine();
+  }
+
+  // §12.1: insert a plotted waypoint directly after the selected one. The
+  // old segment RW[index]→old target splits in two — it keeps its slot
+  // (recalculates down to the new waypoint) and a pending segment splices in
+  // after it (new waypoint → old target); both recalculate with the active
+  // profile. The selection follows the new waypoint, so the next click keeps
+  // extending the route from it. Loop closing geometry shifts with the splice
+  // and stays valid unless the insert lands inside the closing segment.
+  insertWaypointAfter(index, lat, lon) {
+    if (this.waypoints.length >= MAX_WAYPOINTS) {
+      this.toast("A route can hold at most 100 waypoints.");
+      return;
+    }
+    this.pushUndo();
+    this.waypoints.splice(index + 1, 0, { lat, lon });
+    this.segments.splice(index + 1, 0, {
+      points: [],
+      distanceM: 0,
+      ascendM: 0,
+      timeS: 0,
+      status: "pending",
+    });
+    this.selectedWaypointIndex = index + 1;
+    this.syncWaypointMarkers();
+    this.renderWaypointList();
+    this.renderStats();
+    this.scheduleSegmentRecalc([index, index + 1], true);
   }
 
   // Profile switch (§4.4): preserve RWs, SPs and POIs; recalculate everything.
@@ -614,15 +656,15 @@ export class RoutePlanner {
   }
 
   // Reverse (§5.5): RW order reverses, geometry reverses for visual
-  // continuity, SP associations follow their segments, everything
-  // recalculates (oneways make the reversed ride a different problem).
+  // continuity, everything recalculates (oneways make the reversed ride a
+  // different problem).
   reverseRoute() {
     if (this.waypoints.length < 2) return;
     this.pushUndo();
     this.waypoints.reverse();
+    this.selectedWaypointIndex = null;
     const count = this.segmentCount();
     const segments = [];
-    const shaping = [];
     for (let index = 0; index < count; index += 1) {
       const source = this.segments[count - 1 - index];
       segments.push({
@@ -632,10 +674,8 @@ export class RoutePlanner {
         timeS: source ? source.timeS : 0,
         status: source ? source.status : "pending",
       });
-      shaping.push([...(this.shaping[count - 1 - index] || [])]);
     }
     this.segments = segments;
-    this.shaping = shaping;
     this.syncWaypointMarkers();
     this.updateRouteGeometry();
     this.renderWaypointList();
@@ -660,13 +700,12 @@ export class RoutePlanner {
     if (!this.waypoints.length && !this.pois.length) return;
     this.pushUndo();
     this.waypoints = [];
-    this.shaping = [];
     this.pois = [];
     this.segments = [];
     this.loop = false;
+    this.selectedWaypointIndex = null;
     this.syncWaypointMarkers();
     this.syncPoiMarkers();
-    this.syncShapingMarkers();
     this.updateRouteGeometry();
     this.renderAll();
   }
@@ -804,39 +843,55 @@ export class RoutePlanner {
   }
 
   // Sequential waypoint placement (§5.1) — or POI placement when armed (§7).
+  // With a selected waypoint (§12.1) the click inserts right after it instead
+  // of appending at the route's end.
   onMapClick(event) {
+    // A real marker drag ends with its closing click landing on the canvas
+    // (the marker is pointer-events:none mid-drag) — that click must not
+    // add or insert a waypoint at the drop point.
+    if (this.suppressNextMapClick) return;
     if (this.poiArmed) {
       this.poiArmed = false;
       this.panel.classList.remove("mymap-planner--poi-armed");
       this.openPoiModal({ at: event.lngLat });
       return;
     }
+    if (this.selectedWaypointIndex !== null) {
+      this.insertWaypointAfter(
+        this.selectedWaypointIndex,
+        event.lngLat.lat,
+        event.lngLat.lng,
+      );
+      return;
+    }
     this.addWaypoint(event.lngLat.lat, event.lngLat.lng);
   }
 
-  // Segment drag (§5.2): take the line → a temporary Shaping Point appears
-  // under the cursor, follows it, and the segment recalculates (debounced).
-  // On drop the SP is persisted as part of the segment. A plain click
-  // (mousedown + up, no movement) commits nothing — constraints come from
-  // real drags, not stray clicks on the line.
+  // Segment drag (§12.3): dragging the line plants a NEW plotted waypoint at
+  // the drop point — the route then leads n-1 → new n → n+1, both halves
+  // recalculated with the active profile. The temp marker follows the cursor
+  // while requestSegment splices it into the preview, so the line bends along
+  // real roads during the drag (debounced, §10.6). A plain click (mousedown +
+  // up, no movement) commits nothing — waypoints come from real drags.
   onRouteMouseDown(event) {
     if (this.waypoints.length < 2) return;
+    if (this.waypoints.length >= MAX_WAYPOINTS) {
+      this.toast("A route can hold at most 100 waypoints.");
+      return;
+    }
+    // Marker mousedowns bubble to the map and match the route hit-area
+    // (every plotted waypoint sits ON its line): dragging a waypoint must
+    // never also start a segment drag that plants a second waypoint.
+    const target = event.originalEvent && event.originalEvent.target;
+    if (target && target.closest && target.closest(".planner-marker, .planner-poi"))
+      return;
     event.preventDefault();
     const segmentIndex = Number(event.features[0].properties.segment);
-    const points = this.segments[segmentIndex].points;
-    let nearest = { distance: Infinity, index: 0 };
-    points.forEach((point, index) => {
-      const distance = this.screenDistance(
-        event.point,
-        this.map.project(point),
-      );
-      if (distance < nearest.distance) nearest = { distance, index };
-    });
     const point = { lat: event.lngLat.lat, lon: event.lngLat.lng };
     this.dragContext = {
       segmentIndex,
       point,
-      marker: this.makeShapingMarker(point),
+      marker: this.makeGhostWaypointMarker(point),
     };
     this.map.getCanvas().style.cursor = "move";
     this.map.dragPan.disable();
@@ -864,11 +919,7 @@ export class RoutePlanner {
         const context = this.dragContext;
         this.dragContext = null;
         context.marker.remove();
-        (this.shaping[segmentIndex] = this.shaping[segmentIndex] || []).push(
-          context.point,
-        );
-        this.syncShapingMarkers();
-        this.scheduleSegmentRecalc([segmentIndex], true);
+        this.commitDraggedWaypoint(context.segmentIndex, context.point);
       } else {
         this.dragContext = null;
       }
@@ -882,24 +933,57 @@ export class RoutePlanner {
     this.map.on("mouseup", onUp);
   }
 
-  screenDistance(a, b) {
-    return Math.hypot(a.x - b.x, a.y - b.y);
+  // Commit the drag (§12.3): the new plotted waypoint splits the dragged
+  // segment — it keeps its slot (recalculates down to the new waypoint) and
+  // a pending segment splices in after it (new waypoint → old target); both
+  // recalculate immediately. A drag on the loop's closing segment appends the
+  // waypoint as the new last RW, re-basing the closing segment on it.
+  commitDraggedWaypoint(segmentIndex, point) {
+    this.waypoints.splice(segmentIndex + 1, 0, {
+      lat: point.lat,
+      lon: point.lon,
+    });
+    this.segments.splice(segmentIndex + 1, 0, {
+      points: [],
+      distanceM: 0,
+      ascendM: 0,
+      timeS: 0,
+      status: "pending",
+    });
+    this.syncWaypointMarkers();
+    this.renderWaypointList();
+    this.renderStats();
+    this.scheduleSegmentRecalc([segmentIndex, segmentIndex + 1], true);
   }
 
-  makeShapingMarker(point) {
+  // Transient drag marker: a waypoint-shaped ghost without a number — the
+  // number is assigned when the drag commits a real plotted waypoint.
+  makeGhostWaypointMarker(point) {
     const element = document.createElement("div");
-    element.className = "planner-sp-marker";
+    element.className = "planner-marker planner-marker--ghost";
     return new maplibregl.Marker({ element, anchor: "center" })
       .setLngLat([point.lon, point.lat])
       .addTo(this.map);
   }
 
+  // The dashed rubber band (§12.1): from the SELECTED waypoint when one is
+  // selected, otherwise from the last one. Hidden while the route is closed
+  // (loop) or while a drag owns the cursor.
   updatePendingLine() {
     const source = this.map.getSource("planner-pending");
     if (!source) return;
-    const last = this.waypoints[this.waypoints.length - 1];
+    const origin =
+      this.selectedWaypointIndex !== null
+        ? this.waypoints[this.selectedWaypointIndex]
+        : this.waypoints[this.waypoints.length - 1];
     const closed = this.loop && this.waypoints.length >= 2;
-    if (!last || closed || !this.cursorPoint) {
+    if (
+      !origin ||
+      closed ||
+      !this.cursorPoint ||
+      this.dragContext ||
+      this.draggingMarker
+    ) {
       source.setData({ type: "FeatureCollection", features: [] });
       return;
     }
@@ -912,7 +996,7 @@ export class RoutePlanner {
           geometry: {
             type: "LineString",
             coordinates: [
-              [last.lon, last.lat],
+              [origin.lon, origin.lat],
               [this.cursorPoint.lng, this.cursorPoint.lat],
             ],
           },
@@ -939,67 +1023,69 @@ export class RoutePlanner {
 
   // ---- markers -----------------------------------------------------------------
 
-  // Numbered RW markers: drag to move (§5.3), right-click to delete.
+  // Numbered RW markers: click to select (§12.1), drag to move (§5.3),
+  // right-click to delete. The whole set re-renders on every change —
+  // numbers and the selected state are positional.
   syncWaypointMarkers() {
     if (this.waypointMarkers)
       this.waypointMarkers.forEach((marker) => marker.remove());
     this.waypointMarkers = this.waypoints.map((waypoint, index) => {
       const element = document.createElement("div");
       element.className = "planner-marker";
+      if (index === this.selectedWaypointIndex)
+        element.classList.add("planner-marker--selected");
       element.setAttribute("role", "button");
       element.setAttribute("tabindex", "0");
       element.setAttribute(
+        "aria-pressed",
+        index === this.selectedWaypointIndex ? "true" : "false",
+      );
+      element.setAttribute(
         "aria-label",
-        `Waypoint ${index + 1}: drag to move, right-click to delete`,
+        `Waypoint ${index + 1}: click to select, drag to move, right-click to delete`,
       );
       element.textContent = String(index + 1);
+      element.addEventListener("click", (event) => {
+        // Marker elements sit above the canvas: without stopPropagation the
+        // click would bubble to the map and place another waypoint.
+        event.stopPropagation();
+        this.selectWaypoint(index);
+      });
       element.addEventListener("contextmenu", (event) => {
         event.preventDefault();
         this.deleteWaypoint(index);
       });
+      // clickTolerance: MapLibre's marker default is 0 — ANY cursor jitter
+      // during a press became a drag (the element click never fired), which
+      // made the waypoint impossible to select. 10px keeps human clicks
+      // clicks and real moves drags.
       const marker = new maplibregl.Marker({
         element,
         draggable: true,
         anchor: "center",
+        clickTolerance: 10,
       })
         .setLngLat([waypoint.lon, waypoint.lat])
         .addTo(this.map);
       marker.on("dragstart", () => {
         this.pushUndo();
+        this.draggingMarker = true;
+        this.updatePendingLine();
         this.map.getCanvas().style.cursor = "move";
       });
       marker.on("dragend", () => {
+        this.draggingMarker = false;
         this.map.getCanvas().style.cursor = "pointer";
+        // A drag's closing click lands on the canvas, not on this element —
+        // drop it so moving a waypoint never adds/inserts another one.
+        this.suppressNextMapClick = true;
+        setTimeout(() => {
+          this.suppressNextMapClick = false;
+        }, 0);
         const lngLat = marker.getLngLat();
         this.moveWaypoint(index, lngLat.lat, lngLat.lng);
       });
       return marker;
-    });
-    this.syncShapingMarkers();
-  }
-
-  // SPs stay hidden unless their segment is being dragged (§3.3: not
-  // user-facing waypoints); right-click removes the constraint (§5.2).
-  syncShapingMarkers() {
-    if (this.shapingMarkers)
-      this.shapingMarkers.forEach((marker) => marker.remove());
-    this.shapingMarkers = [];
-    if (!this.dragContext) return;
-    this.shaping.forEach((points) => {
-      (points || []).forEach((point) => {
-        const element = document.createElement("div");
-        element.className = "planner-sp";
-        element.title = "Shaping point — right-click to remove";
-        element.addEventListener("contextmenu", (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          this.removeShapingPoint(point);
-        });
-        const marker = new maplibregl.Marker({ element, anchor: "center" })
-          .setLngLat([point.lon, point.lat])
-          .addTo(this.map);
-        this.shapingMarkers.push(marker);
-      });
     });
   }
 
@@ -1236,6 +1322,34 @@ export class RoutePlanner {
     this.waypoints.forEach((waypoint, index) => {
       const row = document.createElement("div");
       row.className = "mymap-planner__row";
+      row.classList.toggle(
+        "mymap-planner__row--selected",
+        index === this.selectedWaypointIndex,
+      );
+      // §12.1: rows mirror the map markers — clicking a row selects the RW
+      // (clicking the selected row again deselects), the dashed pending line
+      // then starts there and the next map click inserts right after it.
+      // The flag/delete buttons keep their own handlers and must not toggle.
+      row.setAttribute("role", "button");
+      row.setAttribute("tabindex", "0");
+      row.setAttribute(
+        "aria-pressed",
+        index === this.selectedWaypointIndex ? "true" : "false",
+      );
+      row.setAttribute(
+        "aria-label",
+        `Waypoint ${index + 1}: click to select`,
+      );
+      row.addEventListener("click", (event) => {
+        if (event.target.closest(".mymap-planner__row-action")) return;
+        this.selectWaypoint(index);
+      });
+      row.addEventListener("keydown", (event) => {
+        if (event.target.closest(".mymap-planner__row-action")) return;
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        this.selectWaypoint(index);
+      });
       const badge = document.createElement("span");
       badge.className = "mymap-planner__row-badge";
       badge.textContent = String(index + 1);
@@ -1357,22 +1471,6 @@ export class RoutePlanner {
 
   // ---- POI placement + deletion ---------------------------------------------------
 
-  // Remove a shaping constraint and restore normal routing for its
-  // segment (§5.2: "users must be able to remove shaping constraints").
-  removeShapingPoint(point) {
-    this.pushUndo();
-    let segmentIndex = -1;
-    this.shaping.forEach((points, index) => {
-      const at = (points || []).indexOf(point);
-      if (at >= 0) {
-        points.splice(at, 1);
-        segmentIndex = index;
-      }
-    });
-    this.syncShapingMarkers();
-    if (segmentIndex >= 0) this.scheduleSegmentRecalc([segmentIndex], true);
-  }
-
   armPoiPlacement() {
     this.poiArmed = !this.poiArmed;
     this.panel.classList.toggle("mymap-planner--poi-armed", this.poiArmed);
@@ -1387,21 +1485,10 @@ export class RoutePlanner {
 
   // ---- save / exit (§6.1/§6.2) ------------------------------------------------------
 
-  // The editor state IS the save payload: RWs, SPs with their segment
-  // associations, POIs, profile, per-segment geometry. The server validates
+  // The editor state IS the save payload: RWs, POIs, profile, per-segment
+  // geometry (§12: no shaping points exist anymore). The server validates
   // it, recomputes the stats and generates the GPX (Planner::RouteSaver).
   buildSavePayload() {
-    const shaping = [];
-    this.shaping.forEach((points, segmentIndex) => {
-      (points || []).forEach((point, position) => {
-        shaping.push({
-          segment_index: segmentIndex,
-          position,
-          lat: point.lat,
-          lon: point.lon,
-        });
-      });
-    });
     return {
       route_id: this.routeId || undefined,
       title: this.title,
@@ -1411,7 +1498,6 @@ export class RoutePlanner {
         lat: point.lat,
         lon: point.lon,
       })),
-      shaping_points: shaping,
       pois: this.pois.map((poi) => ({
         lat: poi.lat,
         lon: poi.lon,
@@ -1519,8 +1605,6 @@ export class RoutePlanner {
     if (this.waypointMarkers)
       this.waypointMarkers.forEach((marker) => marker.remove());
     if (this.poiMarkers) this.poiMarkers.forEach((marker) => marker.remove());
-    if (this.shapingMarkers)
-      this.shapingMarkers.forEach((marker) => marker.remove());
     if (this.dragContext && this.dragContext.marker)
       this.dragContext.marker.remove();
     this.dragContext = null;

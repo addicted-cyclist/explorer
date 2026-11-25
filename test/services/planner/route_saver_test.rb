@@ -4,7 +4,7 @@ require "test_helper"
 
 # Persistence for the Route Planner (technote.ROUTE-DRAW.md §6.1/§9): the
 # editor state becomes a first-class Route — stats/bounds/map-geometry/GPX
-# recomputed server-side, RW/SP/POI collections persisted separately, all in
+# recomputed server-side, RW/POI collections persisted separately, all in
 # one transaction. The trust boundary (segment count + endpoint tolerance)
 # is pinned here.
 class Planner::RouteSaverTest < ActiveSupport::TestCase
@@ -20,7 +20,6 @@ class Planner::RouteSaverTest < ActiveSupport::TestCase
       "profile" => "road",
       "loop" => false,
       "waypoints" => [ { "lat" => 49.4100, "lon" => 8.7100 }, { "lat" => 49.4200, "lon" => 8.7200 } ],
-      "shaping_points" => [],
       "pois" => [],
       "segments" => [ { "points" => [ [ 8.7100, 49.4100, 110.0 ], [ 8.7200, 49.4200, 130.0 ] ], "time_s" => 600 } ]
     }.deep_merge(overrides)
@@ -46,13 +45,13 @@ class Planner::RouteSaverTest < ActiveSupport::TestCase
     assert_equal "road", route.planner_geometry["profile"]
     assert route.gpx_file.attached?
     assert_equal "application/gpx+xml", route.gpx_file.content_type
-    # RW/SP/POI collections stay separate (§9).
+    # RW/POI collections stay separate (§9); shaping points no longer exist
+    # as a collection at all (§12).
     assert_equal 2, route.routing_waypoints.count
-    assert_equal 0, route.shaping_points.count
     assert_equal [ 49.41, 8.71 ], route.routing_waypoints.first.coordinates
   end
 
-  test "shaping points persist with their segment association and order" do
+  test "stray shaping_points in the payload are ignored, never persisted (§12)" do
     state = valid_state(
       "shaping_points" => [
         { "segment_index" => 0, "position" => 0, "lat" => 49.4150, "lon" => 8.7150 }
@@ -61,9 +60,11 @@ class Planner::RouteSaverTest < ActiveSupport::TestCase
 
     route = Planner::RouteSaver.call(user: @user, route: nil, state: state)
 
-    point = route.shaping_points.sole
-    assert_equal 0, point.segment_index
-    assert_equal 0, point.position
+    # The legacy key carries no meaning anymore: the save succeeds, the
+    # route keeps exactly its plotted waypoints, and nothing hidden remains
+    # that could phantom-reshape the geometry later.
+    assert_equal 2, route.routing_waypoints.count
+    assert_not route.respond_to?(:shaping_points)
   end
 
   test "loop routes persist the closing segment" do
@@ -143,12 +144,6 @@ class Planner::RouteSaverTest < ActiveSupport::TestCase
     end
     assert_raises(Planner::RouteSaver::ValidationError) do
       Planner::RouteSaver.call(user: @user, route: nil, state: valid_state("profile" => "skate"))
-    end
-    assert_raises(Planner::RouteSaver::ValidationError) do
-      Planner::RouteSaver.call(
-        user: @user, route: nil,
-        state: valid_state("shaping_points" => [ { "segment_index" => 9, "position" => 0, "lat" => 49.41, "lon" => 8.71 } ])
-      )
     end
   end
 

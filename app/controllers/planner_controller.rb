@@ -4,10 +4,11 @@
 # image upload flows through here, behind the ApplicationController's default
 # sign-in + email-verification gates.
 #
-#   * #calculate — one segment request (RW → SPs → RW coordinate sequence +
-#     profile) → GeoJSON geometry + engine metadata. §10.6: failures answer
-#     with a user-safe message and NEVER destroy client-side state; the
-#     client keeps its last valid geometry and marks the segment failed.
+#   * #calculate — one segment request (plotted waypoint → plotted waypoint
+#     coordinate sequence + profile) → GeoJSON geometry + engine metadata.
+#     §10.6: failures answer with a user-safe message and NEVER destroy
+#     client-side state; the client keeps its last valid geometry and marks
+#     the segment failed.
 #   * #save — persist the whole editor state via Planner::RouteSaver
 #     (validation, stats, GPX generation, RW/SP/POI collections in one
 #     transaction). 422 carries the validation errors; 502 the engine being

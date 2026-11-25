@@ -2,10 +2,9 @@
 
 module Planner
   # Persistence for the Route Planner (technote.ROUTE-DRAW.md §6.1/§9): takes
-  # the editor state the frontend holds (RWs, SPs with their segment
-  # associations, POIs, profile, per-segment calculated geometry) and turns
-  # it into a first-class Route — the same record shape an uploaded GPX
-  # produces — inside ONE transaction.
+  # the editor state the frontend holds (RWs, POIs, profile, per-segment
+  # calculated geometry) and turns it into a first-class Route — the same
+  # record shape an uploaded GPX produces — inside ONE transaction.
   #
   # Trust boundary: the geometry arrives from the client, but every request
   # during editing went through Rails (PlannerController →
@@ -30,7 +29,6 @@ module Planner
     end
 
     MAX_WAYPOINTS = 100
-    MAX_SHAPING_POINTS = 500
     MAX_POIS = 100
     MAX_SEGMENT_POINTS = 20_000
     # Snap tolerance for the "segment starts/ends at its boundary RW" check:
@@ -71,16 +69,9 @@ module Planner
         coords = point.is_a?(Hash) ? [ point["lat"], point["lon"] ] : point
         point_pair(coords)
       end
-      @shaping_points = array_at("shaping_points").filter_map do |raw_point|
-        next unless raw_point.is_a?(Hash)
-
-        lat, lon = point_pair([ raw_point["lat"], raw_point["lon"] ])
-        next if lat.nil?
-
-        { segment_index: integer_or_nil(raw_point["segment_index"]) || 0,
-          position: integer_or_nil(raw_point["position"]) || 0,
-          lat: lat, lon: lon }
-      end
+      # §12: shaping points are gone from the model. Any legacy key in the
+      # payload is ignored outright — its points were constraints, and the
+      # only truthful place for a constraint now is a plotted waypoint.
       @pois = array_at("pois").filter_map { |raw_poi| normalize_poi(raw_poi) }
       @segments = array_at("segments").filter_map do |raw_segment|
         next unless raw_segment.is_a?(Hash)
@@ -202,17 +193,12 @@ module Planner
         # Replace the collections wholesale: the editor state is the full
         # truth of this save (§6.1), and ids inside it are client-local.
         route.routing_waypoints.destroy_all
-        route.shaping_points.destroy_all
         route.pois.destroy_all
 
         waypoint_rows = @waypoints.each_with_index.map do |(lat, lon), index|
           RoutingWaypoint.new(route: route, lat: lat, lon: lon, position: index)
         end
         waypoint_rows.each(&:save!)
-        @shaping_points.each do |point|
-          ShapingPoint.create!(route: route, segment_index: point[:segment_index],
-                               position: point[:position], lat: point[:lat], lon: point[:lon])
-        end
         @pois.each do |poi|
           row = RoutePoi.create!(
             route: route,
@@ -277,15 +263,8 @@ module Planner
       end
 
       errors.concat(validate_segments)
-      errors << "Too many shaping points (max #{MAX_SHAPING_POINTS})." if @shaping_points.size > MAX_SHAPING_POINTS
       errors << "Too many points of interest (max #{MAX_POIS})." if @pois.size > MAX_POIS
 
-      @shaping_points.each do |point|
-        next if point[:segment_index] >= 0 && point[:segment_index] < expected_segment_count && point[:position] >= 0
-
-        errors << "A shaping point references a segment that does not exist."
-        break
-      end
       @pois.each do |poi|
         index = poi[:waypoint_index]
         next if index.nil? || index < @waypoints.size

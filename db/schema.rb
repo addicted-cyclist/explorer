@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_11_19_090000) do
+ActiveRecord::Schema[7.2].define(version: 2026_11_25_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -123,18 +123,6 @@ ActiveRecord::Schema[7.2].define(version: 2026_11_19_090000) do
     t.index ["route_id"], name: "index_routing_waypoints_on_route_id"
   end
 
-  create_table "shaping_points", force: :cascade do |t|
-    t.bigint "route_id", null: false
-    t.integer "segment_index", null: false
-    t.integer "position", null: false
-    t.float "lat", null: false
-    t.float "lon", null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["route_id", "segment_index", "position"], name: "index_shaping_points_on_route_segment_position"
-    t.index ["route_id"], name: "index_shaping_points_on_route_id"
-  end
-
   create_table "users", force: :cascade do |t|
     t.string "email", default: "", null: false
     t.string "encrypted_password", default: "", null: false
@@ -173,5 +161,4 @@ ActiveRecord::Schema[7.2].define(version: 2026_11_19_090000) do
   add_foreign_key "route_pois", "routing_waypoints", on_delete: :nullify
   add_foreign_key "routes", "users"
   add_foreign_key "routing_waypoints", "routes"
-  add_foreign_key "shaping_points", "routes"
 end
