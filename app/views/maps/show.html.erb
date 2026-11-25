@@ -1,4 +1,12 @@
 <% content_for :title, "My Map" %>
+<%# Turbo must not snapshot this workspace: a cached editor would restore
+    ghost waypoint markers over a fresh map with no live session left to
+    remove them, and history navigation away from a dirty editor has to go
+    through the controller's leave guards — which only see real visits
+    (turbo:before-visit), never snapshot restorations. %>
+<% content_for :head do %>
+  <meta name="turbo-cache-control" content="no-cache">
+<% end %>
 <%# My Map (technote.MYMAP-FEATURE.md + design-refs/stitch_explorer_v0.14).
     Full-bleed map workspace: sub-bar (location chip, scope pills, disabled
     "draw" affordance), the MapLibre canvas, the floating routes drawer and

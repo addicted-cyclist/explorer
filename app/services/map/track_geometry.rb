@@ -33,7 +33,9 @@ module Map
       end
 
       # Distance-even resampling of +points+ ([lon, lat, ele] triplets) down
-      # to at most MAX_POINTS, always keeping the first and last — the route
+      # to at most +max_points+ (MAX_POINTS unless given — the Route Planner
+      # boot state caps at Planner::RouteSaver::MAX_SEGMENT_POINTS instead),
+      # always keeping the first and last — the route
       # ends are its most recognizable feature (the thumbnail renderer's
       # vertex budget follows the same strategy). Recording density varies
       # along a real
@@ -43,18 +45,18 @@ module Map
       # and starves the rest of the line. Walking the cumulative ground
       # distance instead puts a vertex roughly every total/MAX_POINTS metres,
       # keeping the drawn shape even end to end. Deterministic, O(n).
-      def downsample(points)
-        return points if points.size <= MAX_POINTS
+      def downsample(points, max_points = MAX_POINTS)
+        return points if points.size <= max_points
 
         cumulative = cumulative_distance_m(points)
         return [ points.first, points.last ] if cumulative.last <= 0
 
-        step = cumulative.last / (MAX_POINTS - 1)
+        step = cumulative.last / (max_points - 1)
         last_index = points.size - 1
         sampled = [ points.first ]
         index = 1
         target = 1
-        while target <= MAX_POINTS - 2 && index < last_index
+        while target <= max_points - 2 && index < last_index
           # First vertex at or past the next even share of the track; the
           # forced advance after each emission keeps vertices unique when a
           # dense cluster already sits past several shares at once.
@@ -67,6 +69,29 @@ module Map
         end
         sampled << points[last_index]
         sampled
+      end
+
+      # Indexes into +points+ at which to cut a track into editor-sized
+      # slices: consecutive cuts sit no more than +max_segment_m+ of ground
+      # distance apart, at most +max_segments+ slices — past the cap the
+      # spacing stretches instead. Always includes the first and last index;
+      # adjacent slices share the cut point, so their union rebuilds the
+      # exact track. Deterministic, O(n).
+      def split_indexes(points, max_segment_m:, max_segments:)
+        last_index = points.size - 1
+        return [ 0, last_index ] if last_index < 2
+
+        cumulative = cumulative_distance_m(points)
+        total = cumulative.last
+        return [ 0, last_index ] if total <= max_segment_m
+
+        slices = [ (total / max_segment_m).ceil, max_segments ].min
+        step = total / slices
+        indexes = [ 0 ]
+        (1...slices).each do |slice|
+          indexes << (cumulative.bsearch_index { |distance| distance >= step * slice } || last_index)
+        end
+        (indexes << last_index).uniq
       end
 
       # Cumulative ground distance in metres at each point index

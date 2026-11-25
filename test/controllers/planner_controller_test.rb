@@ -119,6 +119,23 @@ class PlannerControllerTest < ActionDispatch::IntegrationTest
     assert_equal 2, state["waypoints"].size
   end
 
+  test "state ships an uploaded route's GPX track as the editor geometry" do
+    route = @user.routes.create!(source: "upload", title: "Uploaded ride")
+    route.gpx_file.attach(gpx_fixture_upload("exploration.gpx"))
+
+    get planner_state_path(route.id), as: :json
+
+    assert_response :success
+    state = response.parsed_body["state"]
+    # The popup's Edit affordance boots from this: the track rides as the
+    # single segment with its start/finish waypoints seeded server-side —
+    # the editor opens ready to edit, no recalculation needed.
+    assert_equal 2, state["waypoints"].size
+    assert_equal 47.3769, state["waypoints"].first["lat"]
+    assert_equal 1, state["segments"].size
+    assert_equal [ 8.5417, 47.3769, 100.0 ], state["segments"].first.first
+  end
+
   test "state never opens another user's route (even a public one)" do
     stranger = User.create!(valid_user_attributes(email: "stranger@example.com", username: "stranger"))
     foreign = stranger.routes.create!(source: "drawn", title: "Not yours", routing_profile: "road")

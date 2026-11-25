@@ -25,6 +25,16 @@ class Route < ApplicationRecord
   ROUTING_PROFILES = %w[road gravel mtb].freeze
   DEFAULT_ROUTING_PROFILE = "road"
 
+  # Editor seeding for routes never drawn in the planner (uploads, imports):
+  # the stored track is split into slices of at most this much ground
+  # distance, with a Routing Waypoint seeded at every cut. A drag then only
+  # ever recalculates its local slice — with a single start→finish segment,
+  # dragging either end (on a loop the two sit close together) would rebuild
+  # the whole ride into a small path. The waypoint count is capped, so very
+  # long tracks stretch the spacing instead of flooding the map with markers.
+  PLANNER_SEED_SEGMENT_M = 10_000.0
+  PLANNER_SEED_MAX_WAYPOINTS = 25
+
   validates :title, presence: true, length: { maximum: 200 }
   validates :source, inclusion: { in: %w[upload google_drive drawn], allow_nil: true }
   validates :tier, inclusion: { in: TIERS, allow_nil: true }
@@ -56,20 +66,27 @@ class Route < ApplicationRecord
 
   # The planner editor state for this route (§2.2: opening an existing route
   # loads geometry, RWs, SPs, POIs and the profile) — the exact JSON shape
-  # the frontend planner boots from. Segments come from the persisted
-  # planner_geometry (full per-segment calculated geometry); routes that were
-  # never drawn (uploads) have no RW/SP/POI collections and no stored
-  # segments — the editor derives RWs from the track's first/last point and
-  # treats the stored track as the single geometry.
+  # the frontend planner boots from. Routes that have been through the
+  # planner ship the persisted planner_geometry and their RW rows. Routes
+  # that were never drawn (uploads, imports) have no planner collections —
+  # their stored GPX track is split into editor slices with a Routing
+  # Waypoint seeded at every cut, so the editor opens with the real line,
+  # ready to edit: dragging any point only ever recalculates its local
+  # slice.
   def planner_state
-    geometry = planner_geometry || {}
-    segments = Array(geometry["segments"]).map { |segment| segment["points"] }
+    geometry = planner_geometry.is_a?(Hash) ? planner_geometry : {}
+    if drawn? || planner_geometry.is_a?(Hash)
+      waypoints = routing_waypoints.map { |waypoint| { id: waypoint.id, lat: waypoint.lat, lon: waypoint.lon } }
+      segments = Array(geometry["segments"]).map { |segment| segment["points"] }
+    else
+      waypoints, segments = seeded_editor_track
+    end
     {
       route_id: id,
       title: title,
       profile: routing_profile || DEFAULT_ROUTING_PROFILE,
       loop: geometry["loop"].present?,
-      waypoints: routing_waypoints.map { |waypoint| { id: waypoint.id, lat: waypoint.lat, lon: waypoint.lon } },
+      waypoints: waypoints,
       shaping_points: shaping_points.map do |point|
         { id: point.id, segment_index: point.segment_index, position: point.position,
           lat: point.lat, lon: point.lon }
@@ -77,6 +94,29 @@ class Route < ApplicationRecord
       pois: pois.map { |poi| poi_state(poi) },
       segments: segments
     }
+  end
+
+  # Editor geometry for a route never drawn in the planner (uploads,
+  # imports): the stored GPX track downsampled to the saver's per-segment
+  # limit (the editor hands the same geometry back on save, so nothing it
+  # ships may exceed what the saver accepts), then split with a Routing
+  # Waypoint seeded at every cut. The cuts are exact track points and
+  # adjacent slices share them, so the union rebuilds the ride
+  # byte-for-byte; on the next save the seeds become real waypoint rows
+  # like any user-placed one (§6.1: the editor state is the full truth).
+  def seeded_editor_track
+    track = track_coordinates
+    return [ [], [] ] if track.size < 2
+
+    track = Map::TrackGeometry.downsample(track, Planner::RouteSaver::MAX_SEGMENT_POINTS)
+    cuts = Map::TrackGeometry.split_indexes(
+      track, max_segment_m: PLANNER_SEED_SEGMENT_M, max_segments: PLANNER_SEED_MAX_WAYPOINTS - 1
+    )
+    waypoints = cuts.map do |index|
+      point = track[index]
+      { id: nil, lat: point[1], lon: point[0] }
+    end
+    [ waypoints, cuts.each_cons(2).map { |from, to| track[from..to] } ]
   end
 
   def poi_state(poi)

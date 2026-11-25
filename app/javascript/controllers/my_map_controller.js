@@ -244,10 +244,25 @@ export default class MyMapController extends Controller {
     // Turbo caches/restores the page DOM (back/forward). A popup left open
     // at navigation time would ride the snapshot and reappear while the
     // fresh controller starts with nothing selected — drop it from the
-    // snapshot, and start clean on a restore for good measure.
-    this.boundBeforeCache = this.hideTransientUi.bind(this);
+    // snapshot, and start clean on a restore for good measure. An active
+    // editor must not ride the snapshot either: its marker elements live
+    // INSIDE the map container, so a back/forward restore would paint them
+    // over the fresh map with no live session left to remove them.
+    this.boundBeforeCache = () => {
+      if (this.planner) {
+        this.planner.teardown();
+        this.planner = null;
+      }
+      this.hideTransientUi();
+    };
     document.addEventListener("turbo:before-cache", this.boundBeforeCache);
     this.hideTransientUi();
+
+    // §6.2 everywhere: the planner's own dirty-check (✕/Cancel/Escape) never
+    // sees page-level exits — a Turbo nav link, a native navigation, a tab
+    // close or the browser Back button would drop the session without a
+    // word and leave the user's edits behind.
+    this.bindLeaveGuards();
 
     this.buildMap();
     this.ro = new ResizeObserver(() => {
@@ -287,6 +302,9 @@ export default class MyMapController extends Controller {
       );
     }
     document.removeEventListener("turbo:before-cache", this.boundBeforeCache);
+    window.removeEventListener("beforeunload", this.boundBeforeUnload);
+    document.removeEventListener("turbo:before-visit", this.boundBeforeVisit);
+    window.removeEventListener("popstate", this.boundPopState);
     if (this.ro) this.ro.disconnect();
     if (this.map) {
       this.map.remove();
@@ -667,6 +685,48 @@ export default class MyMapController extends Controller {
   exitPlanner() {
     if (!this.planner) return;
     this.planner.requestExit();
+  }
+
+  // Page-level leave guards (§6.2): every exit that does not run through the
+  // planner's own buttons still has to ask when unsaved changes exist.
+  //   * beforeunload — native navigations (the popup Edit fallback, tab
+  //     close, a real Back on a deep-link load): the browser renders its own
+  //     generic dialog; returnValue marks the request.
+  //   * turbo:before-visit — Turbo nav links: cancelable, so confirm()
+  //     decides whether the visit happens at all.
+  //   * popstate — the same-document Back after the popup Edit's pushState:
+  //     history steps cannot be canceled, so the step is routed through the
+  //     planner's own exit (its in-panel discard modal when dirty), and
+  //     "Keep editing" re-claims the ?edit deep link so the URL keeps
+  //     mirroring the open editor.
+  bindLeaveGuards() {
+    this.boundBeforeUnload = (event) => {
+      if (!this.planner || !this.planner.isDirty()) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    this.boundBeforeVisit = (event) => {
+      if (!this.planner || !this.planner.isDirty()) return;
+      if (!window.confirm("Discard unsaved changes?")) event.preventDefault();
+    };
+    this.boundPopState = () => {
+      if (!this.planner) return;
+      this.exitPlanner();
+      if (this.planner && this.planner.routeId) {
+        const url = new URL(window.location.href);
+        if (!url.searchParams.has("edit")) {
+          url.searchParams.set("edit", this.planner.routeId);
+          window.history.pushState(
+            {},
+            "",
+            url.pathname + url.search + url.hash,
+          );
+        }
+      }
+    };
+    window.addEventListener("beforeunload", this.boundBeforeUnload);
+    document.addEventListener("turbo:before-visit", this.boundBeforeVisit);
+    window.addEventListener("popstate", this.boundPopState);
   }
 
   leavePlannerMode() {

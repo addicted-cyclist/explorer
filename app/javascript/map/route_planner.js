@@ -66,6 +66,28 @@ function formatDuration(seconds) {
   return hours > 0 ? `${hours}h ${minutes}m` : `${minutes} min`;
 }
 
+// Haversine length of a [lon, lat(, ele)] polyline in metres. The editor boot
+// state ships point arrays only (no engine stats), so booted segments derive
+// their panel distance from the geometry itself until a recalculation
+// replaces it — the readouts stay honest from the moment the editor opens.
+function polylineDistanceM(points) {
+  const EARTH_RADIUS_M = 6371000;
+  let total = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    const [lon1, lat1] = points[index - 1];
+    const [lon2, lat2] = points[index];
+    const phi1 = (lat1 * Math.PI) / 180;
+    const phi2 = (lat2 * Math.PI) / 180;
+    const dPhi = ((lat2 - lat1) * Math.PI) / 180;
+    const dLambda = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dPhi / 2) ** 2 +
+      Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) ** 2;
+    total += 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(a));
+  }
+  return total;
+}
+
 export class RoutePlanner {
   constructor({ map, panel, urls, initialState, onExit, onSaved, onToast }) {
     this.map = map;
@@ -85,6 +107,22 @@ export class RoutePlanner {
       lat: point.lat,
       lon: point.lon,
     }));
+    // Defensive fallback — the server seeds editor waypoints itself now
+    // (sliced tracks, RW at every cut). A state that still arrives with one
+    // full-track segment and no RWs gets its start/end seeded here so every
+    // planner tool works (technote §2.2). MUST run before loadShaping: the
+    // shaping array is sized from the final waypoint count.
+    if (
+      this.waypoints.length === 0 &&
+      (state.segments || []).length === 1 &&
+      (state.segments[0] || []).length >= 2
+    ) {
+      const track = state.segments[0];
+      this.waypoints = [
+        { lat: track[0][1], lon: track[0][0] },
+        { lat: track[track.length - 1][1], lon: track[track.length - 1][0] },
+      ];
+    }
     this.shaping = this.loadShaping(state.shaping_points || []);
     this.pois = (state.pois || []).map((poi) => ({
       id: this.nextId(),
@@ -99,20 +137,6 @@ export class RoutePlanner {
         ? Number(poi.waypoint_index)
         : null,
     }));
-    // Uploaded (never-drawn) routes carry their full track as one "segment"
-    // and no RWs: seed RWs at the track ends so every planner tool works
-    // (technote §2.2).
-    if (
-      this.waypoints.length === 0 &&
-      (state.segments || []).length === 1 &&
-      (state.segments[0] || []).length >= 2
-    ) {
-      const track = state.segments[0];
-      this.waypoints = [
-        { lat: track[0][1], lon: track[0][0] },
-        { lat: track[track.length - 1][1], lon: track[track.length - 1][0] },
-      ];
-    }
     this.segments = this.buildInitialSegments(state.segments || []);
 
     this.undoStack = [];
@@ -155,30 +179,25 @@ export class RoutePlanner {
   buildInitialSegments(storedSegments) {
     const count = this.segmentCount();
     if (count === 0) return [];
-    if (storedSegments.length === count) {
-      return storedSegments.map((points) => ({
-        points: points && points.length >= 2 ? points : [],
-        distanceM: 0,
+    // A booted segment carries its geometry but no engine stats — derive the
+    // panel's distance from the points until a recalculation replaces them.
+    const bootSegment = (points) => {
+      const usable = points && points.length >= 2;
+      return {
+        points: usable ? points : [],
+        distanceM: usable ? polylineDistanceM(points) : 0,
         ascendM: 0,
         timeS: 0,
-        status: points && points.length >= 2 ? "ok" : "pending",
-      }));
+        status: usable ? "ok" : "pending",
+      };
+    };
+    if (storedSegments.length === count) {
+      return storedSegments.map((points) => bootSegment(points));
     }
     // Uploaded route: its whole stored track is segment 0's geometry; the
     // RW seeds above make it editable without a recalculation.
     if (count === 1 && storedSegments.length === 1) {
-      return [
-        {
-          points: storedSegments[0] || [],
-          distanceM: 0,
-          ascendM: 0,
-          timeS: 0,
-          status:
-            storedSegments[0] && storedSegments[0].length >= 2
-              ? "ok"
-              : "pending",
-        },
-      ];
+      return [bootSegment(storedSegments[0])];
     }
     return Array.from({ length: count }, () => ({
       points: [],
@@ -797,11 +816,12 @@ export class RoutePlanner {
 
   // Segment drag (§5.2): take the line → a temporary Shaping Point appears
   // under the cursor, follows it, and the segment recalculates (debounced).
-  // On drop the SP is persisted as part of the segment.
+  // On drop the SP is persisted as part of the segment. A plain click
+  // (mousedown + up, no movement) commits nothing — constraints come from
+  // real drags, not stray clicks on the line.
   onRouteMouseDown(event) {
     if (this.waypoints.length < 2) return;
     event.preventDefault();
-    this.pushUndo();
     const segmentIndex = Number(event.features[0].properties.segment);
     const points = this.segments[segmentIndex].points;
     let nearest = { distance: Infinity, index: 0 };
@@ -821,7 +841,15 @@ export class RoutePlanner {
     this.map.getCanvas().style.cursor = "move";
     this.map.dragPan.disable();
 
+    let moved = false;
     const onMove = (moveEvent) => {
+      if (!moved) {
+        // The undo snapshot belongs to the first real movement — the mousedown
+        // itself changes nothing, and a no-op entry would make Ctrl+Z feel
+        // broken (§5.4).
+        moved = true;
+        this.pushUndo();
+      }
       this.dragContext.point.lat = moveEvent.lngLat.lat;
       this.dragContext.point.lon = moveEvent.lngLat.lng;
       this.dragContext.marker.setLngLat(moveEvent.lngLat);
@@ -832,7 +860,7 @@ export class RoutePlanner {
       this.map.off("mouseup", onUp);
       this.map.dragPan.enable();
       this.map.getCanvas().style.cursor = "pointer";
-      if (this.dragContext) {
+      if (moved && this.dragContext) {
         const context = this.dragContext;
         this.dragContext = null;
         context.marker.remove();
@@ -841,8 +869,15 @@ export class RoutePlanner {
         );
         this.syncShapingMarkers();
         this.scheduleSegmentRecalc([segmentIndex], true);
+      } else {
+        this.dragContext = null;
       }
     };
+    // Kept on the instance so teardown can detach them: an exit mid-drag
+    // (Escape while holding) must not leave ghost handlers behind — they
+    // would crash on the cleared dragContext and keep dragPan disabled.
+    this.dragMoveHandler = onMove;
+    this.dragUpHandler = onUp;
     this.map.on("mousemove", onMove);
     this.map.on("mouseup", onUp);
   }
@@ -1494,6 +1529,15 @@ export class RoutePlanner {
     if (this.moveHandler) this.map.off("mousemove", this.moveHandler);
     if (this.clickHandler) this.map.off("click", this.clickHandler);
     if (this.outHandler) this.map.off("mouseout", this.outHandler);
+    // Transient segment-drag handlers (bound in onRouteMouseDown): an exit
+    // mid-drag must not leave them behind — onMove would crash on the
+    // cleared dragContext, and dragPan would stay disabled until the next
+    // click. Re-enable panning unconditionally: the planner owned it.
+    if (this.dragMoveHandler) this.map.off("mousemove", this.dragMoveHandler);
+    if (this.dragUpHandler) this.map.off("mouseup", this.dragUpHandler);
+    this.dragMoveHandler = null;
+    this.dragUpHandler = null;
+    this.map.dragPan.enable();
     if (this.hitDownHandler)
       this.map.off("mousedown", "planner-route-hit", this.hitDownHandler);
     if (this.hitEnterHandler)

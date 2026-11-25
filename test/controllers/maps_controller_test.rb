@@ -556,6 +556,22 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
                  root["data-my-map-planner-state-url-template-value"]
   end
 
+  test "map?edit=ID of an uploaded route ships the GPX track as the editor geometry" do
+    route = tracked_route(@viewer, "Uploaded climb")
+
+    get map_path(edit: route.id)
+
+    assert_response :success
+    root = css_select('div[data-controller="my-map"]').first
+    state = JSON.parse(root["data-my-map-edit-state-value"])
+    assert_equal route.id, state["route_id"]
+    # Waypoints are seeded server-side (start + finish; long tracks also get
+    # intermediate cuts), so the planner opens ready to edit.
+    assert_equal 2, state["waypoints"].size
+    assert_equal 1, state["segments"].size
+    assert_equal [ 8.5417, 47.3769, 100.0 ], state["segments"].first.first
+  end
+
   test "map without edit ships an empty planner state" do
     get map_path
 
