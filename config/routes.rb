@@ -50,6 +50,23 @@ Rails.application.routes.draw do
   get "map/routes/recommendations", to: "maps#recommendations", as: :recommendations_map_routes
   get "map/place_label", to: "maps#place_label", as: :map_place_label
 
+  # Route Planner (technote.ROUTE-DRAW.md): segment calculations and editor
+  # saves go through Rails — the frontend never reaches BRouter directly
+  # (§10.4), and both actions sit behind the default sign-in +
+  # email-verification gates. /planner/calculate is the single routing door
+  # (PlannerController → Routing::BrouterClient); /planner/save persists the
+  # editor state via Planner::RouteSaver; /planner/poi_images takes the POI
+  # image upload and hands back the signed_id the save payload references.
+  # /planner/state/:route_id serves the editor boot state of one owned route
+  # (the /map?edit=ID payload as JSON) so the popup's Edit affordance boots
+  # the planner in place — no full page reload.
+  namespace :planner do
+    post "calculate"
+    post "save"
+    post "poi_images", action: :upload_poi_image, as: :poi_images
+    get "state/:route_id", action: :state, as: :state
+  end
+
   # Public, tokenized GPX streaming for the gpx.studio embed. The signed_id
   # is the capability token and the response carries CORS headers, so the
   # embed (served from gpx.studio) can fetch the file without a session.

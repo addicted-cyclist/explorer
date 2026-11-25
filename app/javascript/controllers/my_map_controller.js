@@ -1,6 +1,7 @@
 import { Controller } from "@hotwired/stimulus";
 import maplibregl from "maplibre-gl";
 import { captureRouteThumbs } from "../map/route_thumb_capture";
+import { RoutePlanner } from "../map/route_planner";
 
 const KM_FORMAT = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
 const INT_FORMAT = new Intl.NumberFormat("en-US");
@@ -71,8 +72,14 @@ export default class MyMapController extends Controller {
     "profileMid",
     "profileEnd",
     "popupLink",
+    "popupEdit",
     "popupDownload",
     "popupMobileLink",
+    // Route Planner (technote.ROUTE-DRAW.md): the editor panel lives inside
+    // the map stage; the sub-bar swaps pills for the drawing chip + Exit.
+    "plannerPanel",
+    "drawingChip",
+    "exitButton",
   ];
 
   static values = {
@@ -100,6 +107,18 @@ export default class MyMapController extends Controller {
     // "__ROUTE_ID__" placeholder (maps/show.html.erb renders it from the
     // static_map member route).
     thumbPostUrlTemplate: String,
+    // Route Planner (technote.ROUTE-DRAW.md): the three POST doors
+    // (segment calculate, editor save, POI image upload), the GET template
+    // for one route's editor boot state, and the edit-link template for the
+    // popup's "Edit route in the planner" affordance.
+    plannerCalculateUrl: String,
+    plannerSaveUrl: String,
+    plannerPoiImageUrl: String,
+    plannerStateUrlTemplate: String,
+    popupEditUrlTemplate: String,
+    // §2.2: server-rendered editor state when the page opened via
+    // /map?edit=ID — the controller boots the planner with it on map load.
+    editState: Object,
   };
 
   // Debounce for viewport-driven public fetches (§5.2).
@@ -177,6 +196,11 @@ export default class MyMapController extends Controller {
     // Location chip fetch (updateLocationLabel): a newer viewport aborts an
     // older in-flight label request, same contract as the public fetch.
     this.labelAbortController = null;
+    // Center key of the last (or in-flight) label request: moveend can fire
+    // twice for one settled camera (the initial fit's own moveend handler AND
+    // the debounced onMoveEnd), and both onMapLoad and refreshViewportData ask
+    // for the chip — the key keeps one Photon request per distinct center.
+    this.labelCenterKey = null;
 
     // "Find new routes" (design-refs/stitch_explorer_v0.14): null = normal
     // viewport drawer; a filters object = match mode. matchIds carries the
@@ -204,6 +228,13 @@ export default class MyMapController extends Controller {
       "find-routes:apply",
       this.boundApplyFindFilters,
     );
+    // Popup "Edit route in the planner" (§2.2): fetch the editor state and
+    // boot the planner in place instead of the /map?edit=ID full page reload
+    // the anchor's href still carries as its no-JS fallback.
+    if (this.hasPopupEditTarget) {
+      this.boundPopupEditClick = (event) => this.onPopupEditClick(event);
+      this.popupEditTarget.addEventListener("click", this.boundPopupEditClick);
+    }
     // Always run the chip render once: with no filters it just keeps the row
     // hidden (markup default) while recording the empty fingerprint, so later
     // renderFindChips calls stay no-ops until the filter set actually changes.
@@ -213,10 +244,25 @@ export default class MyMapController extends Controller {
     // Turbo caches/restores the page DOM (back/forward). A popup left open
     // at navigation time would ride the snapshot and reappear while the
     // fresh controller starts with nothing selected — drop it from the
-    // snapshot, and start clean on a restore for good measure.
-    this.boundBeforeCache = this.hideTransientUi.bind(this);
+    // snapshot, and start clean on a restore for good measure. An active
+    // editor must not ride the snapshot either: its marker elements live
+    // INSIDE the map container, so a back/forward restore would paint them
+    // over the fresh map with no live session left to remove them.
+    this.boundBeforeCache = () => {
+      if (this.planner) {
+        this.planner.teardown();
+        this.planner = null;
+      }
+      this.hideTransientUi();
+    };
     document.addEventListener("turbo:before-cache", this.boundBeforeCache);
     this.hideTransientUi();
+
+    // §6.2 everywhere: the planner's own dirty-check (✕/Cancel/Escape) never
+    // sees page-level exits — a Turbo nav link, a native navigation, a tab
+    // close or the browser Back button would drop the session without a
+    // word and leave the user's edits behind.
+    this.bindLeaveGuards();
 
     this.buildMap();
     this.ro = new ResizeObserver(() => {
@@ -240,11 +286,25 @@ export default class MyMapController extends Controller {
     if (this.ownAbortController) this.ownAbortController.abort();
     if (this.labelAbortController) this.labelAbortController.abort();
     if (this.findAbortController) this.findAbortController.abort();
+    // The planner removes its markers, DOM listeners and map handlers.
+    if (this.planner) {
+      this.planner.teardown();
+      this.planner = null;
+    }
     this.element.removeEventListener(
       "find-routes:apply",
       this.boundApplyFindFilters,
     );
+    if (this.boundPopupEditClick && this.hasPopupEditTarget) {
+      this.popupEditTarget.removeEventListener(
+        "click",
+        this.boundPopupEditClick,
+      );
+    }
     document.removeEventListener("turbo:before-cache", this.boundBeforeCache);
+    window.removeEventListener("beforeunload", this.boundBeforeUnload);
+    document.removeEventListener("turbo:before-visit", this.boundBeforeVisit);
+    window.removeEventListener("popstate", this.boundPopState);
     if (this.ro) this.ro.disconnect();
     if (this.map) {
       this.map.remove();
@@ -301,6 +361,21 @@ export default class MyMapController extends Controller {
   }
 
   onMapLoad() {
+    // Route Planner boot (§2.2) must run FIRST — before any addSource/addLayer
+    // below. Every style mutation queues a pending source update, and
+    // map.isStyleLoaded() answers false until the worker drains it — even
+    // inside this very "load" event. Booting the planner last therefore parked
+    // the editor state in startPlanner() whose only retry hook ("load") had
+    // already fired: /map?edit=ID and the popup's Edit link reloaded into a
+    // plain map instead of the editor.
+    if (this.pendingPlannerState) {
+      const state = this.pendingPlannerState;
+      this.pendingPlannerState = null;
+      this.startPlanner(state);
+    } else {
+      this.enterPlannerFromEditState();
+    }
+
     this.addRouteLayers();
     this.bindClicks();
 
@@ -329,6 +404,10 @@ export default class MyMapController extends Controller {
     this.addArrowLayer();
 
     this.layersReady = true;
+    // Planning boot (?edit=ID): the planner booted before these layers
+    // existed, so the stage-clearing runs here too — the editor's geometry
+    // must be the only thing on the map from the first paint.
+    if (this.planner) this.setBrowsingRoutesVisibility(false);
     // Own routes load per viewport (§5.1), so the initial viewport comes
     // straight from the server-provided hotspot; the first own+public fetch
     // rides the fit transition's moveend (see resolveInitialViewport).
@@ -454,15 +533,245 @@ export default class MyMapController extends Controller {
   bindClicks() {
     const layers = ["own-line", "public-line", "own-casing", "public-casing"];
     this.map.on("click", layers, (event) => {
+      // While the Route Planner is open, map clicks belong to it (§5.1:
+      // click = place waypoint) — browsing selection stays inert.
+      if (this.planner) return;
       const feature = event.features && event.features[0];
       if (feature) this.selectRoute(Number(feature.properties.id));
     });
     this.map.on("mouseenter", layers, () => {
+      if (this.planner) return;
       this.map.getCanvas().style.cursor = "pointer";
     });
     this.map.on("mouseleave", layers, () => {
       this.map.getCanvas().style.cursor = "";
     });
+  }
+
+  // ---- Route Planner (technote.ROUTE-DRAW.md) ---------------------------------
+
+  // Layers the BROWSING mode draws routes with: the two viewport feeds, the
+  // selection highlight and its direction arrows. Planning mode hides them —
+  // the editor's geometry must be the only thing on the stage (§5.1: no
+  // visual competition while placing waypoints and dragging segments).
+  static BROWSING_ROUTE_LAYERS = [
+    "own-casing",
+    "own-line",
+    "public-casing",
+    "public-line",
+    "highlight-casing",
+    "highlight-line",
+    "route-arrows",
+  ];
+
+  // Show/hide every browsing route layer in one call. Idempotent: layers may
+  // not exist yet when the ?edit boot runs (the planner boots before
+  // addRouteLayers — see onMapLoad), and a failed base style ships none.
+  setBrowsingRoutesVisibility(visible) {
+    if (!this.map) return;
+    const visibility = visible ? "visible" : "none";
+    MyMapController.BROWSING_ROUTE_LAYERS.forEach((layerId) => {
+      if (this.map.getLayer(layerId)) {
+        this.map.setLayoutProperty(layerId, "visibility", visibility);
+      }
+    });
+  }
+
+  // §2.1 "Draw New Route": enter planning mode with an empty session.
+  enterPlanner() {
+    if (this.planner) return;
+    this.startPlanner({});
+  }
+
+  // §2.2 "Edit Existing Route": boot from the server-rendered state (page
+  // loaded via /map?edit=ID).
+  enterPlannerFromEditState() {
+    const state = this.editStateValue || {};
+    if (!state.route_id && !(state.waypoints || []).length) return;
+    this.startPlanner(state);
+  }
+
+  // Popup "Edit route in the planner" (§2.2): boot the editor IN PLACE — one
+  // owner-only JSON fetch of the route's editor state replaces the full
+  // /map?edit=ID page reload. The anchor's href remains the no-JS fallback,
+  // and any fetch failure falls back to it, so the entry never dead-ends.
+  // With a planner session already open the click is left to the native
+  // navigation: the reload replaces the whole session (old behavior) —
+  // swapping routes under an active draft is not a silent decision.
+  async onPopupEditClick(event) {
+    if (this.planner) return;
+    if (!this.plannerStateUrlTemplateValue) return;
+    const feature = this.findFeature(this.selectedId);
+    if (!feature || !feature.properties.own) return;
+    event.preventDefault();
+
+    const routeId = encodeURIComponent(feature.properties.id);
+    try {
+      const response = await fetch(
+        this.plannerStateUrlTemplateValue.replace("__ROUTE_ID__", routeId),
+        { headers: { Accept: "application/json" } },
+      );
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = await response.json();
+      const state = payload && payload.state;
+      if (!state || (!state.route_id && !(state.waypoints || []).length)) {
+        throw new Error("empty editor state");
+      }
+      // Deep-link parity: the URL mirrors the open editor (a refresh or a
+      // shared link re-boots the same route); leaving the editor strips the
+      // param again. pushState keeps Back = leave the editor, like the
+      // reload flow's history did.
+      if (this.popupEditUrlTemplateValue) {
+        window.history.pushState(
+          {},
+          "",
+          this.popupEditUrlTemplateValue.replace("__ROUTE_ID__", routeId),
+        );
+      }
+      this.startPlanner(state);
+    } catch (_error) {
+      window.location.href = this.popupEditTarget.href;
+    }
+  }
+
+  startPlanner(initialState) {
+    if (!this.map || !this.map.isStyleLoaded()) {
+      // The style may still be loading on first paint (or carry pending source
+      // updates — addSource keeps isStyleLoaded() false until the worker
+      // round-trips, even after "load"). Park the state and retry on "idle":
+      // onMapLoad consumes it on "load" first, so the two consumers race
+      // safely — the loser finds pendingPlannerState already null and no-ops.
+      this.pendingPlannerState = initialState;
+      if (this.map) this.map.once("idle", () => this.retryPendingPlanner());
+      return;
+    }
+    this.closePopup();
+    this.planner = new RoutePlanner({
+      map: this.map,
+      panel: this.plannerPanelTarget,
+      urls: {
+        calculate: this.plannerCalculateUrlValue,
+        save: this.plannerSaveUrlValue,
+        poiImage: this.plannerPoiImageUrlValue,
+      },
+      initialState,
+      onExit: () => this.leavePlannerMode(),
+      onSaved: (payload) => this.afterPlannerSave(payload),
+      onToast: (message) => this.setStatus(message, "error"),
+    });
+    this.plannerPanelTarget.hidden = false;
+    // Planning mode chrome: the drawer/pills/find button yield to the
+    // editor panel; the sub-bar swaps in the drawing chip + Exit.
+    this.element.classList.add("mymap--planning");
+    this.drawingChipTarget.hidden = false;
+    this.exitButtonTarget.hidden = false;
+    this.collapseDrawer();
+    // Clear the stage: browsing routes yield to the editor's geometry until
+    // the session ends (leavePlannerMode brings them back).
+    this.setBrowsingRoutesVisibility(false);
+  }
+
+  // Second-chance consumer for a parked editor state (see startPlanner):
+  // "idle" fires once every pending style operation has drained, so the
+  // planner still boots when the first startPlanner call hit a pending style.
+  // No-ops when onMapLoad ("load") already consumed the state.
+  retryPendingPlanner() {
+    if (!this.map || !this.pendingPlannerState) return;
+    const state = this.pendingPlannerState;
+    this.pendingPlannerState = null;
+    this.startPlanner(state);
+  }
+
+  exitPlanner() {
+    if (!this.planner) return;
+    this.planner.requestExit();
+  }
+
+  // Page-level leave guards (§6.2): every exit that does not run through the
+  // planner's own buttons still has to ask when unsaved changes exist.
+  //   * beforeunload — native navigations (the popup Edit fallback, tab
+  //     close, a real Back on a deep-link load): the browser renders its own
+  //     generic dialog; returnValue marks the request.
+  //   * turbo:before-visit — Turbo nav links: cancelable, so confirm()
+  //     decides whether the visit happens at all.
+  //   * popstate — the same-document Back after the popup Edit's pushState:
+  //     history steps cannot be canceled, so the step is routed through the
+  //     planner's own exit (its in-panel discard modal when dirty), and
+  //     "Keep editing" re-claims the ?edit deep link so the URL keeps
+  //     mirroring the open editor.
+  bindLeaveGuards() {
+    this.boundBeforeUnload = (event) => {
+      if (!this.planner || !this.planner.isDirty()) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    this.boundBeforeVisit = (event) => {
+      if (!this.planner || !this.planner.isDirty()) return;
+      if (!window.confirm("Discard unsaved changes?")) event.preventDefault();
+    };
+    this.boundPopState = () => {
+      if (!this.planner) return;
+      this.exitPlanner();
+      if (this.planner && this.planner.routeId) {
+        const url = new URL(window.location.href);
+        if (!url.searchParams.has("edit")) {
+          url.searchParams.set("edit", this.planner.routeId);
+          window.history.pushState(
+            {},
+            "",
+            url.pathname + url.search + url.hash,
+          );
+        }
+      }
+    };
+    window.addEventListener("beforeunload", this.boundBeforeUnload);
+    document.addEventListener("turbo:before-visit", this.boundBeforeVisit);
+    window.addEventListener("popstate", this.boundPopState);
+  }
+
+  leavePlannerMode() {
+    this.planner = null;
+    this.element.classList.remove("mymap--planning");
+    // The editor panel's visibility rides the hidden attribute alone (its
+    // display:flex overrides the UA [hidden] default), and startPlanner is
+    // the only place that shows it — every exit path (✕/Cancel/Escape,
+    // discard confirm, successful save) funnels through here, so the panel
+    // must be hidden again or it outlives the session and can't be closed.
+    if (this.hasPlannerPanelTarget) this.plannerPanelTarget.hidden = true;
+    if (this.hasDrawingChipTarget) this.drawingChipTarget.hidden = true;
+    if (this.hasExitButtonTarget) this.exitButtonTarget.hidden = true;
+    // The browsing routes come back — the sources kept their data while the
+    // layers were hidden, so the restore is instant (no refetch). The scope
+    // filter reapplies on top (planner is null now, so it may touch layers).
+    this.setBrowsingRoutesVisibility(true);
+    this.applyScopeToLayers();
+    this.clearEditQueryParam();
+  }
+
+  // The /map?edit=ID deep link is a one-shot editor entry: the server boots
+  // the planner from it on every request, so a leftover param would drop a
+  // page refresh straight back into editing after the session ended (every
+  // exit funnels through leavePlannerMode). Silent replaceState — no history
+  // entry, no Turbo navigation; other params and the hash survive. "Draw new
+  // route" sessions carry no param and no-op here.
+  clearEditQueryParam() {
+    if (!window.location.search) return;
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("edit")) return;
+    url.searchParams.delete("edit");
+    window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+  }
+
+  // §6.1: after a successful save the route is a first-class library member —
+  // refresh own routes so it appears on the map and in the drawer.
+  afterPlannerSave(payload) {
+    this.leavePlannerMode();
+    this.ownById = new Map();
+    this.ownCoveredBounds = [];
+    this.ownLastFetchedKey = null;
+    this.refreshViewportData();
+    this.setStatus(`Route saved — it is now in My Routes.`, "ok");
+    if (payload && payload.id) this.selectRoute(payload.id);
   }
 
   // "Return to my routes" button (technote §3.2) as a small custom control.
@@ -984,6 +1293,14 @@ export default class MyMapController extends Controller {
     if (!this.map || !this.placeLabelUrlValue || !this.hasLocationLabelTarget)
       return;
     const center = this.map.getCenter();
+    // Same-center dedupe: the initial settle can reach this method twice with
+    // an unchanged camera (onMapLoad + the fit's moveend + the debounced
+    // onMoveEnd) — only the first request for a center goes out. ~11 m
+    // rounding (1e-4 deg) still dedupes float jitter between getCenter()
+    // calls. The key clears on failure/abort so a later moveend retries.
+    const centerKey = `${center.lng.toFixed(4)},${center.lat.toFixed(4)}`;
+    if (centerKey === this.labelCenterKey) return;
+    this.labelCenterKey = centerKey;
     if (this.labelAbortController) this.labelAbortController.abort();
     this.labelAbortController = new AbortController();
     const signal = this.labelAbortController.signal;
@@ -999,7 +1316,8 @@ export default class MyMapController extends Controller {
       const label = payload && payload.place_label;
       if (label) this.locationLabelTarget.textContent = label;
     } catch (error) {
-      if (error.name === "AbortError") return; // superseded by a newer viewport
+      if (signal.aborted) return; // superseded by a newer viewport
+      this.labelCenterKey = null; // failed fetch: let the next moveend retry
       console.warn("Place label failed to load:", error);
     }
   }
@@ -1044,6 +1362,11 @@ export default class MyMapController extends Controller {
       this.statusTarget.hidden = true;
       this.statusTarget.classList.remove("is-loading", "is-error");
     }
+    // The planner panel is session state too — a back/forward restore must
+    // not resurrect a half-drawn route's editor.
+    if (this.hasPlannerPanelTarget) this.plannerPanelTarget.hidden = true;
+    if (this.hasDrawingChipTarget) this.drawingChipTarget.hidden = true;
+    if (this.hasExitButtonTarget) this.exitButtonTarget.hidden = true;
   }
 
   renderPopup(feature) {
@@ -1082,6 +1405,15 @@ export default class MyMapController extends Controller {
     // Touch layout: the card collapses to the floating details pill; its
     // link rides the same property.
     this.popupMobileLinkTarget.href = properties.url || "#";
+    // Route Planner entry (§2.2): own routes only — the edit affordance
+    // opens the planner on My Map with this route loaded.
+    if (this.hasPopupEditTarget && this.popupEditUrlTemplateValue) {
+      this.popupEditTarget.hidden = !own;
+      this.popupEditTarget.href = this.popupEditUrlTemplateValue.replace(
+        "__ROUTE_ID__",
+        encodeURIComponent(properties.id),
+      );
+    }
 
     this.renderProfile(properties.elevation_profile);
     this.popupTarget.hidden = false;
@@ -1677,6 +2009,11 @@ export default class MyMapController extends Controller {
   }
 
   applyScopeToLayers() {
+    // Planning mode owns the browsing layers' visibility entirely (they stay
+    // hidden until the session ends): settleStatus fires on every moveend and
+    // must not flip the routes back on behind the editor's back. On exit
+    // leavePlannerMode re-applies the scope once the layers are visible again.
+    if (this.planner) return;
     const visibility = (ownLayer) => {
       if (this.activeScope === "all") return "visible";
       return (this.activeScope === "own") === ownLayer ? "visible" : "none";

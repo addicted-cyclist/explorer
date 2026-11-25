@@ -11,19 +11,40 @@ class Route < ApplicationRecord
   # route icon until a later visit heals them.
   has_one_attached :static_map
   has_many :calendar_entries, dependent: :destroy
+  # Route planner collections (technote.ROUTE-DRAW.md §3/§9, §12): RW and
+  # POIs stay two SEPARATE collections, each destroyed with the route.
+  has_many :routing_waypoints, -> { order(:position) }, dependent: :destroy, inverse_of: :route
+  has_many :pois, class_name: "RoutePoi", dependent: :destroy, inverse_of: :route
 
   # Difficulty label shown as the primary badge on library cards
   TIERS = %w[Easy Moderate Hard Alpine].freeze
 
+  # Routing profiles the planner can draw with (§4). Stored on the route so
+  # reopening an existing route restores the previously selected profile.
+  ROUTING_PROFILES = %w[road gravel mtb].freeze
+  DEFAULT_ROUTING_PROFILE = "road"
+
+  # Editor seeding for routes never drawn in the planner (uploads, imports):
+  # the stored track is split into slices of at most this much ground
+  # distance, with a Routing Waypoint seeded at every cut. A drag then only
+  # ever recalculates its local slice — with a single start→finish segment,
+  # dragging either end (on a loop the two sit close together) would rebuild
+  # the whole ride into a small path. The waypoint count is capped, so very
+  # long tracks stretch the spacing instead of flooding the map with markers.
+  PLANNER_SEED_SEGMENT_M = 10_000.0
+  PLANNER_SEED_MAX_WAYPOINTS = 25
+
   validates :title, presence: true, length: { maximum: 200 }
-  validates :source, inclusion: { in: %w[upload google_drive], allow_nil: true }
+  validates :source, inclusion: { in: %w[upload google_drive drawn], allow_nil: true }
   validates :tier, inclusion: { in: TIERS, allow_nil: true }
   validates :sport_type, length: { maximum: 40 }, allow_nil: true
+  validates :routing_profile, inclusion: { in: ROUTING_PROFILES, allow_nil: true }
+
   # Moving time in seconds, parsed from the GPX and editable on the detail
   # page (drives the derived moving pace — see #moving_pace).
   validates :duration, numericality: { only_integer: true, greater_than_or_equal_to: 0, allow_nil: true }
 
-  SOURCES = %w[upload google_drive].freeze
+  SOURCES = %w[upload google_drive drawn].freeze
 
   # Source predicates used by the library cards and import stats
   def google_drive?
@@ -33,6 +54,82 @@ class Route < ApplicationRecord
   def upload?
     source == "upload"
   end
+
+  # Drawn in the Route Planner (technote.ROUTE-DRAW.md) — the GPX is
+  # generated from the calculated geometry rather than uploaded.
+  def drawn?
+    source == "drawn"
+  end
+
+  # ---- Route planner (technote.ROUTE-DRAW.md) ------------------------------
+
+  # The planner editor state for this route (§2.2: opening an existing route
+  # loads geometry, RWs, SPs, POIs and the profile) — the exact JSON shape
+  # the frontend planner boots from. Routes that have been through the
+  # planner ship the persisted planner_geometry and their RW rows. Routes
+  # that were never drawn (uploads, imports) have no planner collections —
+  # their stored GPX track is split into editor slices with a Routing
+  # Waypoint seeded at every cut, so the editor opens with the real line,
+  # ready to edit: dragging any point only ever recalculates its local
+  # slice.
+  def planner_state
+    geometry = planner_geometry.is_a?(Hash) ? planner_geometry : {}
+    if drawn? || planner_geometry.is_a?(Hash)
+      waypoints = routing_waypoints.map { |waypoint| { id: waypoint.id, lat: waypoint.lat, lon: waypoint.lon } }
+      segments = Array(geometry["segments"]).map { |segment| segment["points"] }
+    else
+      waypoints, segments = seeded_editor_track
+    end
+    {
+      route_id: id,
+      title: title,
+      profile: routing_profile || DEFAULT_ROUTING_PROFILE,
+      loop: geometry["loop"].present?,
+      waypoints: waypoints,
+      pois: pois.map { |poi| poi_state(poi) },
+      segments: segments
+    }
+  end
+
+  # Editor geometry for a route never drawn in the planner (uploads,
+  # imports): the stored GPX track downsampled to the saver's per-segment
+  # limit (the editor hands the same geometry back on save, so nothing it
+  # ships may exceed what the saver accepts), then split with a Routing
+  # Waypoint seeded at every cut. The cuts are exact track points and
+  # adjacent slices share them, so the union rebuilds the ride
+  # byte-for-byte; on the next save the seeds become real waypoint rows
+  # like any user-placed one (§6.1: the editor state is the full truth).
+  def seeded_editor_track
+    track = track_coordinates
+    return [ [], [] ] if track.size < 2
+
+    track = Map::TrackGeometry.downsample(track, Planner::RouteSaver::MAX_SEGMENT_POINTS)
+    cuts = Map::TrackGeometry.split_indexes(
+      track, max_segment_m: PLANNER_SEED_SEGMENT_M, max_segments: PLANNER_SEED_MAX_WAYPOINTS - 1
+    )
+    waypoints = cuts.map do |index|
+      point = track[index]
+      { id: nil, lat: point[1], lon: point[0] }
+    end
+    [ waypoints, cuts.each_cons(2).map { |from, to| track[from..to] } ]
+  end
+
+  def poi_state(poi)
+    state = {
+      id: poi.id, lat: poi.lat, lon: poi.lon,
+      title: poi.title, description: poi.description,
+      external_url: poi.external_url
+    }
+    # The cacheable blob URL only while an image is attached; the editor
+    # keeps new uploads client-side until Save.
+    state[:image_url] = rails_blob_path(poi.image) if poi.image.attached?
+    state
+  end
+
+  def rails_blob_path(blob)
+    Rails.application.routes.url_helpers.rails_blob_path(blob, only_path: true)
+  end
+
 
   # ---- Public visibility (Phase 9 share) ----------------------------------
   # A route scheduled on its owner's calendar is readable by anyone —
@@ -93,10 +190,12 @@ class Route < ApplicationRecord
 
   # ---- Deep copy (save to library, calendar join) ------------------------
   # Attributes carried onto a deep copy: the parsed GPX facts and display
-  # metadata. Ownership, timestamps, source and the completed flag reset.
+  # metadata, plus everything the Route Planner persisted (§9) so a joined
+  # drawn ride stays fully editable in the joiner's library. Ownership,
+  # timestamps, source and the completed flag reset.
   DEEP_COPY_ATTRIBUTES = %w[
     title description distance elevation_gain elevation_loss min_elevation
-    max_elevation duration tier sport_type
+    max_elevation duration tier sport_type routing_profile planner_geometry
   ].freeze
 
   # Build (unsaved) a duplicate of this route owned by +owner+. The GPX file
@@ -107,7 +206,7 @@ class Route < ApplicationRecord
   def deep_copy_for(owner)
     owner.routes.build(
       attributes.slice(*DEEP_COPY_ATTRIBUTES).merge(
-        "source" => "upload",
+        "source" => drawn? ? "drawn" : "upload",
         "completed" => false
       )
     ).tap do |copy|
@@ -122,13 +221,15 @@ class Route < ApplicationRecord
         )
       end
 
-      next unless static_map.attached?
+      if static_map.attached?
+        copy.static_map.attach(
+          io: StringIO.new(static_map.download),
+          filename: static_map.filename,
+          content_type: static_map.content_type
+        )
+      end
 
-      copy.static_map.attach(
-        io: StringIO.new(static_map.download),
-        filename: static_map.filename,
-        content_type: static_map.content_type
-      )
+      copy_planner_collections(copy)
     end
   end
 
@@ -151,11 +252,6 @@ class Route < ApplicationRecord
     duration.to_i.positive? ? duration : DEFAULT_MOVING_DURATION
   end
 
-  # Trackpoints per smoothing window for elevation stats: a centered moving
-  # average over 5 readings strips the GPS altitude jitter that would
-  # otherwise be summed up as phantom climb/descent (see smooth_elevations).
-  ELEVATION_SMOOTHING_WINDOW = 5
-
   # Parse the attached GPX file and populate stats fields
   def parse_gpx!
     return unless gpx_file.attached?
@@ -170,10 +266,13 @@ class Route < ApplicationRecord
         self.min_elevation = elevations.min
         self.max_elevation = elevations.max
         # GPS altitude jitter must be smoothed away before the delta sums,
-        # or every wiggle is counted as phantom climb/descent.
-        smoothed = smooth_elevations(elevations)
-        self.elevation_gain = compute_elevation_gain(smoothed)
-        self.elevation_loss = compute_elevation_loss(smoothed)
+        # or every wiggle is counted as phantom climb/descent. The same
+        # ElevationStats math serves the Route Planner's drawn routes, so an
+        # uploaded and a drawn ride always agree on what a metre of climbing
+        # is.
+        smoothed = Map::ElevationStats.smooth(elevations)
+        self.elevation_gain = Map::ElevationStats.gain(smoothed)
+        self.elevation_loss = Map::ElevationStats.loss(smoothed)
       end
 
       # The full-resolution track as [lon, lat, ele] triplets — bounds and
@@ -248,36 +347,29 @@ class Route < ApplicationRecord
     assign_attributes(Route.map_bounds_from(coords))
   end
 
-  # Centered moving average over ELEVATION_SMOOTHING_WINDOW points. Raw GPS
-  # altitude readings jitter by several meters between trackpoints; feeding
-  # that noise to compute_elevation_gain/loss counts every wiggle as real
-  # climb/descent and wildly inflates the stats. The window shrinks at the
-  # track ends (mean of the available neighbours), so the result always has
-  # the same length as the input. Series shorter than three points have no
-  # meaningful jitter to smooth and are returned unchanged.
-  def smooth_elevations(elevations)
-    return elevations if elevations.size < 3
-
-    half = ELEVATION_SMOOTHING_WINDOW / 2
-    elevations.each_index.map do |i|
-      window = elevations[[ i - half, 0 ].max..[ i + half, elevations.size - 1 ].min]
-      window.sum.to_f / window.size
+  # Deep-copy the Route Planner collections (technote.ROUTE-DRAW.md §9) onto
+  # +copy+: ordered RW and POIs with their metadata and imagery. Plain row
+  # copies — the copy owns its own planner state exactly like it owns its own
+  # GPX bytes, so editing one can never move the other's waypoints.
+  def copy_planner_collections(copy)
+    key_map = {}
+    routing_waypoints.each do |waypoint|
+      duplicate = copy.routing_waypoints.build(lat: waypoint.lat, lon: waypoint.lon, position: waypoint.position)
+      key_map[waypoint.id] = duplicate
     end
-  end
+    pois.each do |poi|
+      duplicate = copy.pois.build(
+        lat: poi.lat, lon: poi.lon, title: poi.title,
+        description: poi.description, external_url: poi.external_url,
+        routing_waypoint: poi.routing_waypoint && key_map[poi.routing_waypoint.id]
+      )
+      next unless poi.image.attached?
 
-  def compute_elevation_gain(elevations)
-    gain = 0.0
-    elevations.each_cons(2) do |a, b|
-      gain += (b - a) if b > a
+      duplicate.image.attach(
+        io: StringIO.new(poi.image.download),
+        filename: poi.image.filename,
+        content_type: poi.image.content_type
+      )
     end
-    gain
-  end
-
-  def compute_elevation_loss(elevations)
-    loss = 0.0
-    elevations.each_cons(2) do |a, b|
-      loss += (a - b) if a > b
-    end
-    loss
   end
 end

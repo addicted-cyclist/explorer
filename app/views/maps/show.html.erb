@@ -1,4 +1,12 @@
 <% content_for :title, "My Map" %>
+<%# Turbo must not snapshot this workspace: a cached editor would restore
+    ghost waypoint markers over a fresh map with no live session left to
+    remove them, and history navigation away from a dirty editor has to go
+    through the controller's leave guards — which only see real visits
+    (turbo:before-visit), never snapshot restorations. %>
+<% content_for :head do %>
+  <meta name="turbo-cache-control" content="no-cache">
+<% end %>
 <%# My Map (technote.MYMAP-FEATURE.md + design-refs/stitch_explorer_v0.14).
     Full-bleed map workspace: sub-bar (location chip, scope pills, disabled
     "draw" affordance), the MapLibre canvas, the floating routes drawer and
@@ -26,7 +34,23 @@
          whole own-routes library — own routes load per viewport now, so the
          client can no longer derive it. "[]" when no parsed routes exist;
          the controller then falls back to persisted → geolocation → default. %>
-     data-my-map-hotspot-bounds-value="<%= Array(@own_hotspot_bounds).to_json %>">
+     data-my-map-hotspot-bounds-value="<%= Array(@own_hotspot_bounds).to_json %>"
+     <%# Route Planner (technote.ROUTE-DRAW.md): the three HTTP doors the
+         planner module uses — segment calculation, editor save and the POI
+         image upload. All POST to PlannerController behind the session. %>
+     data-my-map-planner-calculate-url-value="<%= planner_calculate_path %>"
+     data-my-map-planner-save-url-value="<%= planner_save_path %>"
+     data-my-map-planner-poi-image-url-value="<%= planner_poi_images_path %>"
+     <%# GET template for one route's editor boot state (§2.2): the popup's
+         Edit affordance fetches it and boots the planner in place — no page
+         reload. The /map?edit=ID href below stays as the no-JS fallback and
+         the deep-link/refresh entry. %>
+     data-my-map-planner-state-url-template-value="<%= planner_state_path("__ROUTE_ID__") %>"
+     data-my-map-popup-edit-url-template-value="<%= map_path(edit: "__ROUTE_ID__") %>"
+     <%# §2.2 Edit existing route: the server-rendered editor state (RWs, SPs,
+         POIs, profile, segments) when the page was opened via /map?edit=ID —
+         "{}" for a fresh planner. %>
+     data-my-map-edit-state-value="<%= (@planner_state || {}).to_json %>">
 
   <div class="mymap__subbar">
     <div class="mymap__subbar-inner">
@@ -49,12 +73,24 @@
                   data-my-map-target="scopePill" data-scope="public"
                   data-action="my-map#setScope">Public (<span data-my-map-target="publicCount">0</span>)</button>
         </div>
-        <%# Stage 2 affordance from the design reference: visible but inert
-            until route drawing ships (technote §10 keeps it out of scope). %>
-        <button type="button" class="mymap__draw btn btn--secondary" disabled
-                title="Draw new route (coming soon)">
+        <%# Route Planner mode indicators (design-refs/stitch_explorer_v.0.15):
+            while planning, the scope pills swap for the drawing-mode chip and
+            an Exit button; CSS on .mymap--planning toggles the pieces. %>
+        <div class="mymap__drawing-chip" data-my-map-target="drawingChip" hidden>
+          <span class="mymap__drawing-dot" aria-hidden="true"></span>
+          <span>Drawing Mode: Click map to place waypoints</span>
+        </div>
+        <button type="button" class="mymap__draw btn btn--secondary"
+                title="Draw a new route on the map"
+                data-action="my-map#enterPlanner">
           <span class="material-symbols-outlined" aria-hidden="true">gesture</span>
           <span class="mymap__draw-label">Draw new route</span>
+        </button>
+        <button type="button" class="mymap__exit btn btn--secondary"
+                title="Exit the route planner"
+                data-action="my-map#exitPlanner" data-my-map-target="exitButton" hidden>
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+          <span class="mymap__draw-label">Exit</span>
         </button>
         <%# "Find new routes" (design-refs/stitch_explorer_v0.14): opens the
             filter modal below. Two hooks share the click — my-map#openFindRoutes
@@ -183,6 +219,13 @@
           <span>Open Route Details</span>
           <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span>
         <% end %>
+        <%# Route Planner entry (§2.2): own routes only — the controller
+            unhides this and points it at /map?edit=ID. %>
+        <%= link_to "#", class: "mymap-popup__edit", title: "Edit route in the planner",
+                    aria: { label: "Edit route in the planner" },
+                    data: { my_map_target: "popupEdit", turbo: false } do %>
+          <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+        <% end %>
         <%= link_to "#", class: "mymap-popup__download", title: "Download GPX",
                     aria: { label: "Download GPX" }, data: { my_map_target: "popupDownload" } do %>
           <span class="material-symbols-outlined" aria-hidden="true">download</span>
@@ -210,6 +253,125 @@
         error feedback. Clicking an errored pill retries the viewport fetch. %>
     <button type="button" class="mymap-status t-body-sm" data-my-map-target="status"
             data-action="my-map#retry" hidden></button>
+    <%# Route Planner (technote.ROUTE-DRAW.md + design-refs/stitch_explorer_
+        v.0.15): the left editor panel. Skeleton only — the route_planner
+        module (instantiated by my-map) owns every interaction, recalculation
+        and the POI modal; the data-planner hooks below are its DOM contract. %>
+    <aside class="mymap-planner" data-my-map-target="plannerPanel" hidden aria-label="Route planner">
+      <header class="mymap-planner__head">
+        <span class="mymap-planner__badge"><span class="mymap-planner__badge-dot" aria-hidden="true"></span>DRAFT</span>
+        <button type="button" class="mymap-planner__close" data-planner="close" aria-label="Close the route planner" title="Close">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+        </button>
+      </header>
+
+      <div class="mymap-planner__name">
+        <span class="material-symbols-outlined mymap-planner__name-icon" aria-hidden="true">edit</span>
+        <input type="text" id="planner-route-name" class="mymap-planner__name-input" data-planner="title"
+               placeholder="Name your route" maxlength="200" autocomplete="off">
+      </div>
+
+      <div class="mymap-planner__section-row t-label-sm c-tertiary">ROUTING MODE</div>
+      <div class="mymap-planner__modes" role="radiogroup" aria-label="Routing profile">
+        <button type="button" class="mymap-planner__mode" data-planner="profile" data-profile="road">
+          <span class="material-symbols-outlined" aria-hidden="true">pedal_bike</span>
+          <span>Road</span>
+        </button>
+        <button type="button" class="mymap-planner__mode" data-planner="profile" data-profile="gravel">
+          <span class="material-symbols-outlined" aria-hidden="true">landscape</span>
+          <span>Gravel</span>
+        </button>
+        <button type="button" class="mymap-planner__mode" data-planner="profile" data-profile="mtb">
+          <span class="material-symbols-outlined" aria-hidden="true">forest</span>
+          <span>MTB</span>
+        </button>
+      </div>
+
+      <div class="mymap-planner__tools" role="group" aria-label="Route actions">
+        <button type="button" class="mymap-planner__tool" data-planner="undo" title="Undo (Ctrl+Z)" aria-label="Undo" disabled>
+          <span class="material-symbols-outlined" aria-hidden="true">undo</span>
+        </button>
+        <button type="button" class="mymap-planner__tool" data-planner="redo" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" disabled>
+          <span class="material-symbols-outlined" aria-hidden="true">redo</span>
+        </button>
+        <button type="button" class="mymap-planner__tool mymap-planner__tool--wide" data-planner="reverse" title="Reverse direction">
+          <span class="material-symbols-outlined" aria-hidden="true">swap_horiz</span>
+          <span>Reverse</span>
+        </button>
+        <button type="button" class="mymap-planner__tool mymap-planner__tool--wide" data-planner="loop" title="Close the loop">
+          <span class="material-symbols-outlined" aria-hidden="true">all_inclusive</span>
+          <span data-planner="loop-label">Loop</span>
+        </button>
+        <button type="button" class="mymap-planner__tool mymap-planner__tool--danger" data-planner="clear" title="Clear route">
+          <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+        </button>
+      </div>
+
+      <div class="mymap-planner__section-row">
+        <span class="mymap-planner__section-label t-label-sm c-tertiary">PLOTTED WAYPOINTS</span>
+        <%# §7: POIs never affect routing — placed with a next-map-click tool,
+            then given their metadata in the POI modal. %>
+        <button type="button" class="mymap-planner__add-poi" data-planner="add-poi"
+                title="Add a point of interest on the next map click">
+          <span class="material-symbols-outlined" aria-hidden="true">flag</span>
+          <span>POI</span>
+        </button>
+      </div>
+      <div class="mymap-planner__list" data-planner="waypoint-list" role="list"></div>
+      <p class="mymap-planner__list-hint t-body-sm c-tertiary" data-planner="list-hint">
+        Click the map to place your first waypoint.
+      </p>
+
+      <div class="mymap-planner__section-row">
+        <span class="mymap-planner__profile-label t-label-sm c-tertiary">LIVE ALTITUDE PROFILE</span>
+        <span class="mymap-planner__profile-max t-code-sm c-tertiary" data-planner="profile-max"></span>
+      </div>
+      <div class="mymap-planner__profile" data-planner="profile-block" hidden>
+        <svg class="mymap-planner__profile-chart" viewBox="0 0 300 56" preserveAspectRatio="none" aria-hidden="true">
+          <path class="mymap-planner__profile-area" data-planner="profile-area" d=""></path>
+          <path class="mymap-planner__profile-line" data-planner="profile-line" d=""></path>
+        </svg>
+      </div>
+
+      <div class="mymap-planner__stats">
+        <div class="mymap-planner__stat">
+          <span class="mymap-planner__stat-label t-label-sm">DIST</span>
+          <span class="mymap-planner__stat-value t-title-md" data-planner="stat-distance">&mdash;</span>
+        </div>
+        <div class="mymap-planner__stat">
+          <span class="mymap-planner__stat-label t-label-sm">ELEV</span>
+          <span class="mymap-planner__stat-value t-title-md" data-planner="stat-elevation">&mdash;</span>
+        </div>
+        <div class="mymap-planner__stat">
+          <span class="mymap-planner__stat-label t-label-sm">EST. TIME</span>
+          <span class="mymap-planner__stat-value t-title-md" data-planner="stat-time">&mdash;</span>
+        </div>
+        <div class="mymap-planner__stat">
+          <span class="mymap-planner__stat-label t-label-sm">POINTS</span>
+          <span class="mymap-planner__stat-value t-title-md" data-planner="stat-points">0</span>
+        </div>
+      </div>
+
+      <footer class="mymap-planner__footer">
+        <button type="button" class="btn btn--primary mymap-planner__save" data-planner="save" disabled>
+          <span class="material-symbols-outlined" aria-hidden="true">save</span>
+          <span>Save Route</span>
+        </button>
+        <button type="button" class="btn btn--secondary" data-planner="cancel">Cancel</button>
+      </footer>
+
+      <%# Exit-confirmation (§6.2: confirm when unsaved changes exist). %>
+      <div class="planner-confirm" data-planner="confirm" hidden>
+        <div class="planner-confirm__card" role="dialog" aria-modal="true" aria-labelledby="planner-confirm-title">
+          <h3 class="t-headline-sm c-primary" id="planner-confirm-title">Discard unsaved changes?</h3>
+          <p class="t-body-sm c-secondary">Your drawn route has not been saved yet.</p>
+          <footer class="planner-confirm__actions">
+            <button type="button" class="btn btn--secondary" data-planner="confirm-stay">Keep editing</button>
+            <button type="button" class="btn btn--danger" data-planner="confirm-discard">Discard changes</button>
+          </footer>
+        </div>
+      </div>
+    </aside>
 
     <%# Drawer card template — cloned per route by the controller; every
         dynamic value is set via textContent/src, never injected HTML.
@@ -242,6 +404,67 @@
       find-routes controller owns the control state and hands the semantic
       filter set to my-map on Find (find-routes:apply bubbles to the
       my-map root — the modal must stay inside it). %>
+  <%# POI editor (technote.ROUTE-DRAW.md §7): opened by the planner when the
+      rider creates or edits a Point of Interest. Title, description, link
+      and image; the planner module owns open/close and reads the fields on
+      Save. Image upload POSTs to /planner/poi_images on pick and shows the
+      preview immediately (the signed_id rides along in the editor state). %>
+  <div class="modal" id="planner-poi-modal" data-planner="poi-modal" aria-hidden="true">
+    <div class="modal__backdrop" data-planner="poi-modal-backdrop" aria-hidden="true"></div>
+    <div class="modal__card planner-poi" role="dialog" aria-modal="true" aria-labelledby="planner-poi-title">
+      <header class="modal__head">
+        <div class="planner-poi__headings">
+          <span class="material-symbols-outlined planner-poi__pin" aria-hidden="true">location_on</span>
+          <h2 class="t-headline-sm c-primary" id="planner-poi-title" data-planner="poi-heading">Point of interest</h2>
+        </div>
+        <button type="button" class="icon-btn" data-planner="poi-modal-close" aria-label="Close dialog">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </header>
+
+      <form data-planner="poi-form">
+        <div class="planner-poi__image" data-planner="poi-image-wrap" hidden>
+          <img class="planner-poi__image-img" data-planner="poi-image-preview" alt="Point of interest preview">
+          <button type="button" class="planner-poi__image-remove" data-planner="poi-image-remove" title="Remove image">
+            <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+          </button>
+        </div>
+        <label class="planner-poi__upload" data-planner="poi-upload">
+          <span class="material-symbols-outlined" aria-hidden="true">add_photo_alternate</span>
+          <span data-planner="poi-upload-label">Add an image</span>
+          <input type="file" accept="image/png,image/jpeg,image/webp" class="visually-hidden"
+                 data-planner="poi-image">
+        </label>
+        <p class="planner-poi__upload-error t-body-sm c-danger" data-planner="poi-upload-error" hidden></p>
+
+        <div class="planner-poi__field">
+          <label class="find-routes__label" for="planner-poi-title-input">Title</label>
+          <input type="text" id="planner-poi-title-input" class="planner-poi__input" data-planner="poi-title"
+                 maxlength="200" placeholder="e.g. Water refill, viewpoint, bakery&hellip;" autocomplete="off">
+        </div>
+        <div class="planner-poi__field">
+          <label class="find-routes__label" for="planner-poi-description-input">Description</label>
+          <textarea id="planner-poi-description-input" class="planner-poi__input planner-poi__input--area"
+                    data-planner="poi-description" rows="3" maxlength="2000"
+                    placeholder="What should future-you know about this place?"></textarea>
+        </div>
+        <div class="planner-poi__field">
+          <label class="find-routes__label" for="planner-poi-url-input">External link</label>
+          <input type="url" id="planner-poi-url-input" class="planner-poi__input" data-planner="poi-url"
+                 maxlength="1024" placeholder="https://&hellip;" autocomplete="off">
+        </div>
+
+        <footer class="modal__actions">
+          <button type="button" class="btn btn--secondary" data-planner="poi-cancel">Cancel</button>
+          <button type="submit" class="btn btn--primary" data-planner="poi-save">
+            <span class="material-symbols-outlined" aria-hidden="true">flag</span>
+            <span data-planner="poi-save-label">Add to Route</span>
+          </button>
+        </footer>
+      </form>
+    </div>
+  </div>
+
   <div class="modal" id="find-routes-modal"
        data-controller="modal find-routes" data-modal-id="find-routes" aria-hidden="true">
     <div class="modal__backdrop" data-action="click->modal#close" aria-hidden="true"></div>

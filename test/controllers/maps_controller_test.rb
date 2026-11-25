@@ -528,4 +528,324 @@ class MapsControllerTest < ActionDispatch::IntegrationTest
     route.gpx_file.attach(gpx_fixture_upload("exploration.gpx"))
     route.parse_gpx!
   end
+
+  # ---- Route Planner edit entry (technote.ROUTE-DRAW.md §2.2) ----------------
+
+  test "map?edit=ID boots the planner with the route's server-rendered state" do
+    route = tracked_route(@viewer, "Editable gravel loop")
+    route.update!(routing_profile: "gravel", planner_geometry: {
+      "loop" => true,
+      "segments" => [ { "points" => [ [ 8.0, 47.0, 100.0 ], [ 8.01, 47.01, 110.0 ], [ 8.0, 47.0, 100.0 ] ] } ]
+    })
+    route.routing_waypoints.create!(position: 0, lat: 47.0, lon: 8.0)
+    route.routing_waypoints.create!(position: 1, lat: 47.01, lon: 8.01)
+
+    get map_path(edit: route.id)
+
+    assert_response :success
+    root = css_select('div[data-controller="my-map"]').first
+    state = JSON.parse(root["data-my-map-edit-state-value"])
+    assert_equal route.id, state["route_id"]
+    assert_equal "Editable gravel loop", state["title"]
+    assert_equal "gravel", state["profile"]
+    assert state["loop"]
+    assert_equal 2, state["waypoints"].size
+    assert_equal 1, state["segments"].size
+    # The in-place entry door (popup Edit → JSON fetch) rides the same page.
+    assert_equal "/planner/state/__ROUTE_ID__",
+                 root["data-my-map-planner-state-url-template-value"]
+  end
+
+  test "map?edit=ID of an uploaded route ships the GPX track as the editor geometry" do
+    route = tracked_route(@viewer, "Uploaded climb")
+
+    get map_path(edit: route.id)
+
+    assert_response :success
+    root = css_select('div[data-controller="my-map"]').first
+    state = JSON.parse(root["data-my-map-edit-state-value"])
+    assert_equal route.id, state["route_id"]
+    # Waypoints are seeded server-side (start + finish; long tracks also get
+    # intermediate cuts), so the planner opens ready to edit.
+    assert_equal 2, state["waypoints"].size
+    assert_equal 1, state["segments"].size
+    assert_equal [ 8.5417, 47.3769, 100.0 ], state["segments"].first.first
+  end
+
+  test "map without edit ships an empty planner state" do
+    get map_path
+
+    assert_response :success
+    root = css_select('div[data-controller="my-map"]').first
+    assert_equal({}, JSON.parse(root["data-my-map-edit-state-value"]))
+  end
+
+  test "another user's route never opens in the editor (even a public one)" do
+    get map_path(edit: @public_route.id)
+
+    assert_redirected_to map_path
+  end
+
+  test "a bogus edit id redirects back to the plain map" do
+    get map_path(edit: "99999999")
+
+    assert_redirected_to map_path
+  end
+
+  test "the draw button is live and the planner panel ships with the page" do
+    get map_path
+
+    assert_response :success
+    assert_select "button[data-action=\"my-map#enterPlanner\"]"
+    assert_select "aside[data-my-map-target=\"plannerPanel\"]"
+    assert_select "form[data-planner=\"poi-form\"]"
+    assert_select "[data-my-map-planner-calculate-url-value]"
+    assert_select "[data-my-map-planner-save-url-value]"
+    assert_select "[data-my-map-planner-poi-image-url-value]"
+  end
+
+  # The route_planner module binds to data-planner hooks by key; a renamed or
+  # missing hook in the ERB makes entering the planner throw inside the click
+  # action (undefined.addEventListener). This test derives the required hooks
+  # FROM the module source, so the view/JS contract cannot silently drift.
+  test "the page ships every DOM hook the route_planner module binds to" do
+    get map_path
+
+    assert_response :success
+    source = Rails.root.join("app/javascript/map/route_planner.js").read
+
+    kebab_hooks = source.scan(/this\.dom\[["']([a-z-]+)["']\]/).flatten
+    camel_hooks = source.scan(/this\.dom\.([a-zA-Z]+)/).flatten
+                        .map { |name| name.gsub(/([a-z\d])([A-Z])/) { "#{Regexp.last_match(1)}-#{Regexp.last_match(2).downcase}" } }
+                        # "profiles" is a synthetic collectDom key (the profile
+                        # button group), not a data-planner attribute.
+                        .reject { |key| key == "profiles" }
+
+    hooks = (kebab_hooks + camel_hooks).uniq.sort
+    assert hooks.include?("waypoint-list"), "the scanner must find the module's hook accesses"
+    hooks.each do |hook|
+      assert_includes response.body, %(data-planner="#{hook}"),
+                      "the planner module binds to data-planner=\"#{hook}\" but the page does not ship it"
+    end
+  end
+
+  # Re-entering the planner (Exit → "Draw new route") must not stack handlers
+  # or re-add sources: MapLibre throws "Source already exists" and a single
+  # segment drag would fire one recalculation per stacked listener. Sources
+  # survive teardown, so addMapLayers is idempotent and every this.map.on
+  # (plus the document keydown) is matched by a detach in teardown().
+  test "the planner module detaches every handler and re-adds its map layers safely" do
+    source = Rails.root.join("app/javascript/map/route_planner.js").read
+    setup_body = source[/addMapLayers\(\) \{.*?\n  \}/m].to_s
+    teardown_body = source[/teardown\(\) \{.*?\n  \}/m].to_s
+    assert_not_empty setup_body, "could not locate addMapLayers()"
+    assert_not_empty teardown_body, "could not locate teardown()"
+
+    assert_includes setup_body, 'getSource("planner-route")',
+                    "addMapLayers must not re-add an existing source (re-entry throws __map.addSource: Source already exists)"
+    assert_includes setup_body, "getLayer(definition.id)",
+                    "addMapLayers must not re-add an existing layer"
+    assert_nil setup_body[/addLayer\(definition, beforeId\)/],
+               "planner layers must append to the TOP of the stack — base styles draw bridges/overpasses after their first symbol layer, which left them painted over the route"
+
+    events = setup_body.scan(/this\.map\.on\(\s*["'](\w+)["']/).flatten
+    assert_includes events, "mousedown", "the scanner must find the layer-scoped mousedown binding"
+    assert_includes events, "click"
+    events.uniq.each do |event|
+      assert_includes teardown_body, "map.off(\"#{event}\"",
+                      "teardown() never detaches the map's #{event} handler — re-entry stacks a second one"
+    end
+    # A handler bound inline (anonymous arrow) can never be detached: teardown
+    # would need its identity. Every planner map handler must be stored on the
+    # instance (`this.xxxHandler = ...`) and passed by that name to map.off.
+    stored = setup_body.scan(/this\.(\w+Handler) = /).flatten
+    assert_includes stored, "hitDownHandler", "the layer-scoped mousedown handler must be stored for teardown"
+    assert_includes stored, "hitEnterHandler"
+    assert_includes stored, "hitLeaveHandler"
+    stored.each do |handler|
+      assert_includes teardown_body, "this.#{handler}",
+                      "teardown() does not detach #{handler} — it is bound but never removed"
+    end
+    assert_nil setup_body[/this\.map\.on\(\s*["'](?:mousedown|mouseenter|mouseleave)["'][^\n]*\(\)\s*=>/],
+               "layer-scoped planner handlers must be named on the instance, not bound inline"
+
+    assert_includes source[/bindDom\(\) \{.*?\n  \}/m].to_s, "document.addEventListener"
+    assert_includes teardown_body, "document.removeEventListener"
+  end
+
+  # Regression: /map?edit=ID and the popup's Edit link reloaded into a plain
+  # map. onMapLoad added the browsing sources/layers BEFORE booting the
+  # planner; those pending style mutations make isStyleLoaded() answer false
+  # even inside the "load" event, so startPlanner parked the editor state with
+  # its only retry hook ("load") already running — the editor never opened.
+  # The boot must precede the layer mutations, and a parked state must get a
+  # live retry (once("idle")) so it can never strand.
+  test "the planner edit boot precedes style mutations and parked state retries on idle" do
+    source = Rails.root.join("app/javascript/controllers/my_map_controller.js").read
+    load_body = source[/onMapLoad\(\) \{.*?\n  \}/m].to_s
+    assert_not_empty load_body, "could not locate onMapLoad()"
+
+    boot_index = [ load_body.index("enterPlannerFromEditState"),
+                   load_body.index("this.startPlanner") ].compact.min
+    layers_index = load_body.index("this.addRouteLayers")
+    assert boot_index && layers_index, "onMapLoad must boot the planner and add the route layers"
+    assert_operator boot_index, :<, layers_index,
+                   "the planner must boot BEFORE addRouteLayers — pending source updates flip isStyleLoaded() and strand the edit boot"
+    assert_includes load_body, "pendingPlannerState",
+                    "a state parked by a Draw press before load must be consumed on load"
+
+    start_body = source[/startPlanner\(initialState\) \{.*?\n  \}/m].to_s
+    assert_not_empty start_body, "could not locate startPlanner()"
+    assert_includes start_body, 'this.map.once("idle"',
+                    "a parked planner state must retry on idle — load can already be running when the gate trips"
+  end
+
+  # Regression: after leaving the planner (✕/Cancel/Escape, discard confirm or
+  # a successful save) the aside.mymap-planner panel stayed on screen and could
+  # not be closed — its close button belonged to the already-torn-down planner
+  # instance. leavePlannerMode is the funnel every exit path goes through, so
+  # it must hide the panel symmetrically to startPlanner showing it. It must
+  # also drop the ?edit=ID deep link: the server re-boots the editor from it
+  # on every request, so a refresh would re-enter the ended session.
+  test "leaving the planner hides the panel and drops the edit deep link" do
+    source = Rails.root.join("app/javascript/controllers/my_map_controller.js").read
+    start_body = source[/startPlanner\(initialState\) \{.*?\n  \}/m].to_s
+    leave_body = source[/leavePlannerMode\(\) \{.*?\n  \}/m].to_s
+    assert_not_empty start_body, "could not locate startPlanner()"
+    assert_not_empty leave_body, "could not locate leavePlannerMode()"
+
+    assert_includes start_body, "plannerPanelTarget.hidden = false",
+                    "startPlanner must show the editor panel"
+    assert_includes leave_body, "plannerPanelTarget.hidden = true",
+                    "leavePlannerMode must hide the editor panel — nothing else runs on every exit path"
+    assert_includes leave_body, "this.planner = null",
+                    "leavePlannerMode must drop the planner reference (browsing clicks must work again)"
+    assert_includes leave_body, "clearEditQueryParam()",
+                    "leavePlannerMode must drop the ?edit=ID deep link — a refresh would re-boot the editor"
+
+    clear_body = source[/clearEditQueryParam\(\) \{.*?\n  \}/m].to_s
+    assert_not_empty clear_body, "could not locate clearEditQueryParam()"
+    assert_includes clear_body, "replaceState",
+                    "the param removal must be a silent replaceState (no history entry, no Turbo visit)"
+    assert_includes clear_body, 'searchParams.delete("edit")',
+                    "only the edit param may go — other params and the hash must survive"
+  end
+
+  # The popup's Edit affordance boots the planner IN PLACE: one owner-only
+  # JSON fetch of the editor state instead of the /map?edit=ID full page
+  # reload. The anchor's href must stay untouched (no-JS fallback), any fetch
+  # failure must fall back to that navigation, and the URL must mirror the
+  # open editor (deep-link parity with the reload entry).
+  test "the popup edit affordance boots the planner in place with a reload fallback" do
+    source = Rails.root.join("app/javascript/controllers/my_map_controller.js").read
+    handler = source[/async onPopupEditClick\(event\) \{.*?\n  \}/m].to_s
+    assert_not_empty handler, "could not locate onPopupEditClick()"
+
+    assert_includes handler, "event.preventDefault()",
+                    "the in-place boot must stop the native navigation"
+    assert_includes handler, "plannerStateUrlTemplateValue",
+                    "the boot must fetch the editor state JSON"
+    assert_includes handler, "window.location.href",
+                    "a failed fetch must fall back to the anchor's navigation"
+    assert_includes handler, "pushState",
+                    "the URL must mirror the open editor (refresh re-boots the route)"
+    assert_includes source, "boundPopupEditClick",
+                    "the handler must be bound to the popup edit target"
+  end
+
+  # Planning mode clears the stage: every browsing route layer (own + public
+  # feeds, selection highlight, direction arrows) hides when the editor opens
+  # and comes back when it closes — the sources keep their data, so the
+  # restore is instant (no refetch). The ?edit boot runs BEFORE the layers
+  # exist (see the onMapLoad ordering test), so the hide must run again there.
+  test "planning mode hides browsing routes and restores them on exit" do
+    source = Rails.root.join("app/javascript/controllers/my_map_controller.js").read
+    start_body = source[/startPlanner\(initialState\) \{.*?\n  \}/m].to_s
+    leave_body = source[/leavePlannerMode\(\) \{.*?\n  \}/m].to_s
+    load_body = source[/onMapLoad\(\) \{.*?\n  \}/m].to_s
+    assert_not_empty start_body, "could not locate startPlanner()"
+    assert_not_empty leave_body, "could not locate leavePlannerMode()"
+    assert_not_empty load_body, "could not locate onMapLoad()"
+
+    %w[own-casing own-line public-casing public-line highlight-casing highlight-line route-arrows].each do |layer|
+      assert_includes source, "\"#{layer}\"",
+                      "the browsing-layer list must include #{layer}"
+    end
+    assert_includes start_body, "setBrowsingRoutesVisibility(false)",
+                    "entering the planner must hide the browsing routes"
+    assert_includes leave_body, "setBrowsingRoutesVisibility(true)",
+                    "leaving the planner must bring the browsing routes back"
+    assert_includes load_body, "if (this.planner) this.setBrowsingRoutesVisibility(false)",
+                    "the ?edit boot precedes layer creation — the hide must run again after addRouteLayers"
+
+    # settleStatus → setStatus("") → applyScopeToLayers runs on every moveend:
+    # without a planner guard it flips the hidden routes back on mid-session
+    # (the zoom regression). On exit the scope reapplies over the restored
+    # layers, so a pre-session "My Routes"-only view survives the round trip.
+    scope_body = source[/applyScopeToLayers\(\) \{.*?\n  \}/m].to_s
+    assert_not_empty scope_body, "could not locate applyScopeToLayers()"
+    assert_includes scope_body, "if (this.planner) return",
+                    "the scope must not touch layer visibility while the planner is open"
+    assert_includes leave_body, "this.applyScopeToLayers()",
+                    "leaving the planner must reapply the scope on the restored layers"
+  end
+
+  # The planner's route line is deliberately static: solid color (failed
+  # segments switch to the §10.6 red via the layer's case expression), the
+  # pending rubber line keeps the even dash — and nothing in the editor
+  # module repaints the map on its own (no timers, no paint mutations).
+  test "the planner route line is static and colors failed segments red" do
+    source = Rails.root.join("app/javascript/map/route_planner.js").read
+
+    assert_includes source, 'id: "planner-route-line"',
+                    "the route line layer must exist"
+    assert_includes source, "FAILED_COLOR",
+                    "failed segments switch to the §10.6 red"
+    assert_includes source, "ROUTE_FLOW_DASH = [2, 2]",
+                    "the dash is uniform — one dash length, one gap length"
+    assert_includes source, '"line-dasharray": ROUTE_FLOW_DASH',
+                    "the pending rubber line paints the even dash pattern"
+    assert_nil source[/setInterval|requestAnimationFrame|setPaintProperty/],
+               "the editor is deliberately static — no animation loops in the planner"
+  end
+
+  # The editor is a click-to-place surface: the canvas cursor is the pointer
+  # everywhere in planning mode (hover included; an active geometry drag reads
+  # as "move", never as a hand), and teardown hands the default back to the
+  # browsing hover handlers.
+  test "the planner draws with a pointer cursor and restores the default on exit" do
+    source = Rails.root.join("app/javascript/map/route_planner.js").read
+
+    assert_includes source[/addMapLayers\(\) \{.*?\n  \}/m].to_s, 'style.cursor = "pointer"',
+                    "entering the planner must switch the canvas to the pointer cursor"
+    assert_includes source[/teardown\(\) \{.*?\n  \}/m].to_s, 'style.cursor = ""',
+                    "teardown must restore the browsing default cursor"
+    assert_nil source[/grab/i],
+               "no hand cursor in the editor — the map draws with the pointer"
+    assert_includes source, '"move"',
+                    "an active geometry drag reads as move, not as a hand"
+  end
+
+  # Regression: pumpCalcQueue guards on `this.inFlightCount < MAX_INFLIGHT`.
+  # While the counter was only initialised lazily (`(this.inFlightCount || 0)
+  # + 1` inside requestSegment), `undefined < 2` was false, the queue never
+  # drained and clicking the map produced NO /planner/calculate request at
+  # all. The pipeline state must be initialised in the constructor.
+  test "the planner initialises its recalculation queue state before any request" do
+    source = Rails.root.join("app/javascript/map/route_planner.js").read
+    constructor_body = source[/constructor\([^)]*\) \{.*?\n  \}/m].to_s
+    assert_not_empty constructor_body, "could not locate the RoutePlanner constructor"
+
+    assert_includes constructor_body, "this.inFlightCount = 0",
+                    "inFlightCount must be initialised to 0 in the constructor — " \
+                    "otherwise pumpCalcQueue's `inFlightCount < MAX_INFLIGHT` guard is " \
+                    "always false and no segment calculation is ever sent"
+    assert_includes constructor_body, "this.queuedSegments = new Set()",
+                    "queuedSegments must be initialised in the constructor"
+    assert_includes constructor_body, "this.calcTimer = null"
+
+    pump_body = source[/pumpCalcQueue\(\) \{.*?\n  \}/m].to_s
+    guard = pump_body[/while \((.*?)&&/, 1].to_s
+    assert_includes guard, "inFlightCount", "pumpCalcQueue must bound concurrency on inFlightCount"
+  end
 end

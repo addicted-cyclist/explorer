@@ -17,6 +17,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      brouter:
+        condition: service_healthy
     environment:
       RAILS_MASTER_KEY: ${RAILS_MASTER_KEY}
       APP_HOST: ${APP_HOST}
@@ -25,6 +27,10 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY}
       MAILER_FROM: ${MAILER_FROM}
       MAP_STYLE_URL: ${MAP_STYLE_URL}
+      # Route Planner (technote.ROUTE-DRAW.md): internal BRouter endpoint.
+      # The service name resolves inside the private `explorer` network —
+      # BRouter is NEVER exposed to the public internet (§10.3).
+      BRROUTER_URL: ${BRROUTER_URL:-http://brouter:17777/brouter}
     volumes:
       - app_storage:/rails/storage
     networks:
@@ -36,6 +42,63 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+
+  # Self-hosted BRouter routing engine (technote.ROUTE-DRAW.md §10.3): the
+  # Route Planner's backend. Official image, published by the BRouter CI to
+  # ghcr.io (Dockerfile: SEGMENTSPATH=/segments4, PROFILESPATH=/profiles2,
+  # CUSTOMPROFILESPATH=/customprofiles, HTTP on 17777). Internal network
+  # only — no ports published, unreachable from outside (§10.3). Resource
+  # limits keep routing away from Rails/Postgres/Redis headroom (§10.7).
+  brouter:
+    # Pinned, NOT :latest — the published :latest lags the segment data on
+    # brouter.de (image lookups.dat v10 vs v11 .rd5 tiles → every request
+    # dies with "lookup version mismatch"). v1.7.8 + the repo's v11
+    # lookups.dat (mounted below) match the current segments4 downloads.
+    image: ghcr.io/abrensch/brouter:v1.7.8
+    restart: unless-stopped
+    environment:
+      # Concurrent routing threads (§10.7) + JVM heap. 2 threads / 1 GB is
+      # the single-instance starting point; scale via replicas + a load
+      # balancer before raising these much further.
+      MAXTHREADS: "2"
+      JAVA_OPTS: >-
+        -Xms512M -Xmx1G -Xmn128M
+        -DmaxRunningTime=25
+        -DusePOSTRequests=false
+    volumes:
+      # OSM routing segments + elevation: persistent, updated through the
+      # controlled process in brouter/README.md — never baked into the image
+      # (§10.9). Data survives container recreation.
+      - brouter_segments:/segments4
+      # Custom profiles ship with the repo and mount read-only; requests
+      # address them as custom_road / custom_gravel / custom_mtb (BRouter
+      # resolves "custom_" names inside CUSTOMPROFILESPATH).
+      - ./brouter/profiles:/customprofiles:ro
+      # Lookup table matching the segment data version (v11). The image's
+      # bundled lookups.dat is v10 — with it, every request fails with
+      # "lookup version mismatch (old rd5?)". Keep this file in sync with
+      # the .rd5 tiles (source: abrensch/brouter master misc/profiles2/).
+      - ./brouter/lookups.dat:/profiles2/lookups.dat:ro
+    networks:
+      - explorer
+    # §10.8: container health monitoring — the check routes a tiny trip and
+    # only goes green once routing data is installed, which makes "unhealthy"
+    # the honest signal for missing/being-updated segment files. The image
+    # has NO wget/curl (bare JRE Debian), so the request goes through bash's
+    # built-in /dev/tcp. Coordinates default to the deployed data region
+    # (Da Nang, Vietnam) — override BRROUTER_HEALTH_LONLATS if the segments
+    # cover somewhere else.
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/17777 && printf \"GET /brouter?lonlats=$${BRROUTER_HEALTH_LONLATS:-108.2200,16.0470|108.2300,16.0550}&profile=custom_road&format=gpx HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n\" >&3 && timeout 15 grep -q \"<gpx\" <&3'"]
+      interval: 30s
+      timeout: 20s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 1536M
 
   postgres:
     image: postgres:16
@@ -72,6 +135,12 @@ volumes:
   app_storage:
   postgres_data:
   redis_data:
+  # OSM routing segments + elevation data for BRouter (technote.ROUTE-DRAW.md
+  # §10.9): updated through the controlled process in brouter/README.md.
+  # `name:` pins the volume name so brouter/download-segments.sh finds it
+  # regardless of the compose project prefix dokploy adds.
+  brouter_segments:
+    name: brouter_segments
 
 networks:
   explorer:

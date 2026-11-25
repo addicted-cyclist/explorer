@@ -39,6 +39,20 @@ module ActiveSupport
 
       Rack::Test::UploadedFile.new(path.to_s, "application/gpx+xml", false, original_filename: filename)
     end
+
+    # Swap the routing adapter's HTTP layer for a canned response (or a
+    # ->(url) { ... } lambda) without pulling in a mocking library. Restores
+    # the original method afterwards, even on failure.
+    def with_brouter_engine(response_or_lambda)
+      original = Routing::BrouterClient.singleton_class.instance_method(:http_get)
+      handler = response_or_lambda.respond_to?(:call) ? response_or_lambda : ->(_url) { response_or_lambda }
+      Routing::BrouterClient.singleton_class.remove_method(:http_get)
+      Routing::BrouterClient.singleton_class.define_method(:http_get) { |url| handler.call(url) }
+      yield
+    ensure
+      Routing::BrouterClient.singleton_class.remove_method(:http_get)
+      Routing::BrouterClient.singleton_class.define_method(:http_get, original)
+    end
   end
 end
 
